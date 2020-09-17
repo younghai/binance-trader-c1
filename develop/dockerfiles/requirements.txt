@@ -1,0 +1,11 @@
+fire
+black
+joblib
+ipython
+jupyterlab
+numpy
+pandas
+pillow
+matplotlib
+fastparquet
+pyarrow
