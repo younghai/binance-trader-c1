@@ -12,7 +12,7 @@ class FirstBlockDown1d(nn.Module):
 
     1. Selectable activation function
     2. Selectable Normalization method
-    3. Selectable Squeeze excitation block 
+    3. Selectable Squeeze excitation block
 
     if downscale is False -> output feature size is same with input
     if downscale is True -> output feature size is output_size = math.ceil(input_size / 2)
