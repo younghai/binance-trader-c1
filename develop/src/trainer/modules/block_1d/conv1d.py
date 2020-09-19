@@ -8,7 +8,7 @@ def identity(x):
     return x
 
 
-class conv1d(nn.Module):
+class Conv1d(nn.Module):
     def __init__(
         self,
         in_channels,
@@ -17,8 +17,8 @@ class conv1d(nn.Module):
         dropout=0,
         kernel_size=3,
         padding=1,
-        activation="selu",
-        normalization=None,
+        activation="relu",
+        normalization="bn",
         sn=False,
     ):
         super().__init__()

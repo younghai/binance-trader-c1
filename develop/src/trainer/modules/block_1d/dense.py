@@ -8,14 +8,14 @@ def identity(x):
     return x
 
 
-class dense(nn.Module):
+class Dense(nn.Module):
     def __init__(
         self,
         input_dim,
         output_dim,
         bias=True,
         dropout=0,
-        activation="selu",
+        activation="relu",
         normalization=None,
         sn=False,
     ):

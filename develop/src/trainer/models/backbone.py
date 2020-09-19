@@ -1,65 +1,127 @@
-class DenseNet3(nn.Module):
+import math
+import torch
+import torch.nn as nn
+import torch.functional as F
+from trainer.modules.block_1d import DenseBlock, TransitionBlock, NORMS
+
+
+class PredictorV1(nn.Module):
     def __init__(
         self,
-        depth,
-        num_classes,
+        n_classes,
+        n_blocks=3,
+        n_block_layers=6,
         growth_rate=12,
-        reduction=0.5,
-        bottleneck=True,
-        dropRate=0.0,
+        dropout=0.0,
+        channel_reduction=0.5,
+        activation="relu",
+        normalization="bn",
+        seblock=True,
+        sablock=True,
     ):
-        super(DenseNet3, self).__init__()
-        in_planes = 2 * growth_rate
-        n = (depth - 4) / 3
-        if bottleneck == True:
-            n = n / 2
-            block = BottleneckBlock
-        else:
-            block = BasicBlock
-        n = int(n)
-        # 1st conv before any dense block
-        self.conv1 = nn.Conv2d(
-            3, in_planes, kernel_size=3, stride=1, padding=1, bias=False
-        )
-        # 1st block
-        self.block1 = DenseBlock(n, in_planes, growth_rate, block, dropRate)
-        in_planes = int(in_planes + n * growth_rate)
-        self.trans1 = TransitionBlock(
-            in_planes, int(math.floor(in_planes * reduction)), dropRate=dropRate
-        )
-        in_planes = int(math.floor(in_planes * reduction))
-        # 2nd block
-        self.block2 = DenseBlock(n, in_planes, growth_rate, block, dropRate)
-        in_planes = int(in_planes + n * growth_rate)
-        self.trans2 = TransitionBlock(
-            in_planes, int(math.floor(in_planes * reduction)), dropRate=dropRate
-        )
-        in_planes = int(math.floor(in_planes * reduction))
-        # 3rd block
-        self.block3 = DenseBlock(n, in_planes, growth_rate, block, dropRate)
-        in_planes = int(in_planes + n * growth_rate)
-        # global average pooling and classifier
-        self.bn1 = nn.BatchNorm2d(in_planes)
-        self.relu = nn.ReLU(inplace=True)
-        self.fc = nn.Linear(in_planes, num_classes)
-        self.in_planes = in_planes
+        super(PredictorV1, self).__init__()
+        self.n_blocks = n_blocks
+        self.n_block_layers = n_block_layers
+        self.growth_rate = growth_rate
+        self.dropout = dropout
+        self.channel_reduction = channel_reduction
 
+        self.activation = activation
+        self.normalization = normalization
+        self.seblock = seblock
+        self.sablock = sablock
+
+        # Build first_conv
+        out_chennels = 2 * growth_rate
+        self.first_conv = nn.Conv1d(
+            in_chennels=3,
+            out_chennels=out_chennels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            bias=False,
+        )
+
+        # Build blocks
+        in_channels = out_chennels
+
+        blocks = []
+        for idx in range(n_blocks):
+            blocks.append(
+                self._build_block(
+                    in_channels=in_channels,
+                    use_transition_block=True if idx != n_blocks - 1 else False,
+                )
+            )
+
+            # mutate in_channels for next block
+            in_channels = self._compute_out_channels(
+                in_channels=in_channels,
+                use_transition_block=True if idx != n_blocks - 1 else False,
+            )
+
+        self.blocks = nn.Sequential(*blocks)
+
+        # Last layers
+        self.norm = NORMS[normalization.upper()](num_channels=in_channels)
+        self.act = getattr(F, activation)
+        self.global_avg_pool = nn.AdaptiveAvgPool2d([1, 1])
+
+        self.fc = nn.Linear(in_channels, n_classes)
+
+        # Initialize
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, nn.Conv1d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2.0 / n))
-            elif isinstance(m, nn.BatchNorm2d):
+
+            elif isinstance(m, nn.BatchNorm1d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
+
             elif isinstance(m, nn.Linear):
                 m.bias.data.zero_()
 
+    def _compute_out_channels(self, in_channels, use_transition_block=True):
+        if use_transition_block is True:
+            return int(
+                math.floor(
+                    (in_channels + (self.n_block_layers * self.growth_rate))
+                    * self.channel_reduction
+                )
+            )
+
+        return in_channels + (self.n_block_layers * self.growth_rate)
+
+    def _build_block(self, in_channels, use_transition_block=True):
+        dense_block = DenseBlock(
+            n_layers=self.n_block_layers,
+            in_channels=in_channels,
+            growth_rate=self.growth_rate,
+            dropout=self.dropout,
+            activation=self.activation,
+            normalization=self.normalization,
+            seblock=self.seblock,
+            sablock=self.sablock,
+        )
+
+        if use_transition_block is True:
+            in_channels = int(in_channels + (self.n_block_layers * self.growth_rate))
+            out_channels = int(math.floor(in_channels * self.channel_reduction))
+            transition_block = TransitionBlock(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                dropout=self.dropout,
+                activation=self.activation,
+                normalization=self.normalization,
+            )
+
+            return nn.Sequential(*[dense_block, transition_block])
+
+        return dense_block
+
     def forward(self, x):
-        out = self.conv1(x)
-        out = self.trans1(self.block1(out))
-        out = self.trans2(self.block2(out))
-        out = self.block3(out)
-        out = self.relu(self.bn1(out))
-        out = F.avg_pool2d(out, 8)
-        out = out.view(-1, self.in_planes)
-        return self.fc(out)
+        B, _, _ = x.size()
+        out = self.blocks(self.first_conv(x))
+        out = self.fc(self.global_avg_pool(self.act(self.norm(out))).view(B, -1))
+        return out
