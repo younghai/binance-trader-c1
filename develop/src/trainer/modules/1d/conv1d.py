@@ -43,12 +43,8 @@ class conv1d(nn.Module):
 
         self.act = getattr(torch, activation, identity)
 
-        if activation == "selu":
-            mlinit.lecun_normal_(self.conv1d.weight)
-            self.dropout = nn.AlphaDropout(dropout)
-        else:
-            mlinit.glorot_uniform_(self.conv1d.weight)
-            self.dropout = nn.Dropout2d(dropout)
+        mlinit.glorot_uniform_(self.conv1d.weight)
+        self.dropout = nn.Dropout2d(dropout)
 
         if bias:
             nn.init.constant_(self.conv1d.bias, 0)

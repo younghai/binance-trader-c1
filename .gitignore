@@ -1,0 +1,14 @@
+__pycache__
+.pyc
+.pytest_cache
+.ipynb_checkpoints
+*.h
+*.c
+*.so
+.vscode
+tmp/
+.envrc
+*.egg-info/
+.venv
+.python-version
+storage/

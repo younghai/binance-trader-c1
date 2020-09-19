@@ -32,12 +32,8 @@ class dense(nn.Module):
 
         self.act = getattr(torch, activation, identity)
 
-        if activation == "selu":
-            mlinit.lecun_normal_(self.dense.weight)
-            self.dropout = nn.AlphaDropout(dropout)
-        else:
-            mlinit.glorot_uniform_(self.dense.weight)
-            self.dropout = nn.Dropout(dropout)
+        mlinit.glorot_uniform_(self.dense.weight)
+        self.dropout = nn.Dropout(dropout)
 
         if bias:
             nn.init.constant_(self.dense.bias, 0)

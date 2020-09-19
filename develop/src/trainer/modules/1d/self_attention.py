@@ -64,7 +64,7 @@ class SelfAttention1d(nn.Module):
         s = torch.bmm(
             self.f(x).view(-1, ch // 4, w // 2).permute(0, 2, 1),
             self.g(x).view(-1, ch // 4, w),
-        )  # bmm(B X N X CH//8, B X CH//8 X N) -> B x N//2 x N
+        )  # bmm(B X N X CH//4, B X CH//4 X N) -> B x N//2 x N
         beta = self.softmax(s)
 
         o = torch.bmm(
