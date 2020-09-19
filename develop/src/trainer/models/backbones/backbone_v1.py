@@ -5,7 +5,7 @@ import torch.functional as F
 from trainer.modules.block_1d import DenseBlock, TransitionBlock, NORMS
 
 
-class PredictorV1(nn.Module):
+class BackboneV1(nn.Module):
     def __init__(
         self,
         n_classes,
@@ -19,7 +19,7 @@ class PredictorV1(nn.Module):
         seblock=True,
         sablock=True,
     ):
-        super(PredictorV1, self).__init__()
+        super(BackboneV1, self).__init__()
         self.n_blocks = n_blocks
         self.n_block_layers = n_block_layers
         self.growth_rate = growth_rate
