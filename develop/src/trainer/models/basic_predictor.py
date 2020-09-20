@@ -270,13 +270,15 @@ class BasicPredictor:
                 X, Y = test_data_dict["X"], test_data_dict["Y"]
 
                 y_preds = self.model(X)
-                predictions += y_preds.argmax(dim=-1).view(-1).cpu().tolist()
-                labels += Y.view(-1).cpu().tolist()
+                B, _, _ = y_preds.size()
+
+                predictions += y_preds.argmax(dim=-1).view(B, -1).cpu().tolist()
+                labels += Y.view(B, -1).cpu().tolist()
 
             pd.concat(
                 [
-                    pd.Series(predictions, index=index).rename("prediction"),
-                    pd.Series(labels, index=index).rename("label"),
+                    pd.DataFrame(predictions, index=index).rename("prediction"),
+                    pd.DataFrame(labels, index=index).rename("label"),
                 ]
             ).to_csv(os.path.join(save_dir, "predictions.csv"))
 

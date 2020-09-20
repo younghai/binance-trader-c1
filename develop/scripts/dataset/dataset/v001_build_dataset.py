@@ -232,6 +232,9 @@ def store_artifacts(features, labels, pricing, scaler, train_ratio, data_store_d
 
     joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))
 
+    with open(os.path.join(data_store_dir, "tradable_coins.txt"), "w") as f:
+        f.write("\n".join(pricing.columns.tolist()))
+
 
 def main(
     rawdata_dir=CONFIG["rawdata_dir"],
@@ -245,7 +248,7 @@ def main(
     make_dirs([data_store_dir])
 
     # Set file_names
-    file_names = glob(os.path.join(rawdata_dir, "*"))
+    file_names = sorted(glob(os.path.join(rawdata_dir, "*")))
 
     # Build features
     features = build_features(file_names)

@@ -22,8 +22,9 @@ def display_accuracy(historical_predictions, historical_labels):
 
 
 class Position:
-    def __init__(self, asset, qty, entry_price, entry_at, base_currency):
+    def __init__(self, asset, side, qty, entry_price, entry_at, base_currency):
         self.asset = asset
+        self.side = side
         self.qty = qty
         self.entry_price = entry_price
         self.entry_at = entry_at
@@ -36,7 +37,7 @@ class Position:
         setattr(self, key, value)
 
     def __repr__(self):
-        return f"Position(asset={self.asset}, qty={self.qty}, entry_price={self.entry_price:.4f}, base_currency={self.base_currency})"
+        return f"Position(asset={self.asset}, side={self.side}, qty={self.qty}, entry_price={self.entry_price:.4f}, base_currency={self.base_currency})"
 
     def __str__(self):
         return self.__repr__()
