@@ -34,7 +34,8 @@ MODEL_CONFIG = {
     "criterion": "ce",
     "model_name": "BackboneV1",
     "model_params": {
-        "n_classes": 4,
+        "n_class_per_asset": 4,
+        "n_classes": 120,
         "n_blocks": 3,
         "n_block_layers": 6,
         "growth_rate": 12,
@@ -108,9 +109,12 @@ class BasicPredictor:
 
         return data_config, model_config
 
+    def _build_transfroms(self):
+        return {}
+
     def _build_data_loaders(self, mode):
         assert mode in ("train", "test")
-        transforms = {}
+        transforms = self._build_transfroms()
 
         test_dataset = Dataset(
             data_dir=self.test_data_dir,
@@ -224,32 +228,6 @@ class BasicPredictor:
         }
         return test_data_dict
 
-    def _compute_train_loss(self, train_data_dict):
-        # Set data
-        X, Y = train_data_dict["X"], train_data_dict["Y"]
-
-        # Set train mode
-        self.model.train()
-        self.model.zero_grad()
-
-        # Set loss
-        y_preds = self.model(X)
-        loss = self.criterion(y_preds, Y.detach())
-
-        return loss
-
-    def _compute_test_loss(self, test_data_dict):
-        X, Y = test_data_dict["X"], test_data_dict["Y"]
-
-        # Set eval mode
-        self.model.eval()
-
-        # Set loss
-        y_preds = self.model(X)
-        loss = self.criterion(y_preds, Y.detach())
-
-        return loss
-
     @contextmanager
     def _iterable_data_loader_with_false_shuffle(self, *args, **kwds):
         # Backup variables
@@ -263,13 +241,6 @@ class BasicPredictor:
             # Set to original variable
             self.test_data_loader.shuffle = backup_shuffle
             self.iterable_test_data_loader = None
-
-    def _display_info(self, train_loss):
-        # Print loss info
-        test_data_dict = self._generate_test_data_dict()
-        test_loss = self._compute_test_loss(test_data_dict)
-
-        print(f"""INFO: train_loss: {train_loss:.2f} | test_loss: {test_loss:.2f} """)
 
     @abstractmethod
     def _step(self, train_data_dict):
@@ -299,7 +270,7 @@ class BasicPredictor:
                 X, Y = test_data_dict["X"], test_data_dict["Y"]
 
                 y_preds = self.model(X)
-                predictions += y_preds.view(-1).cpu().tolist()
+                predictions += y_preds.argmax(dim=-1).view(-1).cpu().tolist()
                 labels += Y.view(-1).cpu().tolist()
 
             pd.concat(
@@ -310,4 +281,4 @@ class BasicPredictor:
             ).to_csv(os.path.join(save_dir, "predictions.csv"))
 
     def predict(self, X):
-        return self.model(X.to(self.device)).view(-1).cpu()
+        return self.model(X.to(self.device)).argmax(dim=-1).cpu()

@@ -21,7 +21,8 @@ MODEL_CONFIG = {
     "criterion": "ce",
     "model_name": "BackboneV1",
     "model_params": {
-        "n_classes": 4,
+        "n_class_per_asset": 4,
+        "n_classes": 120,
         "n_blocks": 3,
         "n_block_layers": 6,
         "growth_rate": 12,
@@ -63,6 +64,33 @@ class PredictorV1(BasicPredictor):
             mode=mode,
         )
 
+    def _compute_train_loss(self, train_data_dict):
+        X, Y = train_data_dict["X"], train_data_dict["Y"]
+
+        # Set train mode
+        self.model.train()
+        self.model.zero_grad()
+
+        # Set loss
+        y_preds = self.model(X)
+        y_preds_shape = y_preds.size()
+        loss = self.criterion(y_preds.view(-1, y_preds_shape[-1]), Y.detach().view(-1))
+
+        return loss
+
+    def _compute_test_loss(self, test_data_dict):
+        X, Y = test_data_dict["X"], test_data_dict["Y"]
+
+        # Set eval mode
+        self.model.eval()
+
+        # Set loss
+        y_preds = self.model(X)
+        y_preds_shape = y_preds.size()
+        loss = self.criterion(y_preds.view(-1, y_preds_shape[-1]), Y.detach().view(-1))
+
+        return loss
+
     def _step(self):
         train_data_dict = self._generate_train_data_dict()
         loss = self._compute_train_loss(train_data_dict=train_data_dict)
@@ -70,6 +98,13 @@ class PredictorV1(BasicPredictor):
         self.optimizer.step()
 
         return loss
+
+    def _display_info(self, train_loss):
+        # Print loss info
+        test_data_dict = self._generate_test_data_dict()
+        test_loss = self._compute_test_loss(test_data_dict)
+
+        print(f"""INFO: train_loss: {train_loss:.2f} | test_loss: {test_loss:.2f} """)
 
     def train(self):
         for epoch in range(self.model_config["epochs"]):

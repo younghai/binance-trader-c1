@@ -39,9 +39,11 @@ class Dataset(_Dataset):
         return self.n_data
 
     def __getitem__(self, idx):
-        # astype -> float32
+        # astype -> Y: int, else: float32
         data_dict = {
-            data_type: value.iloc[idx].values.astype("float32")
+            data_type: value.iloc[idx].values.astype("int")
+            if data_type in ("Y")
+            else value.iloc[idx].values.astype("float32")
             for data_type, value in self.data_caches
         }
 

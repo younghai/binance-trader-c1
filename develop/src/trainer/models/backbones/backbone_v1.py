@@ -9,6 +9,7 @@ class BackboneV1(nn.Module):
     def __init__(
         self,
         n_classes,
+        n_class_per_asset,
         n_blocks=3,
         n_block_layers=6,
         growth_rate=12,
@@ -20,6 +21,8 @@ class BackboneV1(nn.Module):
         sablock=True,
     ):
         super(BackboneV1, self).__init__()
+        self.n_classes = n_classes
+        self.n_class_per_asset = n_class_per_asset
         self.n_blocks = n_blocks
         self.n_block_layers = n_block_layers
         self.growth_rate = growth_rate
@@ -124,4 +127,7 @@ class BackboneV1(nn.Module):
         B, _, _ = x.size()
         out = self.blocks(self.first_conv(x))
         out = self.fc(self.global_avg_pool(self.act(self.norm(out))).view(B, -1))
-        return out
+
+        # out shape: (B, 30, 4)
+        #            (B, n_class / n_class_per_asset, n_class_per_asset)
+        return out.split(self.n_class_per_asset, dim=-1)
