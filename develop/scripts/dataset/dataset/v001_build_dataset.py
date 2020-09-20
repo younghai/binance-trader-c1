@@ -171,6 +171,17 @@ def build_labels(file_names, lookahead_window, q_threshold):
     return pd.concat(labels, axis=1).dropna().sort_index()
 
 
+def build_pricing(file_names):
+    pricing = []
+    for file_name in tqdm(file_names):
+        coin_pair = file_name.split("/")[-1].split(".")[0]
+
+        close = load_rawdata(file_name=file_name)["close"].rename(coin_pair)
+        pricing.append(close)
+
+    return pd.concat(pricing, axis=1).dropna().sort_index()
+
+
 def build_scaler(features):
     scaler = StandardScaler()
     scaler.fit(features)
@@ -190,7 +201,7 @@ def preprocess_features(features, scaler, winsorize_threshold):
     return processed_features.clip(-winsorize_threshold, winsorize_threshold)
 
 
-def store_artifacts(features, labels, scaler, train_ratio, data_store_dir):
+def store_artifacts(features, labels, pricing, scaler, train_ratio, data_store_dir):
     # Make dirs
     train_data_store_dir = os.path.join(data_store_dir, "train")
     test_data_store_dir = os.path.join(data_store_dir, "test")
@@ -210,6 +221,13 @@ def store_artifacts(features, labels, scaler, train_ratio, data_store_dir):
     )
     labels.iloc[boundary_index:].to_csv(
         os.path.join(test_data_store_dir, "Y.csv"), compression="gzip"
+    )
+
+    pricing.iloc[:boundary_index].to_csv(
+        os.path.join(train_data_store_dir, "pricing.csv"), compression="gzip"
+    )
+    pricing.iloc[boundary_index:].to_csv(
+        os.path.join(test_data_store_dir, "pricing.csv"), compression="gzip"
     )
 
     joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))
@@ -240,15 +258,20 @@ def main(
     # Build labels
     labels = build_features(file_names)
 
+    # Build pricing
+    pricing = build_pricing(file_names)
+
     # Masking with common index
     common_index = features.index & labels.index
     features = features.reindex(common_index).sort_index()
     labels = labels.reindex(common_index).sort_index()
+    pricing = pricing.reindex(common_index).sort_index()
 
     # Store Artifacts
     store_artifacts(
         features=features,
         labels=labels,
+        pricing=pricing,
         scaler=scaler,
         train_ratio=train_ratio,
         data_store_dir=data_store_dir,
