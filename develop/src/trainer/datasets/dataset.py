@@ -5,10 +5,7 @@ import numpy as np
 import pandas as pd
 
 
-FILENAME_TEMPLATE = {
-    "X": "X.csv",
-    "Y": "Y.csv",
-}
+FILENAME_TEMPLATE = {"X": "X.csv", "Y": "Y.csv"}
 
 
 class Dataset(_Dataset):
@@ -23,6 +20,7 @@ class Dataset(_Dataset):
                 os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
                 header=0,
                 index_col=0,
+                compression="gzip",
             )
             for data_type in load_files
         }

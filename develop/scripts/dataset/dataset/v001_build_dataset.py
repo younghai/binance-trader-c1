@@ -198,11 +198,19 @@ def store_artifacts(features, labels, scaler, train_ratio, data_store_dir):
 
     # Store
     boundary_index = int(len(features.index) * train_ratio)
-    features.iloc[:boundary_index].to_csv(os.path.join(train_data_store_dir, "X.csv"))
-    features.iloc[boundary_index:].to_csv(os.path.join(test_data_store_dir, "X.csv"))
+    features.iloc[:boundary_index].to_csv(
+        os.path.join(train_data_store_dir, "X.csv"), compression="gzip"
+    )
+    features.iloc[boundary_index:].to_csv(
+        os.path.join(test_data_store_dir, "X.csv"), compression="gzip"
+    )
 
-    labels.iloc[:boundary_index].to_csv(os.path.join(train_data_store_dir, "Y.csv"))
-    labels.iloc[boundary_index:].to_csv(os.path.join(test_data_store_dir, "Y.csv"))
+    labels.iloc[:boundary_index].to_csv(
+        os.path.join(train_data_store_dir, "Y.csv"), compression="gzip"
+    )
+    labels.iloc[boundary_index:].to_csv(
+        os.path.join(test_data_store_dir, "Y.csv"), compression="gzip"
+    )
 
     joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))
 

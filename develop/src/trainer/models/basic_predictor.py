@@ -49,10 +49,7 @@ MODEL_CONFIG = {
 
 
 def _mutate_config_path(data_config, exp_dir):
-    for key in [
-        "checkpoint_dir",
-        "generate_output_dir",
-    ]:
+    for key in ["checkpoint_dir", "generate_output_dir"]:
         if data_config[key][0] != "/":
             data_config[key] = os.path.join(exp_dir, data_config[key])
 
