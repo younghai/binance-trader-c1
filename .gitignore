@@ -7,8 +7,9 @@ __pycache__
 *.so
 .vscode
 tmp/
-.envrc
 *.egg-info/
 .venv
 .python-version
+.nbconvert
 storage/
+notebook_cookie_secret

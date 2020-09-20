@@ -1,13 +1,13 @@
 from torch.utils.data import Dataset as _Dataset
 from typing import Dict, List, Callable
-from glob import glob
 import os
 import numpy as np
+import pandas as pd
 
 
 FILENAME_TEMPLATE = {
-    "X": "{}.npy",
-    "Y": "{}.npy",
+    "X": "X.csv",
+    "Y": "Y.csv",
 }
 
 
@@ -18,35 +18,41 @@ class Dataset(_Dataset):
         transforms: Dict[str, Callable],
         load_files: List[str] = ["X", "Y"],
     ):
-        self.filename_template = {
-            data_type: FILENAME_TEMPLATE[data_type] for data_type in load_files
-        }
-        self.dirs = {
-            data_type: os.path.join(data_dir, data_type)
-            for data_type in self.filename_template.keys()
+        self.data_caches = {
+            data_type: pd.read_csv(
+                os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
+                header=0,
+                index_col=0,
+            )
+            for data_type in load_files
         }
         self.transforms = transforms
-        self.n_data = len(glob(os.path.join(list(self.dirs.values())[0], "*.npy")))
+
+        # Check if all index are same.
+        assert all(
+            [
+                (self.data_caches[0].index == data_cache.index).all()
+                for data_cache in self.data_caches
+            ]
+        )
+        self.n_data = len(self.data_caches[0])
 
     def __len__(self):
         return self.n_data
 
     def __getitem__(self, idx):
-        data_dict = {
-            data_type: np.load(
-                os.path.join(
-                    self.dirs[data_type], self.filename_template[data_type].format(idx)
-                )
-            )
-            for data_type in self.filename_template.keys()
-        }
-
         # astype -> float32
-        for data_type in self.filename_template.keys():
-            data_dict[data_type] = data_dict[data_type].astype("float32")
+        data_dict = {
+            data_type: value.iloc[idx].values.astype("float32")
+            for data_type, value in self.data_caches
+        }
 
         # transform
         for data_type, transform in self.transforms.items():
             data_dict[data_type] = transform(data_dict[data_type])
 
         return data_dict
+
+    @property
+    def index(self):
+        return self.data_caches[0].index
