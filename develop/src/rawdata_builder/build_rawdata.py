@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from glob import glob
 from tqdm import tqdm
+from common_utils import make_dirs
 
 
 CONFIG = {
@@ -25,6 +26,7 @@ def build_rawdata(
     query_min_start_dt=CONFIG["query_min_start_dt"],
     csv_rawdata_store_dir=CONFIG["csv_rawdata_store_dir"],
 ):
+    make_dirs([csv_rawdata_store_dir])
     candidate_coins = load_candidate_coins(candidate_coins_path=candidate_coins_path)
 
     file_list = glob(os.path.join(parquet_rawdata_dir, "*.parquet"))

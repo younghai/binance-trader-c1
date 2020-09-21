@@ -14,5 +14,5 @@ tmp/
 X.csv
 Y.csv
 pricing.csv
-storage/dataset/rawdata
+*/storage/dataset/rawdata
 notebook_cookie_secret
