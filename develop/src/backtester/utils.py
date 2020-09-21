@@ -6,22 +6,6 @@ def data_loader(path):
     return pd.read_csv(path, header=0, index_col=0)
 
 
-def display_accuracy(historical_predictions, historical_labels):
-    total_accuracy = (historical_predictions == historical_labels).mean()
-
-    class_accuracy = {}
-    for class_num in range(historical_labels.max()):
-        class_mask = historical_labels == class_num
-        class_accuracy["class_" + str(class_num)] = (
-            historical_predictions[class_mask] == class_num
-        ).mean()
-
-    accuracy = pd.Series({"total": total_accuracy, **class_accuracy})
-
-    display_markdown("#### Accuracy of signals", raw=True)
-    display(accuracy)
-
-
 class Position:
     def __init__(self, asset, side, qty, entry_price, entry_at, base_currency):
         self.asset = asset

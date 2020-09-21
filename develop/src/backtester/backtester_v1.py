@@ -22,6 +22,7 @@ CONFIG = {
 class BacktesterV1(BasicBacktester):
     def __init__(
         self,
+        base_currency,
         historical_pricing_path,
         historical_predictions_path,
         position_side=CONFIG["position"],
@@ -34,6 +35,7 @@ class BacktesterV1(BasicBacktester):
         report_store_dir=CONFIG["report_store_dir"],
     ):
         super().__init__(
+            base_currency=base_currency,
             historical_pricing_path=historical_pricing_path,
             historical_predictions_path=historical_predictions_path,
             position_side=position_side,
@@ -185,7 +187,7 @@ class BacktesterV1(BasicBacktester):
 
         return capital
 
-    def run(self):
+    def run(self, display=True):
         for now in tqdm(self.index):
             predictions = self.historical_predictions.loc[now]
 
@@ -235,9 +237,10 @@ class BacktesterV1(BasicBacktester):
         report = self.generate_report()
         self.store_report(report=report)
 
-        self.display_accuracy()
-        self.display_metrics()
-        self.display_report(report=report)
+        if display is True:
+            self.display_accuracy()
+            self.display_metrics()
+            self.display_report(report=report)
 
 
 if __name__ == "__main__":

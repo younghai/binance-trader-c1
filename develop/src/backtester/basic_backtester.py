@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from abc import abstractmethod
 from IPython.display import display, display_markdown
-from .utils import data_loader, display_accuracy, Position
+from .utils import data_loader, Position
 from comman_utils import make_dirs
 from collections import OrderedDict
 import empyrical as emp
@@ -25,6 +25,7 @@ CONFIG = {
 class BasicBacktester:
     def __init__(
         self,
+        base_currency,
         historical_pricing_path,
         historical_predictions_path,
         position_side=CONFIG["position"],
@@ -37,6 +38,7 @@ class BasicBacktester:
         report_store_dir=CONFIG["report_store_dir"],
     ):
         assert position_side in ("long", "short", "longshort")
+        self.base_currency = base_currency
         self.position_side = position_side
         self.entry_ratio = entry_ratio
         self.commission = commission
@@ -52,6 +54,7 @@ class BasicBacktester:
             self.historical_predictions,
             self.historical_labels,
         ) = self.build_historical_data(
+            base_currency=base_currency,
             historical_pricing_path=historical_pricing_path,
             historical_predictions_path=historical_predictions_path,
         )
@@ -67,7 +70,7 @@ class BasicBacktester:
         return tradable_coins
 
     def build_historical_data(
-        self, historical_pricing_path, historical_predictions_path
+        self, base_currency, historical_pricing_path, historical_predictions_path
     ):
         historical_pricing = data_loader(path=historical_pricing_path)
 
@@ -75,8 +78,18 @@ class BasicBacktester:
         historical_predictions = tmp_data["prediction"]
         historical_labels = tmp_data["label"]
 
-        historical_predictions.columns = historical_pricing.columns
-        historical_labels.columns = historical_pricing.columns
+        # Re-order columns
+        columns = historical_pricing.columns
+        historical_predictions.columns = columns
+        historical_labels.columns = columns
+
+        # Filter by base_currency
+        columns_with_base_currency = columns[
+            columns.str.endswith(base_currency.upper())
+        ]
+        historical_pricing = historical_pricing[columns_with_base_currency]
+        historical_predictions = historical_predictions[columns_with_base_currency]
+        historical_labels = historical_labels[columns_with_base_currency]
 
         return historical_pricing, historical_predictions, historical_labels
 
@@ -106,14 +119,36 @@ class BasicBacktester:
         )
 
     def store_report(self, report):
-        report.to_csv(os.path.join(self.report_store_dir, "report.csv"))
-        print("[+] Stored report")
+        report.to_csv(
+            os.path.join(self.report_store_dir, f"report_{self.base_currency}.csv")
+        )
+        print(f"[+] Stored report: {self.base_currency}")
 
     def display_accuracy(self):
-        display_accuracy(
-            historical_predictions=self.historical_predictions,
-            historical_labels=self.historical_labels,
-        )
+        accuracies = {}
+
+        for column in self.historical_predictions.columns:
+            class_accuracy = {}
+            for class_num in range(self.historical_labels[column].max()):
+                class_mask = self.historical_labels[column] == class_num
+                class_accuracy["class_" + str(class_num)] = (
+                    self.historical_predictions[column][class_mask] == class_num
+                ).mean()
+
+            accuracy = pd.Series(
+                {
+                    "total": (
+                        self.historical_predictions[column]
+                        == self.historical_labels[column]
+                    ).mean(),
+                    **class_accuracy,
+                }
+            )
+            accuracies[column] = accuracy
+
+        accuracies = pd.concat(accuracies).unstack().T
+        display_markdown("#### Accuracy of signals", raw=True)
+        display(accuracies)
 
     def display_metrics(self):
         assert len(self.historical_cache) != 0
@@ -131,11 +166,11 @@ class BasicBacktester:
         metrics["avg_return"] = historical_returns.mean()
         metrics["total_return"] = historical_returns.add(1).cumprod().sub(1).iloc[-1]
 
-        display_markdown("#### Performance metrics", raw=True)
+        display_markdown(f"#### Performance metrics: {self.base_currency}", raw=True)
         display(pd.Series(metrics))
 
     def display_report(self, report):
-        display_markdown("#### Report", raw=True)
+        display_markdown(f"#### Report: {self.base_currency}", raw=True)
         _, ax = plt.subplots(3, 1, figsize=(12, 9))
 
         for idx, column in enumerate(["capital", "return", "cache"]):
