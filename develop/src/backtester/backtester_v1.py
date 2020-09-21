@@ -232,9 +232,12 @@ class BacktesterV1(BasicBacktester):
                 now=now,
             )
 
-        self.store_report()
+        report = self.generate_report()
+        self.store_report(report=report)
+
         self.display_accuracy()
         self.display_metrics()
+        self.display_report(report=report)
 
 
 if __name__ == "__main__":

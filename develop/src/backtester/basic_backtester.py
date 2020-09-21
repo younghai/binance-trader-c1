@@ -1,8 +1,9 @@
 import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from abc import abstractmethod
-from IPython.display import display
+from IPython.display import display, display_markdown
 from .utils import data_loader, display_accuracy, Position
 from comman_utils import make_dirs
 from collections import OrderedDict
@@ -90,7 +91,7 @@ class BasicBacktester:
         assert now not in getattr(self, target)
         getattr(self, target)[now] = value
 
-    def store_report(self):
+    def generate_report(self):
         historical_cache = pd.Series(self.historical_cache).rename("cache")
         historical_capital = pd.Series(self.historical_capital).rename("capital")
         historical_return = (
@@ -100,9 +101,12 @@ class BasicBacktester:
             .rename("return")
         )
 
-        pd.concat(
+        return pd.concat(
             [historical_cache, historical_capital, historical_return], axis=1
-        ).to_csv(os.path.join(self.report_store_dir, "report.csv"))
+        )
+
+    def store_report(self, report):
+        report.to_csv(os.path.join(self.report_store_dir, "report.csv"))
         print("[+] Stored report")
 
     def display_accuracy(self):
@@ -127,7 +131,19 @@ class BasicBacktester:
         metrics["avg_return"] = historical_returns.mean()
         metrics["total_return"] = historical_returns.add(1).cumprod().sub(1).iloc[-1]
 
+        display_markdown("#### Performance metrics", raw=True)
         display(pd.Series(metrics))
+
+    def display_report(self, report):
+        display_markdown("#### Report", raw=True)
+        _, ax = plt.subplots(3, 1, figsize=(12, 9))
+
+        for idx, column in enumerate(["capital", "return", "cache"]):
+            report[column].plot(ax=ax[idx])
+            ax[idx].set_title(f"historical {column}")
+
+        plt.tight_layout()
+        plt.show()
 
     @abstractmethod
     def run(self):

@@ -1,5 +1,5 @@
 import pandas as pd
-from IPython.display import display
+from IPython.display import display, display_markdown
 
 
 def data_loader(path):
@@ -18,6 +18,7 @@ def display_accuracy(historical_predictions, historical_labels):
 
     accuracy = pd.Series({"total": total_accuracy, **class_accuracy})
 
+    display_markdown("#### Accuracy of signals", raw=True)
     display(accuracy)
 
 
