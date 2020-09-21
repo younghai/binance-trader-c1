@@ -11,5 +11,8 @@ tmp/
 .venv
 .python-version
 .nbconvert
-storage/
+X.csv
+Y.csv
+pricing.csv
+storage/dataset/rawdata
 notebook_cookie_secret
