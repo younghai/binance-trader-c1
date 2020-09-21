@@ -13,8 +13,8 @@ from pandarallel import pandarallel
 pandarallel.initialize()
 
 CONFIG = {
-    "rawdata_dir": "../../../storage/dataset/rawdata/csv/",
-    "data_store_dir": "../../../storage/dataset/dataset_10m/",
+    "rawdata_dir": "../../storage/dataset/rawdata/csv/",
+    "data_store_dir": "../../storage/dataset/dataset_10m/",
     "winsorize_threshold": 0.6,
     "lookahead_window": 10,
     "train_ratio": 0.7,
@@ -236,7 +236,7 @@ def store_artifacts(features, labels, pricing, scaler, train_ratio, data_store_d
         f.write("\n".join(pricing.columns.tolist()))
 
 
-def main(
+def build_dataset(
     rawdata_dir=CONFIG["rawdata_dir"],
     data_store_dir=CONFIG["data_store_dir"],
     winsorize_threshold=CONFIG["winsorize_threshold"],
@@ -284,4 +284,4 @@ def main(
 if __name__ == "__main__":
     import fire
 
-    fire.Fire(main)
+    fire.Fire(build_dataset)

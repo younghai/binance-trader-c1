@@ -1,16 +1,21 @@
+import os
 import numpy as np
+import pandas as pd
 from abc import abstractmethod
 from .utils import data_loader, display_accuracy, Position
 from .basic_backtester import BasicBacktester
+from tqdm import tqdm
 
 
 CONFIG = {
     "position_side": "long",
     "entry_ratio": 0.1,
-    "commission": 0.15,
+    "commission": 0.0015,
     "min_holding_minutes": 2,
+    "max_holding_minutes": 10,
     "compound_interest": True,
     "possible_in_debt": False,
+    "report_store_dir": "../../storage/report/fwd_10m/v001",
 }
 
 
@@ -23,48 +28,23 @@ class BacktesterV1(BasicBacktester):
         entry_ratio=CONFIG["entry_ratio"],
         commission=CONFIG["commission"],
         min_holding_minutes=CONFIG["min_holding_minutes"],
+        max_holding_minutes=CONFIG["max_holding_minutes"],
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
+        report_store_dir=CONFIG["report_store_dir"],
     ):
-        assert position_side in ("long", "short", "longshort")
-        self.position_side = position_side
-        self.commission = commission
-        self.min_holding_minutes = min_holding_minutes
-        self.compound_interest = compound_interest
-        self.possible_in_debt = possible_in_debt
-
-        (
-            self.historical_pricing,
-            self.historical_predictions,
-        ) = self.build_historical_data(
+        super().__init__(
             historical_pricing_path=historical_pricing_path,
             historical_predictions_path=historical_predictions_path,
+            position_side=position_side,
+            entry_ratio=entry_ratio,
+            commission=commission,
+            min_holding_minutes=min_holding_minutes,
+            max_holding_minutes=max_holding_minutes,
+            compound_interest=compound_interest,
+            possible_in_debt=possible_in_debt,
+            report_store_dir=report_store_dir,
         )
-        self.tradable_coins = self.historical_pricing.columns
-        self.index = self.historical_predictions.index
-
-        self.initialize()
-
-    def load_tradable_coins(self, tradable_coins_path):
-        with open("tradable_coins_path", "r") as f:
-            tradable_coins = f.read().splitlines()
-
-        return tradable_coins
-
-    def build_historical_data(
-        self, historical_pricing_path, historical_predictions_path
-    ):
-        historical_pricing = data_loader(path=historical_pricing_path)
-        historical_predictions = data_loader(path=historical_predictions_path)[
-            "prediction"
-        ]
-        historical_predictions.columns = historical_pricing.columns
-
-        return historical_pricing, historical_predictions
-
-    def initialize(self):
-        self.positions = []
-        self.cache = 1
 
     def compute_cost_to_order(self, position):
         cache_to_order = position.entry_price * position.qty
@@ -80,6 +60,9 @@ class BacktesterV1(BasicBacktester):
 
     def pay_cache(self, cost):
         self.cache = self.cache - cost
+
+    def deposit_cache(self, profit):
+        self.cache = self.cache + profit
 
     def update_position_if_already_have(self, position):
         for idx, exist_position in enumerate(self.positions):
@@ -114,7 +97,7 @@ class BacktesterV1(BasicBacktester):
 
         return False
 
-    def order(self, asset, side, cache_to_order, now):
+    def entry_order(self, asset, side, cache_to_order, now):
         entry_price = self.historical_pricing.loc[now][asset]
         qty = cache_to_order / entry_price
 
@@ -138,11 +121,72 @@ class BacktesterV1(BasicBacktester):
                 self.pay_cache(cost=cost)
                 self.positions.append(position)
 
-    def handle_exit(self):
-        pass
+    def compute_profit(self, position, now):
+        current_price = self.historical_pricing.loc[now][position.asset]
+
+        assert position.side in ("long", "short")
+        if position.side == "long":
+            side_multiply = 1
+        if position.side == "short":
+            side_multiply = -1
+
+        profit_without_commission = (
+            current_price - position.entry_price
+        ) * position.qty
+        commission_to_order = (current_price * position.qty) * self.commission
+
+        return (profit_without_commission * side_multiply) - commission_to_order
+
+    def exit_order(self, position, now):
+        profit = self.compute_profit(position=position, now=now)
+        self.deposit_cache(profit=profit)
+
+    def handle_exit(self, positive_assets, negative_assets, now):
+        exited_position_idxes = []
+        for position_idx, position in self.positions:
+            # Handle min_holding_minutes
+            if (now - position.entry_at) <= self.min_holding_minutes:
+                continue
+
+            # Handle max_holding_minutes
+            if (now - position.entry_at) >= self.max_holding_minutes:
+                self.exit_order(position=position, now=now)
+                exited_position_idxes.append(position_idx)
+
+            # Handle exit signal
+            if (position.side == "long") and (position.asset in negative_assets):
+                self.exit_order(position=position, now=now)
+                exited_position_idxes.append(position_idx)
+
+            if (position.side == "short") and (position.asset in positive_assets):
+                self.exit_order(position=position, now=now)
+                exited_position_idxes.append(position_idx)
+
+        # Delete exited positions
+        for exited_position_idx in list(reversed(sorted(exited_position_idxes))):
+            del self.positions[exited_position_idx]
+
+    def compute_capital(self, now):
+        # capital = cache + value of positions
+        capital = self.cache
+
+        pricing = self.historical_pricing.loc[now]
+        for position in self.positions:
+            assert position.side in ("long", "short")
+            if position.side == "long":
+                side_multiply = 1
+            if position.side == "short":
+                side_multiply = -1
+
+            current_price = pricing[position.asset]
+            capital += (
+                (current_price - position.entry_price) * position.qty * side_multiply
+            )
+
+        return capital
 
     def run(self):
-        for now in self.index:
+        for now in tqdm(self.index):
             predictions = self.historical_predictions.loc[now]
 
             positive_assets = self.tradable_coins[predictions == 0]
@@ -154,10 +198,10 @@ class BacktesterV1(BasicBacktester):
             else:
                 cache_to_order = self.cache * self.entry_ratio
 
-            # Order
+            # Entry
             if self.position_side in ("long", "longshort"):
                 for order_asset in positive_assets:
-                    self.order(
+                    self.entry_order(
                         asset=order_asset,
                         side="long",
                         cache_to_order=cache_to_order,
@@ -166,9 +210,34 @@ class BacktesterV1(BasicBacktester):
 
             if self.position_side in ("short", "longshort"):
                 for order_asset in negative_assets:
-                    self.order(
+                    self.entry_order(
                         asset=order_asset,
                         side="short",
                         cache_to_order=cache_to_order,
                         now=now,
                     )
+
+            # Exit
+            self.handle_exit(
+                positive_assets=positive_assets,
+                negative_assets=negative_assets,
+                now=now,
+            )
+
+            # To report
+            self.report(value=self.cache, target="historical_cache", now=now)
+            self.report(
+                value=self.compute_capital(now=now),
+                target="historical_capital",
+                now=now,
+            )
+
+        self.store_report()
+        self.display_accuracy()
+        self.display_metrics()
+
+
+if __name__ == "__main__":
+    import fire
+
+    fire.Fire(BacktesterV1)
