@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-import torch.functional as F
-from .norm import NORMS
+import torch.nn.functional as F
+from .norms import NORMS
 from .seblock import SEBlock
 from .self_attention import SelfAttention1d
 

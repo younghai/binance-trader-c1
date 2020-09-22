@@ -1,14 +1,15 @@
 import math
 import torch
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 from trainer.modules.block_1d import DenseBlock, TransitionBlock, NORMS
 
 
 class BackboneV1(nn.Module):
     def __init__(
         self,
-        n_classes,
+        in_channels,
+        n_assets,
         n_class_per_asset,
         n_blocks=3,
         n_block_layers=6,
@@ -21,8 +22,10 @@ class BackboneV1(nn.Module):
         sablock=True,
     ):
         super(BackboneV1, self).__init__()
-        self.n_classes = n_classes
+        self.in_channels = in_channels
+        self.n_assets = n_assets
         self.n_class_per_asset = n_class_per_asset
+        self.n_classes = int(n_assets * n_class_per_asset)
         self.n_blocks = n_blocks
         self.n_block_layers = n_block_layers
         self.growth_rate = growth_rate
@@ -35,10 +38,10 @@ class BackboneV1(nn.Module):
         self.sablock = sablock
 
         # Build first_conv
-        out_chennels = 2 * growth_rate
+        out_channels = 2 * growth_rate
         self.first_conv = nn.Conv1d(
-            in_chennels=3,
-            out_chennels=out_chennels,
+            in_channels=in_channels,
+            out_channels=out_channels,
             kernel_size=3,
             stride=1,
             padding=1,
@@ -46,7 +49,7 @@ class BackboneV1(nn.Module):
         )
 
         # Build blocks
-        in_channels = out_chennels
+        in_channels = out_channels
 
         blocks = []
         for idx in range(n_blocks):
@@ -68,22 +71,25 @@ class BackboneV1(nn.Module):
         # Last layers
         self.norm = NORMS[normalization.upper()](num_channels=in_channels)
         self.act = getattr(F, activation)
-        self.global_avg_pool = nn.AdaptiveAvgPool2d([1, 1])
+        self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
 
-        self.fc = nn.Linear(in_channels, n_classes)
+        self.fc = nn.Linear(in_channels, self.n_classes)
 
         # Initialize
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2.0 / n))
+                n = m.kernel_size[0] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(1.0 / n))
 
             elif isinstance(m, nn.BatchNorm1d):
                 m.weight.data.fill_(1)
-                m.bias.data.zero_()
+
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
             elif isinstance(m, nn.Linear):
-                m.bias.data.zero_()
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def _compute_out_channels(self, in_channels, use_transition_block=True):
         if use_transition_block is True:
@@ -130,4 +136,4 @@ class BackboneV1(nn.Module):
 
         # out shape: (B, 30, 4)
         #            (B, n_class / n_class_per_asset, n_class_per_asset)
-        return out.split(self.n_class_per_asset, dim=-1)
+        return out.view(B, -1, self.n_class_per_asset)

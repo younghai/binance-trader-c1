@@ -14,6 +14,7 @@ class Dataset(_Dataset):
         data_dir: str,
         transforms: Dict[str, Callable],
         load_files: List[str] = ["X", "Y"],
+        lookback_window: int = 30,
     ):
         self.data_caches = {
             data_type: pd.read_csv(
@@ -27,24 +28,30 @@ class Dataset(_Dataset):
         self.transforms = transforms
 
         # Check if all index are same.
-        assert all(
-            [
-                (self.data_caches[0].index == data_cache.index).all()
-                for data_cache in self.data_caches
-            ]
-        )
-        self.n_data = len(self.data_caches[0])
+        if set(["X", "Y"]).issubset(load_files):
+            assert (self.data_caches["X"].index == self.data_caches["Y"].index).all()
+
+        self.n_data = len(self.data_caches["X"])
+        self.lookback_window = lookback_window
 
     def __len__(self):
-        return self.n_data
+        return self.n_data - self.lookback_window + 1
 
     def __getitem__(self, idx):
         # astype -> Y: int, else: float32
         data_dict = {
-            data_type: value.iloc[idx].values.astype("int")
+            data_type: data_cache.iloc[idx + self.lookback_window - 1].values.astype(
+                "int"
+            )
             if data_type in ("Y")
-            else value.iloc[idx].values.astype("float32")
-            for data_type, value in self.data_caches
+            else np.swapaxes(
+                data_cache.iloc[idx : idx + self.lookback_window].values.astype(
+                    "float32"
+                ),
+                0,
+                1,
+            )
+            for data_type, data_cache in self.data_caches.items()
         }
 
         # transform
@@ -55,4 +62,4 @@ class Dataset(_Dataset):
 
     @property
     def index(self):
-        return self.data_caches[0].index
+        return self.data_caches["X"].index[self.lookback_window - 1 :]

@@ -1,7 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from .norms import NORMS, perform_sn
-from .upsample import Upsample
 
 
 class FirstBlockDown1d(nn.Module):

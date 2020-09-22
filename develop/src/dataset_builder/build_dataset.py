@@ -15,10 +15,10 @@ pandarallel.initialize()
 CONFIG = {
     "rawdata_dir": "../../storage/dataset/rawdata/csv/",
     "data_store_dir": "../../storage/dataset/dataset_10m/",
-    "winsorize_threshold": 0.6,
+    "winsorize_threshold": 6,
     "lookahead_window": 10,
     "train_ratio": 0.7,
-    "q_threshold": 8,
+    "q_threshold": 7,
 }
 COLUMNS = ["open", "high", "low", "close"]
 
@@ -90,7 +90,9 @@ def _build_bins(rawdata, lookahead_window):
         .sort_index()
     )
 
-    _, bins = pd.qcut(fwd_return.dropna(), 10, retbins=True, labels=False)
+    _, bins = pd.qcut(
+        fwd_return[fwd_return != 0].dropna(), 10, retbins=True, labels=False
+    )
     bins = np.concatenate([[-np.inf], bins[1:-1], [np.inf]])
 
     return bins
@@ -148,13 +150,13 @@ def build_features(file_names):
 
         rawdata = load_rawdata(file_name=file_name)
         feature = _build_feature_by_rawdata(rawdata=rawdata)
-        feature.columns = pd.MultiIndex.from_tuples(
-            sorted([(coin_pair, column) for column in feature.columns])
-        )
-
+        feature.columns = sorted([(coin_pair, column) for column in feature.columns])
         features.append(feature)
 
-    return pd.concat(features, axis=1).dropna().sort_index()
+    features = pd.concat(features, axis=1).dropna().sort_index()
+    features.columns = range(features.shape[1])
+
+    return features
 
 
 def build_labels(file_names, lookahead_window, q_threshold):
@@ -189,6 +191,19 @@ def build_scaler(features):
     return scaler
 
 
+def build_all_bins(file_names, lookahead_window):
+    all_bins = {}
+    for file_name in tqdm(file_names):
+        coin_pair = file_name.split("/")[-1].split(".")[0]
+
+        rawdata = load_rawdata(file_name=file_name)
+        bins = _build_bins(rawdata=rawdata, lookahead_window=lookahead_window)
+
+        all_bins[coin_pair] = bins
+
+    return pd.DataFrame(all_bins)
+
+
 def preprocess_features(features, scaler, winsorize_threshold):
     index = features.index
     columns = features.columns
@@ -201,7 +216,9 @@ def preprocess_features(features, scaler, winsorize_threshold):
     return processed_features.clip(-winsorize_threshold, winsorize_threshold)
 
 
-def store_artifacts(features, labels, pricing, scaler, train_ratio, data_store_dir):
+def store_artifacts(
+    features, labels, pricing, scaler, bins, train_ratio, data_store_dir
+):
     # Make dirs
     train_data_store_dir = os.path.join(data_store_dir, "train")
     test_data_store_dir = os.path.join(data_store_dir, "test")
@@ -231,6 +248,7 @@ def store_artifacts(features, labels, pricing, scaler, train_ratio, data_store_d
     )
 
     joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))
+    bins.to_csv(os.path.join(data_store_dir, "bins.csv"))
 
     with open(os.path.join(data_store_dir, "tradable_coins.txt"), "w") as f:
         f.write("\n".join(pricing.columns.tolist()))
@@ -259,10 +277,17 @@ def build_dataset(
     )
 
     # Build labels
-    labels = build_features(file_names)
+    labels = build_labels(
+        file_names=file_names,
+        lookahead_window=lookahead_window,
+        q_threshold=q_threshold,
+    )
 
     # Build pricing
     pricing = build_pricing(file_names)
+
+    # Build bins
+    bins = build_all_bins(file_names, lookahead_window)
 
     # Masking with common index
     common_index = features.index & labels.index
@@ -276,6 +301,7 @@ def build_dataset(
         labels=labels,
         pricing=pricing,
         scaler=scaler,
+        bins=bins,
         train_ratio=train_ratio,
         data_store_dir=data_store_dir,
     )

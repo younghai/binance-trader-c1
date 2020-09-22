@@ -7,8 +7,8 @@ from abc import abstractmethod
 
 import torch
 import torch.nn as nn
-from .utils import save_model, load_model, weights_init, CRITERIONS
-from datasets.dataset import Dataset
+from .utils import save_model, load_model, weights_init
+from ..datasets.dataset import Dataset
 from torch.utils.data import DataLoader
 from trainer.models import backbones
 
@@ -21,21 +21,22 @@ DATA_CONFIG = {
 }
 
 MODEL_CONFIG = {
-    "batch_size": 64,
+    "lookback_window": 30,
+    "batch_size": 128,
     "lr": 0.0002,
     "beta1": 0.5,
     "beta2": 0.99,
-    "epochs": 100,
+    "epochs": 500,
     "print_epoch": 1,
-    "test_epoch": 1,
-    "save_epoch": 1,
     "print_iter": 10,
-    "test_iter": 500,
+    "save_epoch": 2,
     "criterion": "ce",
+    "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
+        "in_channels": 320,
+        "n_assets": 32,
         "n_class_per_asset": 4,
-        "n_classes": 120,
         "n_blocks": 3,
         "n_block_layers": 6,
         "growth_rate": 12,
@@ -69,6 +70,7 @@ class BasicPredictor:
         m_config={},
         exp_dir="./experiments",
         device="cuda",
+        pin_memory=True,
         mode="train",
     ):
         assert mode in ("train", "test")
@@ -76,6 +78,8 @@ class BasicPredictor:
         self.test_data_dir = test_data_dir
         self.exp_dir = exp_dir
         self.device = device
+        self.pin_memory = pin_memory
+
         self.data_config, self.model_config = self._build_config(
             d_config=d_config, m_config=m_config
         )
@@ -120,14 +124,15 @@ class BasicPredictor:
             data_dir=self.test_data_dir,
             transforms=transforms,
             load_files=self.data_config["load_files"],
+            lookback_window=self.model_config["lookback_window"],
         )
 
         test_data_loader = DataLoader(
             dataset=test_dataset,
             batch_size=self.model_config["batch_size"],
             shuffle=True,
-            pin_memory=True,
-            num_workers=self.model_config["batch_size"] // 2,
+            pin_memory=self.pin_memory,
+            num_workers=self.model_config["batch_size"] // 8,
         )
 
         train_data_loader = None
@@ -137,6 +142,7 @@ class BasicPredictor:
                 data_dir=self.data_dir,
                 transforms=transforms,
                 load_files=self.data_config["load_files"],
+                lookback_window=self.model_config["lookback_window"],
             )
 
             # Define data_loader
@@ -144,8 +150,8 @@ class BasicPredictor:
                 dataset=train_dataset,
                 batch_size=self.model_config["batch_size"],
                 shuffle=True,
-                pin_memory=True,
-                num_workers=self.model_config["batch_size"] // 2,
+                pin_memory=self.pin_memory,
+                num_workers=self.model_config["batch_size"] // 8,
             )
 
         return train_data_loader, test_data_loader
@@ -264,7 +270,7 @@ class BasicPredictor:
 
             predictions = []
             labels = []
-            for _ in len(self.test_data_loader):
+            for _ in range(len(self.test_data_loader)):
                 test_data_dict = self._generate_test_data_dict()
 
                 X, Y = test_data_dict["X"], test_data_dict["Y"]

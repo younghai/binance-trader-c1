@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from ml.torch import init as mlinit
 from .norms import NORMS, perform_sn
 
 
@@ -31,12 +30,7 @@ class Dense(nn.Module):
             self.norm = NORMS[normalization.upper()](num_channels=output_dim)
 
         self.act = getattr(torch, activation, identity)
-
-        mlinit.glorot_uniform_(self.dense.weight)
         self.dropout = nn.Dropout(dropout)
-
-        if bias:
-            nn.init.constant_(self.dense.bias, 0)
 
     def forward(self, x):
         return self.dropout(self.act(self.norm(self.dense(x))))

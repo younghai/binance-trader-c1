@@ -10,19 +10,22 @@ DATA_CONFIG = {
 }
 
 MODEL_CONFIG = {
-    "batch_size": 64,
+    "lookback_window": 30,
+    "batch_size": 128,
     "lr": 0.0002,
     "beta1": 0.5,
     "beta2": 0.99,
-    "epochs": 100,
+    "epochs": 500,
     "print_epoch": 1,
     "print_iter": 10,
-    "save_epoch": 1,
+    "save_epoch": 2,
     "criterion": "ce",
+    "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
+        "in_channels": 320,
+        "n_assets": 32,
         "n_class_per_asset": 4,
-        "n_classes": 120,
         "n_blocks": 3,
         "n_block_layers": 6,
         "growth_rate": 12,
@@ -52,6 +55,7 @@ class PredictorV1(BasicPredictor):
         m_config={},
         exp_dir="./experiments",
         device="cuda",
+        pin_memory=True,
         mode="train",
     ):
         super().__init__(
@@ -61,6 +65,7 @@ class PredictorV1(BasicPredictor):
             m_config={**MODEL_CONFIG, **m_config},
             exp_dir=exp_dir,
             device=device,
+            pin_memory=pin_memory,
             mode=mode,
         )
 
@@ -111,13 +116,17 @@ class PredictorV1(BasicPredictor):
             if epoch <= self.last_epoch:
                 continue
 
-            for _ in len(self.train_data_loader):
+            for iter_ in range(len(self.train_data_loader)):
                 # Optimize
                 train_loss = self._step()
 
-            if epoch % self.model_config["print_epoch"] == 0:
-                if iter % self.model_config["print_iter"] == 0:
-                    self._display_info(train_loss=train_loss)
+                # Display losses
+                if epoch % self.model_config["print_epoch"] == 0:
+                    if iter_ % self.model_config["print_iter"] == 0:
+                        self._display_info(train_loss=train_loss)
 
-            if epoch % self.model_config["save_epoch"] == 0:
+            # Store the check-point
+            if (epoch % self.model_config["save_epoch"] == 0) or (
+                epoch == self.model_config["epochs"] - 1
+            ):
                 self._save_model(model=self.model, epoch=epoch)

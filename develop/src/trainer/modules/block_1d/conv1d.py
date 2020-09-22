@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from ml.torch import init as mlinit
 from .norms import NORMS, perform_sn
 
 
@@ -42,12 +41,7 @@ class Conv1d(nn.Module):
             self.norm = NORMS[normalization.upper()](num_channels=out_channels)
 
         self.act = getattr(torch, activation, identity)
-
-        mlinit.glorot_uniform_(self.conv1d.weight)
         self.dropout = nn.Dropout2d(dropout)
-
-        if bias:
-            nn.init.constant_(self.conv1d.bias, 0)
 
     def forward(self, x):
         return self.dropout(self.act(self.norm(self.conv1d(x))))
