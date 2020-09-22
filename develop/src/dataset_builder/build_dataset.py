@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 from functools import partial
 from itertools import combinations
-from sklearn.preprocessing import RobustScaler
+from sklearn import preprocessing
 import joblib
 from common_utils import make_dirs
 from pandarallel import pandarallel
@@ -14,11 +14,12 @@ pandarallel.initialize()
 
 CONFIG = {
     "rawdata_dir": "../../storage/dataset/rawdata/csv/",
-    "data_store_dir": "../../storage/dataset/dataset_10m/",
+    "data_store_dir": "../../storage/dataset/dataset_10m_v1/",
     "winsorize_threshold": 6,
     "lookahead_window": 10,
-    "train_ratio": 0.7,
     "q_threshold": 7,
+    "train_ratio": 0.7,
+    "scaler_type": "RobustScaler",
 }
 COLUMNS = ["open", "high", "low", "close"]
 
@@ -184,8 +185,8 @@ def build_pricing(file_names):
     return pd.concat(pricing, axis=1).dropna().sort_index()
 
 
-def build_scaler(features):
-    scaler = RobustScaler()
+def build_scaler(features, scaler_type):
+    scaler = getattr(preprocessing, scaler_type)()
     scaler.fit(features[features != 0])
 
     return scaler
@@ -213,7 +214,10 @@ def preprocess_features(features, scaler, winsorize_threshold):
     )
 
     # winsorize
-    return processed_features.clip(-winsorize_threshold, winsorize_threshold)
+    if winsorize_threshold is not None:
+        return processed_features.clip(-winsorize_threshold, winsorize_threshold)
+
+    return processed_features
 
 
 def store_artifacts(
@@ -261,7 +265,10 @@ def build_dataset(
     lookahead_window=CONFIG["lookahead_window"],
     q_threshold=CONFIG["q_threshold"],
     train_ratio=CONFIG["train_ratio"],
+    scaler_type=CONFIG["scaler_type"],
 ):
+    assert scaler_type in ("RobustScaler", "StandardScaler")
+
     # Make dirs
     make_dirs([data_store_dir])
 
@@ -270,7 +277,7 @@ def build_dataset(
 
     # Build features
     features = build_features(file_names)
-    scaler = build_scaler(features)
+    scaler = build_scaler(features=features, scaler_type=scaler_type)
 
     features = preprocess_features(
         features=features, scaler=scaler, winsorize_threshold=winsorize_threshold
