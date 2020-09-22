@@ -21,15 +21,15 @@ DATA_CONFIG = {
 }
 
 MODEL_CONFIG = {
-    "lookback_window": 30,
-    "batch_size": 128,
+    "lookback_window": 60,
+    "batch_size": 1024,
     "lr": 0.0002,
     "beta1": 0.5,
     "beta2": 0.99,
-    "epochs": 500,
+    "epochs": 100,
     "print_epoch": 1,
     "print_iter": 10,
-    "save_epoch": 2,
+    "save_epoch": 1,
     "criterion": "ce",
     "load_strict": False,
     "model_name": "BackboneV1",
@@ -37,8 +37,8 @@ MODEL_CONFIG = {
         "in_channels": 320,
         "n_assets": 32,
         "n_class_per_asset": 4,
-        "n_blocks": 3,
-        "n_block_layers": 6,
+        "n_blocks": 4,
+        "n_block_layers": 16,
         "growth_rate": 12,
         "dropout": 0.2,
         "channel_reduction": 0.5,
@@ -71,6 +71,7 @@ class BasicPredictor:
         exp_dir="./experiments",
         device="cuda",
         pin_memory=True,
+        num_workers=16,
         mode="train",
     ):
         assert mode in ("train", "test")
@@ -79,6 +80,7 @@ class BasicPredictor:
         self.exp_dir = exp_dir
         self.device = device
         self.pin_memory = pin_memory
+        self.num_workers = num_workers
 
         self.data_config, self.model_config = self._build_config(
             d_config=d_config, m_config=m_config
@@ -107,7 +109,12 @@ class BasicPredictor:
             raise ValueError(f"{set(d_config.keys()) - set(data_config.keys())}")
 
         data_config = {**data_config, **d_config}
-        model_config = {**model_config, **m_config}
+
+        model_params = {
+            **model_config.pop("model_params"),
+            **m_config.pop("model_params"),
+        }
+        model_config = {**model_config, **m_config, **{"model_params": model_params}}
 
         data_config = _mutate_config_path(data_config=data_config, exp_dir=self.exp_dir)
 
@@ -132,7 +139,7 @@ class BasicPredictor:
             batch_size=self.model_config["batch_size"],
             shuffle=True,
             pin_memory=self.pin_memory,
-            num_workers=self.model_config["batch_size"] // 8,
+            num_workers=self.num_workers,
         )
 
         train_data_loader = None
@@ -151,7 +158,7 @@ class BasicPredictor:
                 batch_size=self.model_config["batch_size"],
                 shuffle=True,
                 pin_memory=self.pin_memory,
-                num_workers=self.model_config["batch_size"] // 8,
+                num_workers=self.num_workers,
             )
 
         return train_data_loader, test_data_loader

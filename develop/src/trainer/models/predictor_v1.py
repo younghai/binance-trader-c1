@@ -10,15 +10,15 @@ DATA_CONFIG = {
 }
 
 MODEL_CONFIG = {
-    "lookback_window": 30,
-    "batch_size": 128,
+    "lookback_window": 60,
+    "batch_size": 1024,
     "lr": 0.0002,
     "beta1": 0.5,
     "beta2": 0.99,
-    "epochs": 500,
+    "epochs": 100,
     "print_epoch": 1,
     "print_iter": 10,
-    "save_epoch": 2,
+    "save_epoch": 1,
     "criterion": "ce",
     "load_strict": False,
     "model_name": "BackboneV1",
@@ -26,8 +26,8 @@ MODEL_CONFIG = {
         "in_channels": 320,
         "n_assets": 32,
         "n_class_per_asset": 4,
-        "n_blocks": 3,
-        "n_block_layers": 6,
+        "n_blocks": 4,
+        "n_block_layers": 16,
         "growth_rate": 12,
         "dropout": 0.2,
         "channel_reduction": 0.5,
@@ -56,6 +56,7 @@ class PredictorV1(BasicPredictor):
         exp_dir="./experiments",
         device="cuda",
         pin_memory=True,
+        num_workers=16,
         mode="train",
     ):
         super().__init__(
@@ -66,6 +67,7 @@ class PredictorV1(BasicPredictor):
             exp_dir=exp_dir,
             device=device,
             pin_memory=pin_memory,
+            num_workers=num_workers,
             mode=mode,
         )
 
@@ -130,3 +132,9 @@ class PredictorV1(BasicPredictor):
                 epoch == self.model_config["epochs"] - 1
             ):
                 self._save_model(model=self.model, epoch=epoch)
+
+
+if __name__ == "__main__":
+    import fire
+
+    fire.Fire(PredictorV1)

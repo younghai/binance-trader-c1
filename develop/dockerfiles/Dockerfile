@@ -11,11 +11,10 @@ RUN apt-get update \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-
-ADD dockerfiles/requirements.txt requirements.txt
-RUN pip install -r requirements.txt
-
-ADD . /app
+RUN mkdir /app
+COPY . /app
 WORKDIR /app
 
-ENV PYTHONPATH $PYTHONPATH:/app:/app/src
+RUN pip install -r requirements.txt
+RUN rm -rf /app/*
+ENV PYTHONPATH $PYTHONPATH:/app:/app/src:/develop:/develop/src

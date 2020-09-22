@@ -38,7 +38,7 @@ class BackboneV1(nn.Module):
         self.sablock = sablock
 
         # Build first_conv
-        out_channels = 2 * growth_rate
+        out_channels = 4 * growth_rate
         self.first_conv = nn.Conv1d(
             in_channels=in_channels,
             out_channels=out_channels,
