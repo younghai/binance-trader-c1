@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -18,6 +19,7 @@ CONFIG = {
     "max_holding_minutes": 10,
     "compound_interest": True,
     "possible_in_debt": False,
+    "q_threshold": 7,
     "report_store_dir": "../../storage/report/fwd_10m/v001",
 }
 
@@ -26,8 +28,10 @@ class BasicBacktester:
     def __init__(
         self,
         base_currency,
+        bins_path,
         historical_pricing_path,
         historical_predictions_path,
+        report_store_dir=CONFIG["report_store_dir"],
         position_side=CONFIG["position"],
         entry_ratio=CONFIG["entry_ratio"],
         commission=CONFIG["commission"],
@@ -35,10 +39,11 @@ class BasicBacktester:
         max_holding_minutes=CONFIG["max_holding_minutes"],
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
-        report_store_dir=CONFIG["report_store_dir"],
+        q_threshold=CONFIG["q_threshold"],
     ):
         assert position_side in ("long", "short", "longshort")
         self.base_currency = base_currency
+        self.report_store_dir = report_store_dir
         self.position_side = position_side
         self.entry_ratio = entry_ratio
         self.commission = commission
@@ -46,14 +51,16 @@ class BasicBacktester:
         self.max_holding_minutes = max_holding_minutes
         self.compound_interest = compound_interest
         self.possible_in_debt = possible_in_debt
-        self.report_store_dir = report_store_dir
+        self.q_threshold = q_threshold
         make_dirs([report_store_dir])
 
+        # Load data
+        self.bins = self.load_bins(bins_path)
         (
             self.historical_pricing,
             self.historical_predictions,
             self.historical_labels,
-        ) = self.build_historical_data(
+        ) = self.load_historical_data(
             base_currency=base_currency,
             historical_pricing_path=historical_pricing_path,
             historical_predictions_path=historical_predictions_path,
@@ -69,7 +76,10 @@ class BasicBacktester:
 
         return tradable_coins
 
-    def build_historical_data(
+    def load_bins(self, bins_path):
+        return pd.read_csv(bins_path, header=0, index_col=0)
+
+    def load_historical_data(
         self, base_currency, historical_pricing_path, historical_predictions_path
     ):
         historical_pricing = data_loader(path=historical_pricing_path)
@@ -122,7 +132,25 @@ class BasicBacktester:
         report.to_csv(
             os.path.join(self.report_store_dir, f"report_{self.base_currency}.csv")
         )
-        print(f"[+] Stored report: {self.base_currency}")
+        params = {
+            "base_currency": self.base_currency,
+            "position_side": self.position_side,
+            "entry_ratio": self.entry_ratio,
+            "commission": self.commission,
+            "min_holding_minutes": self.min_holding_minutes,
+            "max_holding_minutes": self.max_holding_minutes,
+            "compound_interest": self.compound_interest,
+            "possible_in_debt": self.possible_in_debt,
+            "report_store_dir": self.report_store_dir,
+            "tradable_coins": self.tradable_coins,
+            "q_threshold": self.q_threshold,
+        }
+        with open(
+            os.path.join(self.report_store_dir, f"params_{self.base_currency}.csv"), "w"
+        ) as f:
+            json.dump(params, f)
+
+        print(f"[+] Report is stored: {self.base_currency}")
 
     def display_accuracy(self):
         accuracies = {}

@@ -6,6 +6,14 @@ def data_loader(path):
     return pd.read_csv(path, header=0, index_col=0)
 
 
+def compute_quantile(x, bins):
+    for idx in range(len(bins) - 1):
+        if bins[idx] < x <= bins[idx + 1]:
+            return idx
+
+    raise RuntimeError("unreachable")
+
+
 class Position:
     def __init__(self, asset, side, qty, entry_price, entry_at, base_currency):
         self.asset = asset

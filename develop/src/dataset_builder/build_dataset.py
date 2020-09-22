@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 from functools import partial
 from itertools import combinations
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
 import joblib
 from common_utils import make_dirs
 from pandarallel import pandarallel
@@ -185,8 +185,8 @@ def build_pricing(file_names):
 
 
 def build_scaler(features):
-    scaler = StandardScaler()
-    scaler.fit(features)
+    scaler = RobustScaler()
+    scaler.fit(features[features != 0])
 
     return scaler
 

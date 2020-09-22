@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 from abc import abstractmethod
-from .utils import data_loader, display_accuracy, Position
+from .utils import data_loader, display_accuracy, Position, compute_quantile
 from .basic_backtester import BasicBacktester
 from tqdm import tqdm
 
@@ -15,6 +15,7 @@ CONFIG = {
     "max_holding_minutes": 10,
     "compound_interest": True,
     "possible_in_debt": False,
+    "q_threshold": 7,
     "report_store_dir": "../../storage/report/fwd_10m/v001",
 }
 
@@ -23,8 +24,10 @@ class BacktesterV1(BasicBacktester):
     def __init__(
         self,
         base_currency,
+        bins_path,
         historical_pricing_path,
         historical_predictions_path,
+        report_store_dir=CONFIG["report_store_dir"],
         position_side=CONFIG["position"],
         entry_ratio=CONFIG["entry_ratio"],
         commission=CONFIG["commission"],
@@ -32,12 +35,14 @@ class BacktesterV1(BasicBacktester):
         max_holding_minutes=CONFIG["max_holding_minutes"],
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
-        report_store_dir=CONFIG["report_store_dir"],
+        q_threshold=CONFIG["q_threshold"],
     ):
         super().__init__(
             base_currency=base_currency,
+            bins_path=bins_path,
             historical_pricing_path=historical_pricing_path,
             historical_predictions_path=historical_predictions_path,
+            report_store_dir=report_store_dir,
             position_side=position_side,
             entry_ratio=entry_ratio,
             commission=commission,
@@ -45,7 +50,7 @@ class BacktesterV1(BasicBacktester):
             max_holding_minutes=max_holding_minutes,
             compound_interest=compound_interest,
             possible_in_debt=possible_in_debt,
-            report_store_dir=report_store_dir,
+            q_threshold=q_threshold,
         )
 
     def compute_cost_to_order(self, position):
@@ -133,11 +138,28 @@ class BacktesterV1(BasicBacktester):
             side_multiply = -1
 
         profit_without_commission = (
-            current_price - position.entry_price
-        ) * position.qty
+            (current_price - position.entry_price) * position.qty * side_multiply
+        )
         commission_to_order = (current_price * position.qty) * self.commission
 
-        return (profit_without_commission * side_multiply) - commission_to_order
+        return profit_without_commission - commission_to_order
+
+    def check_if_achieved(self, position, now):
+        current_price = self.historical_pricing.loc[now][position.asset]
+
+        trade_return = (current_price - position.entry_price) / position.entry_price
+        q = compute_quantile(trade_return, bins=self.bins[position.asset])
+
+        assert position.side in ("long", "short")
+        if position.side == "long":
+            if q >= self.q_threshold:
+                return True
+
+        if position.side == "short":
+            if q <= (9 - self.q_threshold):
+                return True
+
+        return False
 
     def exit_order(self, position, now):
         profit = self.compute_profit(position=position, now=now)
@@ -154,15 +176,24 @@ class BacktesterV1(BasicBacktester):
             if (now - position.entry_at) >= self.max_holding_minutes:
                 self.exit_order(position=position, now=now)
                 exited_position_idxes.append(position_idx)
+                continue
 
             # Handle exit signal
             if (position.side == "long") and (position.asset in negative_assets):
                 self.exit_order(position=position, now=now)
                 exited_position_idxes.append(position_idx)
+                continue
 
             if (position.side == "short") and (position.asset in positive_assets):
                 self.exit_order(position=position, now=now)
                 exited_position_idxes.append(position_idx)
+                continue
+
+            # Handle achievement
+            if self.check_if_achieved(position=position, now=now) is True:
+                self.exit_order(position=position, now=now)
+                exited_position_idxes.append(position_idx)
+                continue
 
         # Delete exited positions
         for exited_position_idx in list(reversed(sorted(exited_position_idxes))):

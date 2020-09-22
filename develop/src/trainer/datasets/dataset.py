@@ -14,7 +14,7 @@ class Dataset(_Dataset):
         data_dir: str,
         transforms: Dict[str, Callable],
         load_files: List[str] = ["X", "Y"],
-        lookback_window: int = 30,
+        lookback_window: int = 60,
     ):
         self.data_caches = {
             data_type: pd.read_csv(

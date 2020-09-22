@@ -134,6 +134,6 @@ class BackboneV1(nn.Module):
         out = self.blocks(self.first_conv(x))
         out = self.fc(self.global_avg_pool(self.act(self.norm(out))).view(B, -1))
 
-        # out shape: (B, 30, 4)
+        # out shape: (B, 32, 4)
         #            (B, n_class / n_class_per_asset, n_class_per_asset)
         return out.view(B, -1, self.n_class_per_asset)
