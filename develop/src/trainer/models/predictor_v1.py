@@ -7,7 +7,7 @@ from .basic_predictor import BasicPredictor
 DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
-    "load_files": ["X", "Y"],
+    "winsorize_threshold": None,
 }
 
 MODEL_CONFIG = {
@@ -20,7 +20,7 @@ MODEL_CONFIG = {
     "print_epoch": 1,
     "print_iter": 25,
     "save_epoch": 1,
-    "criterion": "ce",
+    "criterion": "fl",
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
@@ -112,7 +112,7 @@ class PredictorV1(BasicPredictor):
         test_data_dict = self._generate_test_data_dict()
         test_loss = self._compute_test_loss(test_data_dict)
 
-        print(f"""INFO: train_loss: {train_loss:.2f} | test_loss: {test_loss:.2f} """)
+        print(f""" [+] train_loss: {train_loss:.2f} | test_loss: {test_loss:.2f} """)
 
     def train(self):
         for epoch in range(self.model_config["epochs"]):

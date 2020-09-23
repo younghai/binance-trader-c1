@@ -1,4 +1,5 @@
 import os
+import json
 from glob import glob
 import pandas as pd
 import numpy as np
@@ -8,20 +9,33 @@ from itertools import combinations
 from sklearn import preprocessing
 import joblib
 from common_utils import make_dirs
-from pandarallel import pandarallel
+from joblib import Parallel, delayed
+from typing import Callable, List, Dict
 
-pandarallel.initialize()
 
 CONFIG = {
     "rawdata_dir": "../../storage/dataset/rawdata/csv/",
     "data_store_dir": "../../storage/dataset/dataset_10m_v1/",
-    "winsorize_threshold": 6,
     "lookahead_window": 10,
-    "q_threshold": 7,
+    "q_threshold": 9,
     "train_ratio": 0.7,
     "scaler_type": "RobustScaler",
+    "column_pairs": [("close", "high"), ("close", "low")],
+    "n_jobs": 4,
 }
 COLUMNS = ["open", "high", "low", "close"]
+
+
+def parallelize(func: Callable, params: List[Dict], n_jobs: int = 64) -> List:
+    outputs = []
+
+    for param in params:
+
+        outputs.append(delayed(func)(**param))
+
+    outputs = Parallel(n_jobs=n_jobs, verbose=1)(outputs)
+
+    return outputs
 
 
 def load_rawdata(file_name):
@@ -99,14 +113,14 @@ def _build_bins(rawdata, lookahead_window):
     return bins
 
 
-def _build_label_by_rawdata(rawdata, lookahead_window, q_threshold):
+def _build_label_by_rawdata(rawdata, lookahead_window, q_threshold, column_pairs):
     fwd_returns = _build_fwd_returns_by_rawdata(
-        rawdata=rawdata, lookahead_window=lookahead_window
+        rawdata=rawdata, lookahead_window=lookahead_window, column_pairs=column_pairs
     )
     bins = _build_bins(rawdata=rawdata, lookahead_window=lookahead_window)
 
     quantile_df = fwd_returns.dropna().apply(
-        lambda x: x.parallel_apply(partial(compute_quantile, bins=bins))
+        lambda x: x.apply(partial(compute_quantile, bins=bins))
     )
 
     total_positive_moving = (quantile_df >= q_threshold).any(axis=1)
@@ -144,43 +158,65 @@ def compute_quantile(x, bins):
     raise RuntimeError("unreachable")
 
 
-def build_features(file_names):
-    features = []
-    for file_name in tqdm(file_names):
+def build_features(file_names, n_jobs=1):
+    def __build_feature(file_name):
         coin_pair = file_name.split("/")[-1].split(".")[0]
 
         rawdata = load_rawdata(file_name=file_name)
         feature = _build_feature_by_rawdata(rawdata=rawdata)
         feature.columns = sorted([(coin_pair, column) for column in feature.columns])
-        features.append(feature)
+        return feature
 
+    features = parallelize(
+        func=__build_feature,
+        params=[{"file_name": file_name} for file_name in file_names],
+        n_jobs=n_jobs,
+    )
     features = pd.concat(features, axis=1).dropna().sort_index()
     features.columns = range(features.shape[1])
 
     return features
 
 
-def build_labels(file_names, lookahead_window, q_threshold):
-    labels = []
-    for file_name in tqdm(file_names):
+def build_labels(file_names, lookahead_window, q_threshold, column_pairs, n_jobs=1):
+    def __build_label(file_name, lookahead_window, q_threshold, column_pairs):
         coin_pair = file_name.split("/")[-1].split(".")[0]
 
         rawdata = load_rawdata(file_name=file_name)
-        label = _build_label_by_rawdata(
-            rawdata=rawdata, lookahead_window=lookahead_window, q_threshold=q_threshold
+        return _build_label_by_rawdata(
+            rawdata=rawdata,
+            lookahead_window=lookahead_window,
+            q_threshold=q_threshold,
+            column_pairs=column_pairs,
         ).rename(coin_pair)
-        labels.append(label)
+
+    labels = parallelize(
+        func=__build_label,
+        params=[
+            {
+                "file_name": file_name,
+                "lookahead_window": lookahead_window,
+                "q_threshold": q_threshold,
+                "column_pairs": column_pairs,
+            }
+            for file_name in file_names
+        ],
+        n_jobs=n_jobs,
+    )
 
     return pd.concat(labels, axis=1).dropna().sort_index()
 
 
-def build_pricing(file_names):
-    pricing = []
-    for file_name in tqdm(file_names):
+def build_pricing(file_names, n_jobs=1):
+    def __build_pricing(file_name):
         coin_pair = file_name.split("/")[-1].split(".")[0]
+        return load_rawdata(file_name=file_name)["close"].rename(coin_pair)
 
-        close = load_rawdata(file_name=file_name)["close"].rename(coin_pair)
-        pricing.append(close)
+    pricing = parallelize(
+        func=__build_pricing,
+        params=[{"file_name": file_name} for file_name in file_names],
+        n_jobs=n_jobs,
+    )
 
     return pd.concat(pricing, axis=1).dropna().sort_index()
 
@@ -192,20 +228,28 @@ def build_scaler(features, scaler_type):
     return scaler
 
 
-def build_all_bins(file_names, lookahead_window):
-    all_bins = {}
-    for file_name in tqdm(file_names):
-        coin_pair = file_name.split("/")[-1].split(".")[0]
-
+def build_all_bins(file_names, lookahead_window, n_jobs=1):
+    def __build_all_bin(file_name, lookahead_window):
         rawdata = load_rawdata(file_name=file_name)
-        bins = _build_bins(rawdata=rawdata, lookahead_window=lookahead_window)
+        return _build_bins(rawdata=rawdata, lookahead_window=lookahead_window)
 
-        all_bins[coin_pair] = bins
+    all_bins = parallelize(
+        func=__build_all_bin,
+        params=[
+            {"file_name": file_name, "lookahead_window": lookahead_window}
+            for file_name in file_names
+        ],
+        n_jobs=n_jobs,
+    )
+    all_bins = {
+        file_name.split("/")[-1].split(".")[0]: all_bin
+        for file_name, all_bin in zip(file_names, all_bins)
+    }
 
     return pd.DataFrame(all_bins)
 
 
-def preprocess_features(features, scaler, winsorize_threshold):
+def preprocess_features(features, scaler):
     index = features.index
     columns = features.columns
 
@@ -213,15 +257,11 @@ def preprocess_features(features, scaler, winsorize_threshold):
         scaler.transform(features), index=index, columns=columns
     )
 
-    # winsorize
-    if winsorize_threshold is not None:
-        return processed_features.clip(-winsorize_threshold, winsorize_threshold)
-
     return processed_features
 
 
 def store_artifacts(
-    features, labels, pricing, scaler, bins, train_ratio, data_store_dir
+    features, labels, pricing, scaler, bins, train_ratio, params, data_store_dir
 ):
     # Make dirs
     train_data_store_dir = os.path.join(data_store_dir, "train")
@@ -257,15 +297,21 @@ def store_artifacts(
     with open(os.path.join(data_store_dir, "tradable_coins.txt"), "w") as f:
         f.write("\n".join(pricing.columns.tolist()))
 
+    with open(os.path.join(data_store_dir, "params.json"), "w") as f:
+        json.dump(params, f)
+
+    print(f"[+] Artifacts are stored")
+
 
 def build_dataset(
     rawdata_dir=CONFIG["rawdata_dir"],
     data_store_dir=CONFIG["data_store_dir"],
-    winsorize_threshold=CONFIG["winsorize_threshold"],
     lookahead_window=CONFIG["lookahead_window"],
     q_threshold=CONFIG["q_threshold"],
     train_ratio=CONFIG["train_ratio"],
     scaler_type=CONFIG["scaler_type"],
+    column_pairs=CONFIG["column_pairs"],
+    n_jobs=CONFIG["n_jobs"],
 ):
     assert scaler_type in ("RobustScaler", "StandardScaler")
 
@@ -276,31 +322,41 @@ def build_dataset(
     file_names = sorted(glob(os.path.join(rawdata_dir, "*")))
 
     # Build features
-    features = build_features(file_names)
+    features = build_features(file_names, n_jobs=n_jobs)
     scaler = build_scaler(features=features, scaler_type=scaler_type)
 
-    features = preprocess_features(
-        features=features, scaler=scaler, winsorize_threshold=winsorize_threshold
-    )
+    features = preprocess_features(features=features, scaler=scaler)
 
     # Build labels
     labels = build_labels(
         file_names=file_names,
         lookahead_window=lookahead_window,
         q_threshold=q_threshold,
+        column_pairs=column_pairs,
+        n_jobs=n_jobs,
     )
 
     # Build pricing
-    pricing = build_pricing(file_names)
+    pricing = build_pricing(file_names=file_names, n_jobs=n_jobs)
 
     # Build bins
-    bins = build_all_bins(file_names, lookahead_window)
+    bins = build_all_bins(
+        file_names=file_names, lookahead_window=lookahead_window, n_jobs=n_jobs
+    )
 
     # Masking with common index
     common_index = features.index & labels.index
     features = features.reindex(common_index).sort_index()
     labels = labels.reindex(common_index).sort_index()
     pricing = pricing.reindex(common_index).sort_index()
+
+    params = {
+        "lookahead_window": lookahead_window,
+        "q_threshold": q_threshold,
+        "train_ratio": train_ratio,
+        "scaler_type": scaler_type,
+        "column_pairs": tuple(column_pairs),
+    }
 
     # Store Artifacts
     store_artifacts(
@@ -310,6 +366,7 @@ def build_dataset(
         scaler=scaler,
         bins=bins,
         train_ratio=train_ratio,
+        params=params,
         data_store_dir=data_store_dir,
     )
 

@@ -1,5 +1,6 @@
-import fire
 import os
+import fire
+import json
 from tqdm import tqdm
 import pandas as pd
 from copy import copy
@@ -9,16 +10,16 @@ from abc import abstractmethod
 import torch
 import torch.nn as nn
 from .utils import save_model, load_model, weights_init
+from .criterions import CRITERIONS
 from ..datasets.dataset import Dataset
 from torch.utils.data import DataLoader
 from trainer.models import backbones
 
-CRITERIONS = {"l1": nn.L1Loss, "l2": nn.MSELoss, "ce": nn.CrossEntropyLoss}
 
 DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
-    "load_files": ["X", "Y"],
+    "winsorize_threshold": None,
 }
 
 MODEL_CONFIG = {
@@ -31,7 +32,7 @@ MODEL_CONFIG = {
     "print_epoch": 1,
     "print_iter": 25,
     "save_epoch": 1,
-    "criterion": "ce",
+    "criterion": "fl",
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
@@ -100,6 +101,20 @@ class BasicPredictor:
         elif mode == "test":
             _, self.test_data_loader = self._build_data_loaders(mode=mode)
 
+        # Store params
+        self._store_params()
+
+    def _store_params(self):
+        params = {
+            "data_dir": self.data_dir,
+            "test_data_dir": self.test_data_dir,
+            "model_config": self.model_config,
+        }
+        with open(os.path.join(self.exp_dir, f"params.csv"), "w") as f:
+            json.dump(params, f)
+
+        print(f"[+] Params are stored")
+
     def _build_config(self, d_config, m_config):
         # refine path with exp_dirs
         data_config = copy(DATA_CONFIG)
@@ -132,8 +147,8 @@ class BasicPredictor:
         # Build base params
         base_dataset_params = {
             "transforms": transforms,
-            "load_files": self.data_config["load_files"],
             "lookback_window": self.model_config["lookback_window"],
+            "winsorize_threshold": self.data_config["winsorize_threshold"],
         }
 
         base_data_loader_params = {
@@ -257,6 +272,8 @@ class BasicPredictor:
 
     def generate(self, save_dir=None):
         assert self.mode in ("test")
+        self.model.eval()
+
         if save_dir is None:
             save_dir = self.data_config["generate_output_dir"]
 
@@ -281,4 +298,5 @@ class BasicPredictor:
         pd.DataFrame(labels, index=index).to_csv(os.path.join(save_dir, "labels.csv"))
 
     def predict(self, X):
+        self.model.eval()
         return self.model(X.to(self.device)).argmax(dim=-1).cpu()

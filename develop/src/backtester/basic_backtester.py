@@ -12,6 +12,7 @@ import empyrical as emp
 
 
 CONFIG = {
+    "report_prefix": "001",
     "position_side": "long",
     "entry_ratio": 0.1,
     "commission": 0.0015,
@@ -19,7 +20,6 @@ CONFIG = {
     "max_holding_minutes": 10,
     "compound_interest": True,
     "possible_in_debt": False,
-    "q_threshold": 7,
 }
 
 
@@ -29,6 +29,7 @@ class BasicBacktester:
         base_currency,
         dataset_dir,
         exp_dir,
+        report_prefix=CONFIG["report_prefix"],
         position_side=CONFIG["position_side"],
         entry_ratio=CONFIG["entry_ratio"],
         commission=CONFIG["commission"],
@@ -36,10 +37,10 @@ class BasicBacktester:
         max_holding_minutes=CONFIG["max_holding_minutes"],
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
-        q_threshold=CONFIG["q_threshold"],
     ):
         assert position_side in ("long", "short", "longshort")
         self.base_currency = base_currency
+        self.report_prefix = report_prefix
         self.position_side = position_side
         self.entry_ratio = entry_ratio
         self.commission = commission
@@ -47,19 +48,22 @@ class BasicBacktester:
         self.max_holding_minutes = max_holding_minutes
         self.compound_interest = compound_interest
         self.possible_in_debt = possible_in_debt
-        self.q_threshold = q_threshold
 
-        # Load data
+        # Set path to load data
+        dataset_params_path = os.path.join(dataset_dir, "params.json")
         bins_path = os.path.join(dataset_dir, "bins.csv")
         historical_pricing_path = os.path.join(dataset_dir, "test/pricing.csv")
         historical_predictions_path = os.path.join(
             exp_dir, "generated_output/predictions.csv"
         )
         historical_labels_path = os.path.join(exp_dir, "generated_output/labels.csv")
+
         self.report_store_dir = os.path.join(exp_dir, "reports/")
         make_dirs([self.report_store_dir])
 
+        # Load data
         self.bins = self.load_bins(bins_path)
+        self.q_threshold = self.load_dataset_params(dataset_params_path)["q_threshold"]
         (
             self.historical_pricing,
             self.historical_predictions,
@@ -83,6 +87,12 @@ class BasicBacktester:
 
     def load_bins(self, bins_path):
         return pd.read_csv(bins_path, header=0, index_col=0)
+
+    def load_dataset_params(self, dataset_params_path):
+        with open(dataset_params_path, "r") as f:
+            dataset_params = json.load(f)
+
+        return dataset_params
 
     def load_historical_data(
         self,
@@ -134,13 +144,19 @@ class BasicBacktester:
             .rename("return")
         )
 
-        return pd.concat(
+        report = pd.concat(
             [historical_cache, historical_capital, historical_return], axis=1
-        )
+        ).sort_index()
+        report.index = pd.to_datetime(report.index)
+
+        return report
 
     def store_report(self, report):
         report.to_csv(
-            os.path.join(self.report_store_dir, f"report_{self.base_currency}.csv")
+            os.path.join(
+                self.report_store_dir,
+                f"report_{self.report_prefix}_{self.base_currency}.csv",
+            )
         )
         params = {
             "base_currency": self.base_currency,
@@ -151,26 +167,29 @@ class BasicBacktester:
             "max_holding_minutes": self.max_holding_minutes,
             "compound_interest": self.compound_interest,
             "possible_in_debt": self.possible_in_debt,
-            "report_store_dir": self.report_store_dir,
-            "tradable_coins": self.tradable_coins,
+            "tradable_coins": tuple(self.tradable_coins.tolist()),
             "q_threshold": self.q_threshold,
         }
         with open(
-            os.path.join(self.report_store_dir, f"params_{self.base_currency}.csv"), "w"
+            os.path.join(
+                self.report_store_dir,
+                f"params_{self.report_prefix}_{self.base_currency}.csv",
+            ),
+            "w",
         ) as f:
             json.dump(params, f)
 
-        print(f"[+] Report is stored: {self.base_currency}")
+        print(f"[+] Report is stored: {self.report_prefix}_{self.base_currency}")
 
     def display_accuracy(self):
         accuracies = {}
 
         for column in self.historical_predictions.columns:
             class_accuracy = {}
-            for class_num in range(self.historical_labels[column].max()):
-                class_mask = self.historical_labels[column] == class_num
+            for class_num in range(self.historical_labels[column].max() + 1):
+                class_mask = self.historical_predictions[column] == class_num
                 class_accuracy["class_" + str(class_num)] = (
-                    self.historical_predictions[column][class_mask] == class_num
+                    self.historical_labels[column][class_mask] == class_num
                 ).mean()
 
             accuracy = pd.Series(
