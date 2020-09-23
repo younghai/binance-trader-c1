@@ -6,7 +6,7 @@ from .basic_predictor import BasicPredictor
 
 DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
-    "generate_output_dir": "./generate_output",
+    "generate_output_dir": "./generated_output",
     "load_files": ["X", "Y"],
 }
 

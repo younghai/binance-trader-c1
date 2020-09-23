@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 from abc import abstractmethod
-from .utils import data_loader, display_accuracy, Position, compute_quantile
+from .utils import data_loader, Position, compute_quantile
 from .basic_backtester import BasicBacktester
 from tqdm import tqdm
 
@@ -16,7 +16,6 @@ CONFIG = {
     "compound_interest": True,
     "possible_in_debt": False,
     "q_threshold": 7,
-    "report_store_dir": "../../storage/report/fwd_10m/v001",
 }
 
 
@@ -24,11 +23,9 @@ class BacktesterV1(BasicBacktester):
     def __init__(
         self,
         base_currency,
-        bins_path,
-        historical_pricing_path,
-        historical_predictions_path,
-        report_store_dir=CONFIG["report_store_dir"],
-        position_side=CONFIG["position"],
+        dataset_dir,
+        exp_dir,
+        position_side=CONFIG["position_side"],
         entry_ratio=CONFIG["entry_ratio"],
         commission=CONFIG["commission"],
         min_holding_minutes=CONFIG["min_holding_minutes"],
@@ -39,10 +36,8 @@ class BacktesterV1(BasicBacktester):
     ):
         super().__init__(
             base_currency=base_currency,
-            bins_path=bins_path,
-            historical_pricing_path=historical_pricing_path,
-            historical_predictions_path=historical_predictions_path,
-            report_store_dir=report_store_dir,
+            dataset_dir=dataset_dir,
+            exp_dir=exp_dir,
             position_side=position_side,
             entry_ratio=entry_ratio,
             commission=commission,

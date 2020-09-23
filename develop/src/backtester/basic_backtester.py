@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from abc import abstractmethod
 from IPython.display import display, display_markdown
 from .utils import data_loader, Position
-from comman_utils import make_dirs
+from common_utils import make_dirs
 from collections import OrderedDict
 import empyrical as emp
 
@@ -20,7 +20,6 @@ CONFIG = {
     "compound_interest": True,
     "possible_in_debt": False,
     "q_threshold": 7,
-    "report_store_dir": "../../storage/report/fwd_10m/v001",
 }
 
 
@@ -28,11 +27,9 @@ class BasicBacktester:
     def __init__(
         self,
         base_currency,
-        bins_path,
-        historical_pricing_path,
-        historical_predictions_path,
-        report_store_dir=CONFIG["report_store_dir"],
-        position_side=CONFIG["position"],
+        dataset_dir,
+        exp_dir,
+        position_side=CONFIG["position_side"],
         entry_ratio=CONFIG["entry_ratio"],
         commission=CONFIG["commission"],
         min_holding_minutes=CONFIG["min_holding_minutes"],
@@ -43,7 +40,6 @@ class BasicBacktester:
     ):
         assert position_side in ("long", "short", "longshort")
         self.base_currency = base_currency
-        self.report_store_dir = report_store_dir
         self.position_side = position_side
         self.entry_ratio = entry_ratio
         self.commission = commission
@@ -52,9 +48,17 @@ class BasicBacktester:
         self.compound_interest = compound_interest
         self.possible_in_debt = possible_in_debt
         self.q_threshold = q_threshold
-        make_dirs([report_store_dir])
 
         # Load data
+        bins_path = os.path.join(dataset_dir, "bins.csv")
+        historical_pricing_path = os.path.join(dataset_dir, "test/pricing.csv")
+        historical_predictions_path = os.path.join(
+            exp_dir, "generated_output/predictions.csv"
+        )
+        historical_labels_path = os.path.join(exp_dir, "generated_output/labels.csv")
+        self.report_store_dir = os.path.join(exp_dir, "reports/")
+        make_dirs([self.report_store_dir])
+
         self.bins = self.load_bins(bins_path)
         (
             self.historical_pricing,
@@ -64,6 +68,7 @@ class BasicBacktester:
             base_currency=base_currency,
             historical_pricing_path=historical_pricing_path,
             historical_predictions_path=historical_predictions_path,
+            historical_labels_path=historical_labels_path,
         )
         self.tradable_coins = self.historical_pricing.columns
         self.index = self.historical_predictions.index
@@ -80,13 +85,18 @@ class BasicBacktester:
         return pd.read_csv(bins_path, header=0, index_col=0)
 
     def load_historical_data(
-        self, base_currency, historical_pricing_path, historical_predictions_path
+        self,
+        base_currency,
+        historical_pricing_path,
+        historical_predictions_path,
+        historical_labels_path,
     ):
-        historical_pricing = data_loader(path=historical_pricing_path)
+        historical_pricing = data_loader(
+            path=historical_pricing_path, compression="gzip"
+        )
 
-        tmp_data = data_loader(path=historical_predictions_path)
-        historical_predictions = tmp_data["prediction"]
-        historical_labels = tmp_data["label"]
+        historical_predictions = data_loader(path=historical_predictions_path)
+        historical_labels = data_loader(path=historical_labels_path)
 
         # Re-order columns
         columns = historical_pricing.columns

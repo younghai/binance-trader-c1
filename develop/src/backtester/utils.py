@@ -2,7 +2,10 @@ import pandas as pd
 from IPython.display import display, display_markdown
 
 
-def data_loader(path):
+def data_loader(path, compression=None):
+    if compression is not None:
+        return pd.read_csv(path, header=0, index_col=0, compression=compression)
+
     return pd.read_csv(path, header=0, index_col=0)
 
 

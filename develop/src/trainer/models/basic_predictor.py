@@ -17,7 +17,7 @@ CRITERIONS = {"l1": nn.L1Loss, "l2": nn.MSELoss, "ce": nn.CrossEntropyLoss}
 
 DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
-    "generate_output_dir": "./generate_output",
+    "generate_output_dir": "./generated_output",
     "load_files": ["X", "Y"],
 }
 
