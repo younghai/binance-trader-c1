@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from tqdm import tqdm
 from .basic_predictor import BasicPredictor
 
 
@@ -17,7 +18,7 @@ MODEL_CONFIG = {
     "beta2": 0.99,
     "epochs": 100,
     "print_epoch": 1,
-    "print_iter": 10,
+    "print_iter": 25,
     "save_epoch": 1,
     "criterion": "ce",
     "load_strict": False,
@@ -26,7 +27,7 @@ MODEL_CONFIG = {
         "in_channels": 320,
         "n_assets": 32,
         "n_class_per_asset": 4,
-        "n_blocks": 4,
+        "n_blocks": 3,
         "n_block_layers": 16,
         "growth_rate": 12,
         "dropout": 0.2,
@@ -118,7 +119,7 @@ class PredictorV1(BasicPredictor):
             if epoch <= self.last_epoch:
                 continue
 
-            for iter_ in range(len(self.train_data_loader)):
+            for iter_ in tqdm(range(len(self.train_data_loader))):
                 # Optimize
                 train_loss = self._step()
 

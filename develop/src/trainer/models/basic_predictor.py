@@ -1,5 +1,6 @@
 import fire
 import os
+from tqdm import tqdm
 import pandas as pd
 from copy import copy
 from contextlib import contextmanager
@@ -28,7 +29,7 @@ MODEL_CONFIG = {
     "beta2": 0.99,
     "epochs": 100,
     "print_epoch": 1,
-    "print_iter": 10,
+    "print_iter": 25,
     "save_epoch": 1,
     "criterion": "ce",
     "load_strict": False,
@@ -37,7 +38,7 @@ MODEL_CONFIG = {
         "in_channels": 320,
         "n_assets": 32,
         "n_class_per_asset": 4,
-        "n_blocks": 4,
+        "n_blocks": 3,
         "n_block_layers": 16,
         "growth_rate": 12,
         "dropout": 0.2,
@@ -81,6 +82,7 @@ class BasicPredictor:
         self.device = device
         self.pin_memory = pin_memory
         self.num_workers = num_workers
+        self.mode = mode
 
         self.data_config, self.model_config = self._build_config(
             d_config=d_config, m_config=m_config
@@ -127,38 +129,39 @@ class BasicPredictor:
         assert mode in ("train", "test")
         transforms = self._build_transfroms()
 
-        test_dataset = Dataset(
-            data_dir=self.test_data_dir,
-            transforms=transforms,
-            load_files=self.data_config["load_files"],
-            lookback_window=self.model_config["lookback_window"],
-        )
+        # Build base params
+        base_dataset_params = {
+            "transforms": transforms,
+            "load_files": self.data_config["load_files"],
+            "lookback_window": self.model_config["lookback_window"],
+        }
 
-        test_data_loader = DataLoader(
-            dataset=test_dataset,
-            batch_size=self.model_config["batch_size"],
-            shuffle=True,
-            pin_memory=self.pin_memory,
-            num_workers=self.num_workers,
-        )
+        base_data_loader_params = {
+            "batch_size": self.model_config["batch_size"],
+            "pin_memory": self.pin_memory,
+            "num_workers": self.num_workers,
+        }
+
+        # Build dataset & data_loader
+        test_dataset = Dataset(data_dir=self.test_data_dir, **base_dataset_params)
 
         train_data_loader = None
         if mode == "train":
             # Define: dataset
-            train_dataset = Dataset(
-                data_dir=self.data_dir,
-                transforms=transforms,
-                load_files=self.data_config["load_files"],
-                lookback_window=self.model_config["lookback_window"],
-            )
+            train_dataset = Dataset(data_dir=self.data_dir, **base_dataset_params)
 
             # Define data_loader
             train_data_loader = DataLoader(
-                dataset=train_dataset,
-                batch_size=self.model_config["batch_size"],
-                shuffle=True,
-                pin_memory=self.pin_memory,
-                num_workers=self.num_workers,
+                dataset=train_dataset, shuffle=True, **base_data_loader_params
+            )
+
+            test_data_loader = DataLoader(
+                dataset=test_dataset, shuffle=True, **base_data_loader_params
+            )
+
+        if mode == "test":
+            test_data_loader = DataLoader(
+                dataset=test_dataset, shuffle=False, **base_data_loader_params
             )
 
         return train_data_loader, test_data_loader
@@ -241,20 +244,6 @@ class BasicPredictor:
         }
         return test_data_dict
 
-    @contextmanager
-    def _iterable_data_loader_with_false_shuffle(self, *args, **kwds):
-        # Backup variables
-        backup_shuffle = self.test_data_loader.shuffle
-
-        self.test_data_loader.shuffle = False
-        self.iterable_train_data_loader = iter(self.train_data_loader)
-        try:
-            yield self.iterable_train_data_loader
-        finally:
-            # Set to original variable
-            self.test_data_loader.shuffle = backup_shuffle
-            self.iterable_test_data_loader = None
-
     @abstractmethod
     def _step(self, train_data_dict):
         pass
@@ -267,33 +256,29 @@ class BasicPredictor:
         pass
 
     def generate(self, save_dir=None):
+        assert self.mode in ("test")
         if save_dir is None:
             save_dir = self.data_config["generate_output_dir"]
 
         index = self.test_data_loader.dataset.index
 
-        # Mutate shuffle
-        with self._iterable_data_loader_with_false_shuffle() as _:
+        predictions = []
+        labels = []
+        for _ in tqdm(range(len(self.test_data_loader))):
+            test_data_dict = self._generate_test_data_dict()
 
-            predictions = []
-            labels = []
-            for _ in range(len(self.test_data_loader)):
-                test_data_dict = self._generate_test_data_dict()
+            X, Y = test_data_dict["X"], test_data_dict["Y"]
 
-                X, Y = test_data_dict["X"], test_data_dict["Y"]
+            y_preds = self.model(X)
+            B, _, _ = y_preds.size()
 
-                y_preds = self.model(X)
-                B, _, _ = y_preds.size()
+            predictions += y_preds.argmax(dim=-1).view(B, -1).cpu().tolist()
+            labels += Y.view(B, -1).cpu().tolist()
 
-                predictions += y_preds.argmax(dim=-1).view(B, -1).cpu().tolist()
-                labels += Y.view(B, -1).cpu().tolist()
-
-            pd.concat(
-                [
-                    pd.DataFrame(predictions, index=index).rename("prediction"),
-                    pd.DataFrame(labels, index=index).rename("label"),
-                ]
-            ).to_csv(os.path.join(save_dir, "predictions.csv"))
+        pd.DataFrame(predictions, index=index).to_csv(
+            os.path.join(save_dir, "predictions.csv")
+        )
+        pd.DataFrame(labels, index=index).to_csv(os.path.join(save_dir, "labels.csv"))
 
     def predict(self, X):
         return self.model(X.to(self.device)).argmax(dim=-1).cpu()
