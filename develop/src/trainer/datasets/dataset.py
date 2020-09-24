@@ -16,7 +16,7 @@ class Dataset(_Dataset):
         lookback_window: int = 60,
         winsorize_threshold: Optional[int] = None,
     ):
-        load_files = (["X", "Y"],)
+        load_files = ["X", "Y"]
 
         self.data_caches = {
             data_type: pd.read_csv(
