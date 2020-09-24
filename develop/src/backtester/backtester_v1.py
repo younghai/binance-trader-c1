@@ -179,17 +179,35 @@ class BacktesterV1(BasicBacktester):
             # Handle max_holding_minutes
             if passed_minutes >= self.max_holding_minutes:
                 self.exit_order(position=position, pricing=pricing, now=now)
+                self.report(
+                    value="max_holding_minutes",
+                    target="historical_exit_reason",
+                    now=now,
+                    append=True,
+                )
                 self.positions[position_idx].is_exited = True
                 continue
 
             # Handle exit signal
             if (position.side == "long") and (position.asset in negative_assets):
                 self.exit_order(position=position, pricing=pricing, now=now)
+                self.report(
+                    value="opposite_signal",
+                    target="historical_exit_reason",
+                    now=now,
+                    append=True,
+                )
                 self.positions[position_idx].is_exited = True
                 continue
 
             if (position.side == "short") and (position.asset in positive_assets):
                 self.exit_order(position=position, pricing=pricing, now=now)
+                self.report(
+                    value="opposite_signal",
+                    target="historical_exit_reason",
+                    now=now,
+                    append=True,
+                )
                 self.positions[position_idx].is_exited = True
                 continue
 
@@ -199,6 +217,12 @@ class BacktesterV1(BasicBacktester):
                 is True
             ):
                 self.exit_order(position=position, pricing=pricing, now=now)
+                self.report(
+                    value="achieved",
+                    target="historical_exit_reason",
+                    now=now,
+                    append=True,
+                )
                 self.positions[position_idx].is_exited = True
                 continue
 

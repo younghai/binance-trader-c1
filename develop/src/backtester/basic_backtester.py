@@ -7,7 +7,7 @@ from abc import abstractmethod
 from IPython.display import display, display_markdown
 from .utils import data_loader, Position
 from common_utils import make_dirs
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import empyrical as emp
 
 
@@ -128,11 +128,16 @@ class BasicBacktester:
     def initialize(self):
         self.historical_cache = {}
         self.historical_capital = {}
+        self.historical_exit_reason = defaultdict(list)
 
         self.positions = []
         self.cache = 1
 
-    def report(self, value, target, now):
+    def report(self, value, target, now, append=False):
+        if append is True:
+            getattr(self, target)[now].append(value)
+            return
+
         assert now not in getattr(self, target)
         getattr(self, target)[now] = value
 
@@ -145,9 +150,18 @@ class BasicBacktester:
             .fillna(0)
             .rename("return")
         )
+        historical_exit_reason = pd.Series(self.historical_exit_reason).rename(
+            "exit_reason"
+        )
 
         report = pd.concat(
-            [historical_cache, historical_capital, historical_return], axis=1
+            [
+                historical_cache,
+                historical_capital,
+                historical_return,
+                historical_exit_reason,
+            ],
+            axis=1,
         ).sort_index()
         report.index = pd.to_datetime(report.index)
 
@@ -219,7 +233,7 @@ class BasicBacktester:
 
         metrics = OrderedDict()
 
-        metrics["winning_ratio"] = (historical_returns > 0).mean()
+        metrics["winning_ratio"] = (historical_returns[historical_returns != 0] > 0).mean()
         metrics["sharpe_ratio"] = emp.sharpe_ratio(historical_returns)
         metrics["max_drawdown"] = emp.max_drawdown(historical_returns)
         metrics["avg_return"] = historical_returns.mean()
