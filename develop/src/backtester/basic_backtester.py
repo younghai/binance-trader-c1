@@ -63,7 +63,9 @@ class BasicBacktester:
 
         # Load data
         self.bins = self.load_bins(bins_path)
-        self.q_threshold = self.load_dataset_params(dataset_params_path)["q_threshold"]
+        dataset_params = self.load_dataset_params(dataset_params_path)
+        self.q_threshold = dataset_params["q_threshold"]
+        self.n_bins = dataset_params["n_bins"]
         (
             self.historical_pricing,
             self.historical_predictions,

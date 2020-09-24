@@ -19,6 +19,7 @@ CONFIG = {
     "rawdata_dir": "../../storage/dataset/rawdata/csv/",
     "data_store_dir": "../../storage/dataset/dataset_10m_v1/",
     "lookahead_window": 10,
+    "n_bins": 10,
     "q_threshold": 9,
     "train_ratio": 0.7,
     "scaler_type": "RobustScaler",
@@ -80,7 +81,7 @@ def _build_fwd_returns_by_rawdata(
     return pd.concat(fwd_returns, axis=1).sort_index()
 
 
-def _build_bins(rawdata, lookahead_window):
+def _build_bins(rawdata, lookahead_window, n_bins):
     column_pair = ("close", "close")
 
     # build fwd_return(window)
@@ -95,25 +96,29 @@ def _build_bins(rawdata, lookahead_window):
     )
 
     _, bins = pd.qcut(
-        fwd_return[fwd_return != 0].dropna(), 10, retbins=True, labels=False
+        fwd_return[fwd_return != 0].dropna(), n_bins, retbins=True, labels=False
     )
     bins = np.concatenate([[-np.inf], bins[1:-1], [np.inf]])
 
     return bins
 
 
-def _build_label_by_rawdata(rawdata, lookahead_window, q_threshold, column_pairs):
+def _build_label_by_rawdata(
+    rawdata, lookahead_window, n_bins, q_threshold, column_pairs
+):
     fwd_returns = _build_fwd_returns_by_rawdata(
         rawdata=rawdata, lookahead_window=lookahead_window, column_pairs=column_pairs
     )
-    bins = _build_bins(rawdata=rawdata, lookahead_window=lookahead_window)
+    bins = _build_bins(
+        rawdata=rawdata, lookahead_window=lookahead_window, n_bins=n_bins
+    )
 
     quantile_df = fwd_returns.dropna().apply(
         lambda x: x.parallel_apply(partial(compute_quantile, bins=bins))
     )
 
     total_positive_moving = (quantile_df >= q_threshold).any(axis=1)
-    total_negative_moving = (quantile_df <= 9 - q_threshold).any(axis=1)
+    total_negative_moving = (quantile_df <= (n_bins - 1) - q_threshold).any(axis=1)
     static_moving = ~total_positive_moving & ~total_negative_moving
 
     positive_negative_moving = total_positive_moving & total_negative_moving
@@ -163,7 +168,7 @@ def build_features(file_names):
     return features
 
 
-def build_labels(file_names, lookahead_window, q_threshold, column_pairs):
+def build_labels(file_names, lookahead_window, n_bins, q_threshold, column_pairs):
     labels = []
     for file_name in tqdm(file_names):
         coin_pair = file_name.split("/")[-1].split(".")[0]
@@ -173,6 +178,7 @@ def build_labels(file_names, lookahead_window, q_threshold, column_pairs):
             _build_label_by_rawdata(
                 rawdata=rawdata,
                 lookahead_window=lookahead_window,
+                n_bins=n_bins,
                 q_threshold=q_threshold,
                 column_pairs=column_pairs,
             ).rename(coin_pair)
@@ -199,13 +205,15 @@ def build_scaler(features, scaler_type):
     return scaler
 
 
-def build_all_bins(file_names, lookahead_window):
+def build_all_bins(file_names, lookahead_window, n_bins):
     all_bins = {}
     for file_name in tqdm(file_names):
         coin_pair = file_name.split("/")[-1].split(".")[0]
 
         rawdata = load_rawdata(file_name=file_name)
-        bins = _build_bins(rawdata=rawdata, lookahead_window=lookahead_window)
+        bins = _build_bins(
+            rawdata=rawdata, lookahead_window=lookahead_window, n_bins=n_bins
+        )
 
         all_bins[coin_pair] = bins
 
@@ -270,6 +278,7 @@ def build_dataset(
     rawdata_dir=CONFIG["rawdata_dir"],
     data_store_dir=CONFIG["data_store_dir"],
     lookahead_window=CONFIG["lookahead_window"],
+    n_bins=CONFIG["n_bins"],
     q_threshold=CONFIG["q_threshold"],
     train_ratio=CONFIG["train_ratio"],
     scaler_type=CONFIG["scaler_type"],
@@ -293,6 +302,7 @@ def build_dataset(
     labels = build_labels(
         file_names=file_names,
         lookahead_window=lookahead_window,
+        n_bins=n_bins,
         q_threshold=q_threshold,
         column_pairs=column_pairs,
     )
@@ -301,7 +311,9 @@ def build_dataset(
     pricing = build_pricing(file_names=file_names)
 
     # Build bins
-    bins = build_all_bins(file_names=file_names, lookahead_window=lookahead_window)
+    bins = build_all_bins(
+        file_names=file_names, lookahead_window=lookahead_window, n_bins=n_bins
+    )
 
     # Masking with common index
     common_index = features.index & labels.index
@@ -311,6 +323,7 @@ def build_dataset(
 
     params = {
         "lookahead_window": lookahead_window,
+        "n_bins": n_bins,
         "q_threshold": q_threshold,
         "train_ratio": train_ratio,
         "scaler_type": scaler_type,

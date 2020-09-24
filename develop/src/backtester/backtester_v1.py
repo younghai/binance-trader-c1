@@ -157,7 +157,7 @@ class BacktesterV1(BasicBacktester):
                 return True
 
         if position.side == "short":
-            if q <= (9 - self.q_threshold):
+            if q <= ((self.n_bins - 1) - self.q_threshold):
                 return True
 
         return False
