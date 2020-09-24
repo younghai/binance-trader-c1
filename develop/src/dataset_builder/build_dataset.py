@@ -9,8 +9,10 @@ from itertools import combinations
 from sklearn import preprocessing
 import joblib
 from common_utils import make_dirs
-from joblib import Parallel, delayed
 from typing import Callable, List, Dict
+from pandarallel import pandarallel
+
+pandarallel.initialize()
 
 
 CONFIG = {
@@ -21,21 +23,8 @@ CONFIG = {
     "train_ratio": 0.7,
     "scaler_type": "RobustScaler",
     "column_pairs": [("close", "high"), ("close", "low")],
-    "n_jobs": 4,
 }
 COLUMNS = ["open", "high", "low", "close"]
-
-
-def parallelize(func: Callable, params: List[Dict], n_jobs: int = 64) -> List:
-    outputs = []
-
-    for param in params:
-
-        outputs.append(delayed(func)(**param))
-
-    outputs = Parallel(n_jobs=n_jobs, verbose=1)(outputs)
-
-    return outputs
 
 
 def load_rawdata(file_name):
@@ -120,7 +109,7 @@ def _build_label_by_rawdata(rawdata, lookahead_window, q_threshold, column_pairs
     bins = _build_bins(rawdata=rawdata, lookahead_window=lookahead_window)
 
     quantile_df = fwd_returns.dropna().apply(
-        lambda x: x.apply(partial(compute_quantile, bins=bins))
+        lambda x: x.parallel_apply(partial(compute_quantile, bins=bins))
     )
 
     total_positive_moving = (quantile_df >= q_threshold).any(axis=1)
@@ -158,65 +147,47 @@ def compute_quantile(x, bins):
     raise RuntimeError("unreachable")
 
 
-def build_features(file_names, n_jobs=1):
-    def __build_feature(file_name):
+def build_features(file_names):
+    features = []
+    for file_name in tqdm(file_names):
         coin_pair = file_name.split("/")[-1].split(".")[0]
 
         rawdata = load_rawdata(file_name=file_name)
         feature = _build_feature_by_rawdata(rawdata=rawdata)
         feature.columns = sorted([(coin_pair, column) for column in feature.columns])
-        return feature
+        features.append(feature)
 
-    features = parallelize(
-        func=__build_feature,
-        params=[{"file_name": file_name} for file_name in file_names],
-        n_jobs=n_jobs,
-    )
     features = pd.concat(features, axis=1).dropna().sort_index()
     features.columns = range(features.shape[1])
 
     return features
 
 
-def build_labels(file_names, lookahead_window, q_threshold, column_pairs, n_jobs=1):
-    def __build_label(file_name, lookahead_window, q_threshold, column_pairs):
+def build_labels(file_names, lookahead_window, q_threshold, column_pairs):
+    labels = []
+    for file_name in tqdm(file_names):
         coin_pair = file_name.split("/")[-1].split(".")[0]
 
         rawdata = load_rawdata(file_name=file_name)
-        return _build_label_by_rawdata(
-            rawdata=rawdata,
-            lookahead_window=lookahead_window,
-            q_threshold=q_threshold,
-            column_pairs=column_pairs,
-        ).rename(coin_pair)
-
-    labels = parallelize(
-        func=__build_label,
-        params=[
-            {
-                "file_name": file_name,
-                "lookahead_window": lookahead_window,
-                "q_threshold": q_threshold,
-                "column_pairs": column_pairs,
-            }
-            for file_name in file_names
-        ],
-        n_jobs=n_jobs,
-    )
+        labels.append(
+            _build_label_by_rawdata(
+                rawdata=rawdata,
+                lookahead_window=lookahead_window,
+                q_threshold=q_threshold,
+                column_pairs=column_pairs,
+            ).rename(coin_pair)
+        )
 
     return pd.concat(labels, axis=1).dropna().sort_index()
 
 
-def build_pricing(file_names, n_jobs=1):
-    def __build_pricing(file_name):
+def build_pricing(file_names):
+    pricing = []
+    for file_name in tqdm(file_names):
         coin_pair = file_name.split("/")[-1].split(".")[0]
-        return load_rawdata(file_name=file_name)["close"].rename(coin_pair)
 
-    pricing = parallelize(
-        func=__build_pricing,
-        params=[{"file_name": file_name} for file_name in file_names],
-        n_jobs=n_jobs,
-    )
+        close = load_rawdata(file_name=file_name)["close"].rename(coin_pair)
+        pricing.append(close)
 
     return pd.concat(pricing, axis=1).dropna().sort_index()
 
@@ -228,23 +199,15 @@ def build_scaler(features, scaler_type):
     return scaler
 
 
-def build_all_bins(file_names, lookahead_window, n_jobs=1):
-    def __build_all_bin(file_name, lookahead_window):
-        rawdata = load_rawdata(file_name=file_name)
-        return _build_bins(rawdata=rawdata, lookahead_window=lookahead_window)
+def build_all_bins(file_names, lookahead_window):
+    all_bins = {}
+    for file_name in tqdm(file_names):
+        coin_pair = file_name.split("/")[-1].split(".")[0]
 
-    all_bins = parallelize(
-        func=__build_all_bin,
-        params=[
-            {"file_name": file_name, "lookahead_window": lookahead_window}
-            for file_name in file_names
-        ],
-        n_jobs=n_jobs,
-    )
-    all_bins = {
-        file_name.split("/")[-1].split(".")[0]: all_bin
-        for file_name, all_bin in zip(file_names, all_bins)
-    }
+        rawdata = load_rawdata(file_name=file_name)
+        bins = _build_bins(rawdata=rawdata, lookahead_window=lookahead_window)
+
+        all_bins[coin_pair] = bins
 
     return pd.DataFrame(all_bins)
 
@@ -311,7 +274,6 @@ def build_dataset(
     train_ratio=CONFIG["train_ratio"],
     scaler_type=CONFIG["scaler_type"],
     column_pairs=CONFIG["column_pairs"],
-    n_jobs=CONFIG["n_jobs"],
 ):
     assert scaler_type in ("RobustScaler", "StandardScaler")
 
@@ -322,7 +284,7 @@ def build_dataset(
     file_names = sorted(glob(os.path.join(rawdata_dir, "*")))
 
     # Build features
-    features = build_features(file_names, n_jobs=n_jobs)
+    features = build_features(file_names)
     scaler = build_scaler(features=features, scaler_type=scaler_type)
 
     features = preprocess_features(features=features, scaler=scaler)
@@ -333,16 +295,13 @@ def build_dataset(
         lookahead_window=lookahead_window,
         q_threshold=q_threshold,
         column_pairs=column_pairs,
-        n_jobs=n_jobs,
     )
 
     # Build pricing
-    pricing = build_pricing(file_names=file_names, n_jobs=n_jobs)
+    pricing = build_pricing(file_names=file_names)
 
     # Build bins
-    bins = build_all_bins(
-        file_names=file_names, lookahead_window=lookahead_window, n_jobs=n_jobs
-    )
+    bins = build_all_bins(file_names=file_names, lookahead_window=lookahead_window)
 
     # Masking with common index
     common_index = features.index & labels.index
