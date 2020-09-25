@@ -126,9 +126,10 @@ class BasicBacktester:
         return historical_pricing, historical_predictions, historical_labels
 
     def initialize(self):
-        self.historical_cache = {}
-        self.historical_capital = {}
-        self.historical_exit_reason = defaultdict(list)
+        self.historical_caches = {}
+        self.historical_capitals = {}
+        self.historical_exit_reasons = defaultdict(list)
+        self.historical_positions = {}
 
         self.positions = []
         self.cache = 1
@@ -142,24 +143,26 @@ class BasicBacktester:
         getattr(self, target)[now] = value
 
     def generate_report(self):
-        historical_cache = pd.Series(self.historical_cache).rename("cache")
-        historical_capital = pd.Series(self.historical_capital).rename("capital")
-        historical_return = (
-            pd.Series(self.historical_capital)
+        historical_caches = pd.Series(self.historical_caches).rename("cache")
+        historical_capitals = pd.Series(self.historical_capitals).rename("capital")
+        historical_returns = (
+            pd.Series(self.historical_capitals)
             .pct_change(fill_method=None)
             .fillna(0)
             .rename("return")
         )
-        historical_exit_reason = pd.Series(self.historical_exit_reason).rename(
+        historical_exit_reasons = pd.Series(self.historical_exit_reasons).rename(
             "exit_reason"
         )
+        historical_positions = pd.Series(self.historical_positions).rename("position")
 
         report = pd.concat(
             [
-                historical_cache,
-                historical_capital,
-                historical_return,
-                historical_exit_reason,
+                historical_caches,
+                historical_capitals,
+                historical_returns,
+                historical_exit_reasons,
+                historical_positions,
             ],
             axis=1,
         ).sort_index()
@@ -224,11 +227,11 @@ class BasicBacktester:
         display(accuracies)
 
     def display_metrics(self):
-        assert len(self.historical_cache) != 0
-        assert len(self.historical_capital) != 0
+        assert len(self.historical_caches) != 0
+        assert len(self.historical_capitals) != 0
 
         historical_returns = (
-            pd.Series(self.historical_capital).pct_change(fill_method=None).fillna(0)
+            pd.Series(self.historical_capitals).pct_change(fill_method=None).fillna(0)
         )
 
         metrics = OrderedDict()

@@ -181,7 +181,7 @@ class BacktesterV1(BasicBacktester):
                 self.exit_order(position=position, pricing=pricing, now=now)
                 self.report(
                     value="max_holding_minutes",
-                    target="historical_exit_reason",
+                    target="historical_exit_reasons",
                     now=now,
                     append=True,
                 )
@@ -193,7 +193,7 @@ class BacktesterV1(BasicBacktester):
                 self.exit_order(position=position, pricing=pricing, now=now)
                 self.report(
                     value="opposite_signal",
-                    target="historical_exit_reason",
+                    target="historical_exit_reasons",
                     now=now,
                     append=True,
                 )
@@ -204,7 +204,7 @@ class BacktesterV1(BasicBacktester):
                 self.exit_order(position=position, pricing=pricing, now=now)
                 self.report(
                     value="opposite_signal",
-                    target="historical_exit_reason",
+                    target="historical_exit_reasons",
                     now=now,
                     append=True,
                 )
@@ -219,7 +219,7 @@ class BacktesterV1(BasicBacktester):
                 self.exit_order(position=position, pricing=pricing, now=now)
                 self.report(
                     value="achieved",
-                    target="historical_exit_reason",
+                    target="historical_exit_reasons",
                     now=now,
                     append=True,
                 )
@@ -295,10 +295,15 @@ class BacktesterV1(BasicBacktester):
             )
 
             # To report
-            self.report(value=self.cache, target="historical_cache", now=now)
+            self.report(value=self.cache, target="historical_caches", now=now)
             self.report(
                 value=self.compute_capital(pricing=pricing, now=now),
-                target="historical_capital",
+                target="historical_capitals",
+                now=now,
+            )
+            self.report(
+                value=self.positions,
+                target="historical_positions",
                 now=now,
             )
 
