@@ -21,6 +21,7 @@ MODEL_CONFIG = {
     "print_iter": 25,
     "save_epoch": 1,
     "criterion": "fl",
+    "criterion_params": {},
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {

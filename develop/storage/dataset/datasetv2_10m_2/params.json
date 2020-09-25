@@ -1,0 +1,1 @@
+{"lookahead_window": 10, "n_bins": 20, "q_threshold": 19, "train_ratio": 0.7, "scaler_type": "RobustScaler", "column_pairs": [["close", "high"], ["close", "low"]]}

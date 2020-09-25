@@ -233,7 +233,9 @@ class BasicBacktester:
 
         metrics = OrderedDict()
 
-        metrics["winning_ratio"] = (historical_returns[historical_returns != 0] > 0).mean()
+        metrics["winning_ratio"] = (
+            historical_returns[historical_returns != 0] > 0
+        ).mean()
         metrics["sharpe_ratio"] = emp.sharpe_ratio(historical_returns)
         metrics["max_drawdown"] = emp.max_drawdown(historical_returns)
         metrics["avg_return"] = historical_returns.mean()

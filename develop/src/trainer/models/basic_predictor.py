@@ -33,6 +33,7 @@ MODEL_CONFIG = {
     "print_iter": 25,
     "save_epoch": 1,
     "criterion": "fl",
+    "criterion_params": {},
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
@@ -225,7 +226,9 @@ class BasicPredictor:
         return optimizer
 
     def _build_criterion(self):
-        return CRITERIONS[self.model_config["criterion"]]().to(self.device)
+        return CRITERIONS[self.model_config["criterion"]](
+            **self.model_config["criterion_params"]
+        ).to(self.device)
 
     def _generate_train_data_dict(self):
         if self.iterable_train_data_loader is None:
