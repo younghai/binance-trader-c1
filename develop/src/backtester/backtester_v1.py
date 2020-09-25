@@ -12,10 +12,12 @@ CONFIG = {
     "position_side": "long",
     "entry_ratio": 0.05,
     "commission": 0.0015,
-    "min_holding_minutes": 2,
+    "min_holding_minutes": 1,
     "max_holding_minutes": 10,
     "compound_interest": False,
     "possible_in_debt": True,
+    "achieved_with_commission": False,
+    "max_n_updated": None,
 }
 
 
@@ -33,6 +35,8 @@ class BacktesterV1(BasicBacktester):
         max_holding_minutes=CONFIG["max_holding_minutes"],
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
+        achieved_with_commission=CONFIG["achieved_with_commission"],
+        max_n_updated=CONFIG["max_n_updated"],
     ):
         super().__init__(
             base_currency=base_currency,
@@ -46,6 +50,8 @@ class BacktesterV1(BasicBacktester):
             max_holding_minutes=max_holding_minutes,
             compound_interest=compound_interest,
             possible_in_debt=possible_in_debt,
+            achieved_with_commission=achieved_with_commission,
+            max_n_updated=max_n_updated,
         )
 
     def compute_cost_to_order(self, position):
@@ -71,6 +77,12 @@ class BacktesterV1(BasicBacktester):
             if (exist_position.asset == position.asset) and (
                 exist_position.side == position.side
             ):
+                # Skip when position has max_n_updated
+                if self.max_n_updated is not None:
+                    if exist_position.n_updated == self.max_n_updated:
+                        # return fake updated mark
+                        return True
+
                 update_entry_price = (
                     (exist_position.entry_price * exist_position.qty)
                     + (position.entry_price * position.qty)
@@ -83,6 +95,7 @@ class BacktesterV1(BasicBacktester):
                     qty=exist_position.qty + position.qty,
                     entry_price=update_entry_price,
                     entry_at=position.entry_at,
+                    n_updated=exist_position.n_updated + 1,
                 )
 
                 # Compute cost by only current order
@@ -98,32 +111,6 @@ class BacktesterV1(BasicBacktester):
                     return True
 
         return False
-
-    def entry_order(self, asset, side, cache_to_order, pricing, now):
-        if cache_to_order == 0:
-            return
-
-        entry_price = pricing[asset]
-        qty = cache_to_order / entry_price
-
-        position = Position(
-            asset=asset,
-            side=side,
-            qty=qty,
-            entry_price=entry_price,
-            entry_at=now,
-        )
-
-        updated = self.update_position_if_already_have(position=position)
-        if updated is True:
-            return
-        else:
-            cost = self.compute_cost_to_order(position=position)
-            executable_order = self.check_if_executable_order(cost=cost)
-
-            if executable_order is True:
-                self.pay_cache(cost=cost)
-                self.positions.append(position)
 
     def compute_profit(self, position, pricing, now):
         current_price = pricing[position.asset]
@@ -145,6 +132,14 @@ class BacktesterV1(BasicBacktester):
         current_price = pricing[position.asset]
 
         diff_price = current_price - position.entry_price
+        if self.achieved_with_commission is True:
+            if position.side == "long":
+                commission = (current_price + position.entry_price) * self.commission
+            if position.side == "short":
+                commission = -((current_price + position.entry_price) * self.commission)
+
+            diff_price = diff_price - commission
+
         if diff_price != 0:
             trade_return = diff_price / position.entry_price
         else:
@@ -162,75 +157,6 @@ class BacktesterV1(BasicBacktester):
 
         return False
 
-    def exit_order(self, position, pricing, now):
-        profit = self.compute_profit(position=position, pricing=pricing, now=now)
-        self.deposit_cache(profit=profit)
-
-    def handle_exit(self, positive_assets, negative_assets, pricing, now):
-        for position_idx, position in enumerate(self.positions):
-            passed_minutes = (
-                pd.Timestamp(now) - pd.Timestamp(position.entry_at)
-            ).total_seconds() / 60
-
-            # Handle min_holding_minutes
-            if passed_minutes <= self.min_holding_minutes:
-                continue
-
-            # Handle max_holding_minutes
-            if passed_minutes >= self.max_holding_minutes:
-                self.exit_order(position=position, pricing=pricing, now=now)
-                self.report(
-                    value="max_holding_minutes",
-                    target="historical_exit_reasons",
-                    now=now,
-                    append=True,
-                )
-                self.positions[position_idx].is_exited = True
-                continue
-
-            # Handle exit signal
-            if (position.side == "long") and (position.asset in negative_assets):
-                self.exit_order(position=position, pricing=pricing, now=now)
-                self.report(
-                    value="opposite_signal",
-                    target="historical_exit_reasons",
-                    now=now,
-                    append=True,
-                )
-                self.positions[position_idx].is_exited = True
-                continue
-
-            if (position.side == "short") and (position.asset in positive_assets):
-                self.exit_order(position=position, pricing=pricing, now=now)
-                self.report(
-                    value="opposite_signal",
-                    target="historical_exit_reasons",
-                    now=now,
-                    append=True,
-                )
-                self.positions[position_idx].is_exited = True
-                continue
-
-            # Handle achievement
-            if (
-                self.check_if_achieved(position=position, pricing=pricing, now=now)
-                is True
-            ):
-                self.exit_order(position=position, pricing=pricing, now=now)
-                self.report(
-                    value="achieved",
-                    target="historical_exit_reasons",
-                    now=now,
-                    append=True,
-                )
-                self.positions[position_idx].is_exited = True
-                continue
-
-        # Delete exited positions
-        self.positions = [
-            position for position in self.positions if position.is_exited is not True
-        ]
-
     def compute_capital(self, pricing, now):
         # capital = cache + value of positions
         capital = self.cache
@@ -247,6 +173,164 @@ class BacktesterV1(BasicBacktester):
 
         return capital
 
+    def check_if_opposite_position_exists(self, order_asset, order_side):
+        if order_side == "long":
+            opposite_side = "short"
+        if order_side == "short":
+            opposite_side = "long"
+
+        for exist_position in self.positions:
+            if (exist_position.asset == order_asset) and (
+                exist_position.side == opposite_side
+            ):
+                return True
+
+        return False
+
+    def handle_entry(
+        self, cache_to_order, positive_assets, negative_assets, pricing, now
+    ):
+        # Entry order
+        if self.position_side in ("long", "longshort"):
+            for order_asset in positive_assets:
+                self.entry_order(
+                    asset=order_asset,
+                    side="long",
+                    cache_to_order=cache_to_order,
+                    pricing=pricing,
+                    now=now,
+                )
+
+        if self.position_side in ("short", "longshort"):
+            for order_asset in negative_assets:
+                self.entry_order(
+                    asset=order_asset,
+                    side="short",
+                    cache_to_order=cache_to_order,
+                    pricing=pricing,
+                    now=now,
+                )
+
+    def handle_exit(self, positive_assets, negative_assets, pricing, now):
+        for position_idx, position in enumerate(self.positions):
+            passed_minutes = (
+                pd.Timestamp(now) - pd.Timestamp(position.entry_at)
+            ).total_seconds() / 60
+
+            # Handle min_holding_minutes
+            if passed_minutes <= self.min_holding_minutes:
+                continue
+
+            # Handle max_holding_minutes
+            if passed_minutes >= self.max_holding_minutes:
+                self.exit_order(position=position, pricing=pricing, now=now)
+                self.report(
+                    value={position.asset: "max_holding_minutes"},
+                    target="historical_exit_reasons",
+                    now=now,
+                    append=True,
+                )
+                self.positions[position_idx].is_exited = True
+                continue
+
+            # Handle exit signal
+            if (position.side == "long") and (position.asset in negative_assets):
+                self.exit_order(position=position, pricing=pricing, now=now)
+                self.report(
+                    value={position.asset: "opposite_signal"},
+                    target="historical_exit_reasons",
+                    now=now,
+                    append=True,
+                )
+                self.positions[position_idx].is_exited = True
+                continue
+
+            if (position.side == "short") and (position.asset in positive_assets):
+                self.exit_order(position=position, pricing=pricing, now=now)
+                self.report(
+                    value={position.asset: "opposite_signal"},
+                    target="historical_exit_reasons",
+                    now=now,
+                    append=True,
+                )
+                self.positions[position_idx].is_exited = True
+                continue
+
+            # Handle achievement
+            if (
+                self.check_if_achieved(position=position, pricing=pricing, now=now)
+                is True
+            ):
+                self.exit_order(position=position, pricing=pricing, now=now)
+                self.report(
+                    value={position.asset: "achieved"},
+                    target="historical_exit_reasons",
+                    now=now,
+                    append=True,
+                )
+                self.positions[position_idx].is_exited = True
+                continue
+
+        # Delete exited positions
+        self.positions = [
+            position for position in self.positions if position.is_exited is not True
+        ]
+
+    def entry_order(self, asset, side, cache_to_order, pricing, now):
+        if cache_to_order == 0:
+            return
+
+        # if opposite position exists, we dont entry
+        if (
+            self.check_if_opposite_position_exists(order_asset=asset, order_side=side)
+            is True
+        ):
+            return
+
+        entry_price = pricing[asset]
+        qty = cache_to_order / entry_price
+
+        position = Position(
+            asset=asset,
+            side=side,
+            qty=qty,
+            entry_price=entry_price,
+            entry_at=now,
+        )
+
+        updated = self.update_position_if_already_have(position=position)
+        if updated is True:
+            self.report(
+                value={asset: "updated"},
+                target="historical_entry_reasons",
+                now=now,
+                append=True,
+            )
+            return
+        else:
+            cost = self.compute_cost_to_order(position=position)
+            executable_order = self.check_if_executable_order(cost=cost)
+
+            if executable_order is True:
+                self.pay_cache(cost=cost)
+                self.positions.append(position)
+                self.report(
+                    value={asset: "signal"},
+                    target="historical_entry_reasons",
+                    now=now,
+                    append=True,
+                )
+
+    def exit_order(self, position, pricing, now):
+        profit = self.compute_profit(position=position, pricing=pricing, now=now)
+        self.deposit_cache(profit=profit)
+        self.report(
+            value={position.asset: profit},
+            target="historical_profits",
+            now=now,
+            append=True,
+        )
+
     def run(self, display=True):
         self.initialize()
 
@@ -259,35 +343,23 @@ class BacktesterV1(BasicBacktester):
             positive_assets = self.tradable_coins[predictions == 0]
             negative_assets = self.tradable_coins[predictions == 1]
 
+            # Exit
+            self.handle_exit(
+                positive_assets=positive_assets,
+                negative_assets=negative_assets,
+                pricing=pricing,
+                now=now,
+            )
+
             # Compute how much use cache
             if self.compound_interest is False:
                 cache_to_order = self.entry_ratio
             else:
                 cache_to_order = nan_to_zero(value=(self.cache * self.entry_ratio))
 
-            # Entry order
-            if self.position_side in ("long", "longshort"):
-                for order_asset in positive_assets:
-                    self.entry_order(
-                        asset=order_asset,
-                        side="long",
-                        cache_to_order=cache_to_order,
-                        pricing=pricing,
-                        now=now,
-                    )
-
-            if self.position_side in ("short", "longshort"):
-                for order_asset in negative_assets:
-                    self.entry_order(
-                        asset=order_asset,
-                        side="short",
-                        cache_to_order=cache_to_order,
-                        pricing=pricing,
-                        now=now,
-                    )
-
-            # Exit
-            self.handle_exit(
+            # Entry
+            self.handle_entry(
+                cache_to_order=cache_to_order,
                 positive_assets=positive_assets,
                 negative_assets=negative_assets,
                 pricing=pricing,

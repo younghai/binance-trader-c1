@@ -16,10 +16,12 @@ CONFIG = {
     "position_side": "long",
     "entry_ratio": 0.1,
     "commission": 0.0015,
-    "min_holding_minutes": 2,
+    "min_holding_minutes": 1,
     "max_holding_minutes": 10,
     "compound_interest": True,
     "possible_in_debt": False,
+    "achieved_with_commission": False,
+    "max_n_updated": None,
 }
 
 
@@ -37,6 +39,8 @@ class BasicBacktester:
         max_holding_minutes=CONFIG["max_holding_minutes"],
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
+        achieved_with_commission=CONFIG["achieved_with_commission"],
+        max_n_updated=CONFIG["max_n_updated"],
     ):
         assert position_side in ("long", "short", "longshort")
         self.base_currency = base_currency
@@ -48,6 +52,8 @@ class BasicBacktester:
         self.max_holding_minutes = max_holding_minutes
         self.compound_interest = compound_interest
         self.possible_in_debt = possible_in_debt
+        self.achieved_with_commission = achieved_with_commission
+        self.max_n_updated = max_n_updated
 
         # Set path to load data
         dataset_params_path = os.path.join(dataset_dir, "params.json")
@@ -128,7 +134,9 @@ class BasicBacktester:
     def initialize(self):
         self.historical_caches = {}
         self.historical_capitals = {}
+        self.historical_entry_reasons = defaultdict(list)
         self.historical_exit_reasons = defaultdict(list)
+        self.historical_profits = defaultdict(list)
         self.historical_positions = {}
 
         self.positions = []
@@ -151,9 +159,13 @@ class BasicBacktester:
             .fillna(0)
             .rename("return")
         )
+        historical_entry_reasons = pd.Series(self.historical_entry_reasons).rename(
+            "entry_reason"
+        )
         historical_exit_reasons = pd.Series(self.historical_exit_reasons).rename(
             "exit_reason"
         )
+        historical_profits = pd.Series(self.historical_profits).rename("profit")
         historical_positions = pd.Series(self.historical_positions).rename("position")
 
         report = pd.concat(
@@ -161,7 +173,9 @@ class BasicBacktester:
                 historical_caches,
                 historical_capitals,
                 historical_returns,
+                historical_entry_reasons,
                 historical_exit_reasons,
+                historical_profits,
                 historical_positions,
             ],
             axis=1,
@@ -186,6 +200,8 @@ class BasicBacktester:
             "max_holding_minutes": self.max_holding_minutes,
             "compound_interest": self.compound_interest,
             "possible_in_debt": self.possible_in_debt,
+            "achieved_with_commission": self.achieved_with_commission,
+            "max_n_updated": self.max_n_updated,
             "tradable_coins": tuple(self.tradable_coins.tolist()),
             "q_threshold": self.q_threshold,
         }
