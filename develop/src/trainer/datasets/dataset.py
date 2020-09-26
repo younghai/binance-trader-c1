@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 
-FILENAME_TEMPLATE = {"X": "X.csv", "Y": "Y.csv"}
+FILENAME_TEMPLATE = {"X": "X.csv", "Y": "Y.csv", "QY": "QY.csv"}
 
 
 class Dataset(_Dataset):
@@ -16,7 +16,7 @@ class Dataset(_Dataset):
         lookback_window: int = 60,
         winsorize_threshold: Optional[int] = None,
     ):
-        load_files = ["X", "Y"]
+        load_files = ["X", "Y", "QY"]
 
         self.data_caches = {
             data_type: pd.read_csv(
@@ -31,6 +31,7 @@ class Dataset(_Dataset):
 
         # Check if all index are same.
         assert (self.data_caches["X"].index == self.data_caches["Y"].index).all()
+        assert (self.data_caches["X"].index == self.data_caches["QY"].index).all()
 
         self.n_data = len(self.data_caches["X"])
         self.lookback_window = lookback_window
@@ -56,6 +57,12 @@ class Dataset(_Dataset):
 
         data_dict["Y"] = (
             self.data_caches["Y"]
+            .iloc[idx + self.lookback_window - 1]
+            .values.astype("int")
+        )
+
+        data_dict["QY"] = (
+            self.data_caches["QY"]
             .iloc[idx + self.lookback_window - 1]
             .values.astype("int")
         )

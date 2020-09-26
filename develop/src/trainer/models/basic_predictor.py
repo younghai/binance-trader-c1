@@ -39,7 +39,6 @@ MODEL_CONFIG = {
     "model_params": {
         "in_channels": 320,
         "n_assets": 32,
-        "n_class_per_asset": 4,
         "n_blocks": 3,
         "n_block_layers": 16,
         "growth_rate": 12,
@@ -273,33 +272,14 @@ class BasicPredictor:
         """
         pass
 
+    @abstractmethod
     def generate(self, save_dir=None):
-        assert self.mode in ("test")
-        self.model.eval()
+        """
+        Generate historical predictions csv
+        """
 
-        if save_dir is None:
-            save_dir = self.data_config["generate_output_dir"]
-
-        index = self.test_data_loader.dataset.index
-
-        predictions = []
-        labels = []
-        for _ in tqdm(range(len(self.test_data_loader))):
-            test_data_dict = self._generate_test_data_dict()
-
-            X, Y = test_data_dict["X"], test_data_dict["Y"]
-
-            y_preds = self.model(X)
-            B, _, _ = y_preds.size()
-
-            predictions += y_preds.argmax(dim=-1).view(B, -1).cpu().tolist()
-            labels += Y.view(B, -1).cpu().tolist()
-
-        pd.DataFrame(predictions, index=index).to_csv(
-            os.path.join(save_dir, "predictions.csv")
-        )
-        pd.DataFrame(labels, index=index).to_csv(os.path.join(save_dir, "labels.csv"))
-
+    @abstractmethod
     def predict(self, X):
-        self.model.eval()
-        return self.model(X.to(self.device)).argmax(dim=-1).cpu()
+        """
+        Predict
+        """

@@ -82,15 +82,11 @@ def _build_fwd_returns_by_rawdata(
 
 
 def _build_bins(rawdata, lookahead_window, n_bins):
-    column_pair = ("close", "close")
-
     # build fwd_return(window)
-    colum_pair_df = rawdata[list(column_pair)].copy().sort_index()
-    colum_pair_df.columns = [0, 1]
-
-    colum_pair_df[1] = colum_pair_df[1].shift(-lookahead_window)
+    pricing = rawdata["close"].copy().sort_index()
     fwd_return = (
-        colum_pair_df.pct_change(1, axis=1, fill_method=None)[1]
+        pricing.pct_change(lookahead_window, fill_method=None)
+        .shift(-lookahead_window)
         .rename(f"fwd_return({lookahead_window})")
         .sort_index()
     )
@@ -101,6 +97,27 @@ def _build_bins(rawdata, lookahead_window, n_bins):
     bins = np.concatenate([[-np.inf], bins[1:-1], [np.inf]])
 
     return bins
+
+
+def _build_q_label(rawdata, lookahead_window, n_bins):
+    # build fwd_return(window)
+    pricing = rawdata["close"].copy().sort_index()
+    fwd_return = (
+        pricing.pct_change(lookahead_window, fill_method=None)
+        .shift(-lookahead_window)
+        .rename(f"fwd_return({lookahead_window})")
+        .sort_index()
+    )
+
+    _, bins = pd.qcut(
+        fwd_return[fwd_return != 0].dropna(), n_bins, retbins=True, labels=False
+    )
+
+    bins = np.concatenate([[-np.inf], bins[1:-1], [np.inf]])
+
+    q_label = fwd_return.dropna().parallel_apply(partial(compute_quantile, bins=bins))
+
+    return q_label
 
 
 def _build_label_by_rawdata(
@@ -187,6 +204,21 @@ def build_labels(file_names, lookahead_window, n_bins, q_threshold, column_pairs
     return pd.concat(labels, axis=1).dropna().sort_index()
 
 
+def build_q_labels(file_names, lookahead_window, n_bins):
+    q_labels = []
+    for file_name in tqdm(file_names):
+        coin_pair = file_name.split("/")[-1].split(".")[0]
+
+        rawdata = load_rawdata(file_name=file_name)
+        q_labels.append(
+            _build_q_label(
+                rawdata=rawdata, lookahead_window=lookahead_window, n_bins=n_bins
+            ).rename(coin_pair)
+        )
+
+    return pd.concat(q_labels, axis=1).dropna().sort_index()
+
+
 def build_pricing(file_names):
     pricing = []
     for file_name in tqdm(file_names):
@@ -232,7 +264,15 @@ def preprocess_features(features, scaler):
 
 
 def store_artifacts(
-    features, labels, pricing, scaler, bins, train_ratio, params, data_store_dir
+    features,
+    labels,
+    q_labels,
+    pricing,
+    scaler,
+    bins,
+    train_ratio,
+    params,
+    data_store_dir,
 ):
     # Make dirs
     train_data_store_dir = os.path.join(data_store_dir, "train")
@@ -253,6 +293,13 @@ def store_artifacts(
     )
     labels.iloc[boundary_index:].to_csv(
         os.path.join(test_data_store_dir, "Y.csv"), compression="gzip"
+    )
+
+    q_labels.iloc[:boundary_index].to_csv(
+        os.path.join(train_data_store_dir, "QY.csv"), compression="gzip"
+    )
+    q_labels.iloc[boundary_index:].to_csv(
+        os.path.join(test_data_store_dir, "QY.csv"), compression="gzip"
     )
 
     pricing.iloc[:boundary_index].to_csv(
@@ -307,6 +354,13 @@ def build_dataset(
         column_pairs=column_pairs,
     )
 
+    # build q_labels
+    q_labels = build_q_labels(
+        file_names=file_names,
+        lookahead_window=lookahead_window,
+        n_bins=n_bins,
+    )
+
     # Build pricing
     pricing = build_pricing(file_names=file_names)
 
@@ -316,9 +370,10 @@ def build_dataset(
     )
 
     # Masking with common index
-    common_index = features.index & labels.index
+    common_index = features.index & labels.index & q_labels.index
     features = features.reindex(common_index).sort_index()
     labels = labels.reindex(common_index).sort_index()
+    q_labels = q_labels.reindex(common_index).sort_index()
     pricing = pricing.reindex(common_index).sort_index()
 
     params = {
@@ -334,6 +389,7 @@ def build_dataset(
     store_artifacts(
         features=features,
         labels=labels,
+        q_labels=q_labels,
         pricing=pricing,
         scaler=scaler,
         bins=bins,

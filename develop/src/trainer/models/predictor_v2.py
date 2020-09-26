@@ -25,13 +25,14 @@ MODEL_CONFIG = {
     "criterion": "fl",
     "criterion_params": {},
     "load_strict": False,
-    "model_name": "BackboneV1",
+    "model_name": "BackboneV2",
     "model_params": {
         "in_channels": 320,
         "n_assets": 32,
-        "n_class_per_asset": 4,
+        "n_class_y_per_asset": 4,
+        "n_class_qy_per_asset": 10,
         "n_blocks": 3,
-        "n_block_layers": 16,
+        "n_block_layers": 24,
         "growth_rate": 12,
         "dropout": 0.2,
         "channel_reduction": 0.5,
@@ -43,7 +44,7 @@ MODEL_CONFIG = {
 }
 
 
-class PredictorV1(BasicPredictor):
+class PredictorV2(BasicPredictor):
     """
     Functions:
         train(): train the model with train_data
@@ -76,29 +77,45 @@ class PredictorV1(BasicPredictor):
         )
 
     def _compute_train_loss(self, train_data_dict):
-        X, Y = train_data_dict["X"], train_data_dict["Y"]
+        X, Y, QY = train_data_dict["X"], train_data_dict["Y"], train_data_dict["QY"]
 
         # Set train mode
         self.model.train()
         self.model.zero_grad()
 
         # Set loss
-        y_preds = self.model(X)
+        y_preds, qy_preds = self.model(X)
+
+        # Y loss
         y_preds_shape = y_preds.size()
         loss = self.criterion(y_preds.view(-1, y_preds_shape[-1]), Y.detach().view(-1))
+
+        # QY loss
+        qy_preds_shape = qy_preds.size()
+        loss += self.criterion(
+            qy_preds.view(-1, qy_preds_shape[-1]), QY.detach().view(-1)
+        )
 
         return loss
 
     def _compute_test_loss(self, test_data_dict):
-        X, Y = test_data_dict["X"], test_data_dict["Y"]
+        X, Y, QY = test_data_dict["X"], test_data_dict["Y"], test_data_dict["QY"]
 
         # Set eval mode
         self.model.eval()
 
         # Set loss
-        y_preds = self.model(X)
+        y_preds, qy_preds = self.model(X)
+
+        # Y loss
         y_preds_shape = y_preds.size()
         loss = self.criterion(y_preds.view(-1, y_preds_shape[-1]), Y.detach().view(-1))
+
+        # QY loss
+        qy_preds_shape = qy_preds.size()
+        loss += self.criterion(
+            qy_preds.view(-1, qy_preds_shape[-1]), QY.detach().view(-1)
+        )
 
         return loss
 
@@ -148,28 +165,43 @@ class PredictorV1(BasicPredictor):
 
         predictions = []
         labels = []
+        q_predictions = []
+        q_labels = []
         for _ in tqdm(range(len(self.test_data_loader))):
             test_data_dict = self._generate_test_data_dict()
 
-            X, Y = test_data_dict["X"], test_data_dict["Y"]
+            X, Y, QY = test_data_dict["X"], test_data_dict["Y"], test_data_dict["QY"]
 
-            y_preds = self.model(X)
+            y_preds, qy_preds = self.model(X)
+
             B, _, _ = y_preds.size()
 
             predictions += y_preds.argmax(dim=-1).view(B, -1).cpu().tolist()
             labels += Y.view(B, -1).cpu().tolist()
+
+            q_predictions += qy_preds.argmax(dim=-1).view(B, -1).cpu().tolist()
+            q_labels += QY.view(B, -1).cpu().tolist()
 
         pd.DataFrame(predictions, index=index).to_csv(
             os.path.join(save_dir, "predictions.csv")
         )
         pd.DataFrame(labels, index=index).to_csv(os.path.join(save_dir, "labels.csv"))
 
+        pd.DataFrame(q_predictions, index=index).to_csv(
+            os.path.join(save_dir, "q_predictions.csv")
+        )
+        pd.DataFrame(q_labels, index=index).to_csv(
+            os.path.join(save_dir, "q_labels.csv")
+        )
+
     def predict(self, X):
         self.model.eval()
-        return self.model(X.to(self.device)).argmax(dim=-1).cpu()
+        y_preds, qy_preds = self.model(X.to(self.device))
+
+        return (y_preds.argmax(dim=-1).cpu(), qy_preds.argmax(dim=-1).cpu())
 
 
 if __name__ == "__main__":
     import fire
 
-    fire.Fire(PredictorV1)
+    fire.Fire(PredictorV2)

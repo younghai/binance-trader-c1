@@ -5,12 +5,13 @@ import torch.nn.functional as F
 from trainer.modules.block_1d import DenseBlock, TransitionBlock, NORMS
 
 
-class BackboneV1(nn.Module):
+class BackboneV2(nn.Module):
     def __init__(
         self,
         in_channels,
         n_assets,
-        n_class_per_asset,
+        n_class_y_per_asset,
+        n_class_qy_per_asset,
         n_blocks=3,
         n_block_layers=6,
         growth_rate=12,
@@ -21,11 +22,15 @@ class BackboneV1(nn.Module):
         seblock=True,
         sablock=True,
     ):
-        super(BackboneV1, self).__init__()
+        super(BackboneV2, self).__init__()
         self.in_channels = in_channels
         self.n_assets = n_assets
-        self.n_class_per_asset = n_class_per_asset
-        self.n_classes = int(n_assets * n_class_per_asset)
+        self.n_class_y_per_asset = n_class_y_per_asset
+        self.n_class_qy_per_asset = n_class_qy_per_asset
+
+        self.n_classes_y = int(n_assets * n_class_y_per_asset)
+        self.n_classes_qy = int(n_assets * n_class_qy_per_asset)
+
         self.n_blocks = n_blocks
         self.n_block_layers = n_block_layers
         self.growth_rate = growth_rate
@@ -73,7 +78,8 @@ class BackboneV1(nn.Module):
         self.act = getattr(F, activation)
         self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
 
-        self.fc = nn.Linear(in_channels, self.n_classes)
+        self.pred_y_fc = nn.Linear(in_channels, self.n_classes_y)
+        self.pred_qy_fc = nn.Linear(in_channels, self.n_classes_qy)
 
         # Initialize
         for m in self.modules():
@@ -132,7 +138,12 @@ class BackboneV1(nn.Module):
     def forward(self, x):
         B, _, _ = x.size()
         out = self.blocks(self.first_conv(x))
-        out = self.fc(self.global_avg_pool(self.act(self.norm(out))).view(B, -1))
+        out = self.global_avg_pool(self.act(self.norm(out))).view(B, -1)
+
+        preds_y = self.pred_y_fc(out)
+        preds_qy = self.pred_qy_fc(out)
 
         # out shape: (B, n_class / n_class_per_asset, n_class_per_asset)
-        return out.view(B, -1, self.n_class_per_asset)
+        return preds_y.view(B, -1, self.n_class_y_per_asset), preds_qy.view(
+            B, -1, self.n_class_qy_per_asset
+        )
