@@ -63,6 +63,12 @@ class BasicBacktester:
             exp_dir, "generated_output/predictions.csv"
         )
         historical_labels_path = os.path.join(exp_dir, "generated_output/labels.csv")
+        historical_q_predictions_path = os.path.join(
+            exp_dir, "generated_output/q_predictions.csv"
+        )
+        historical_q_labels_path = os.path.join(
+            exp_dir, "generated_output/q_labels.csv"
+        )
 
         self.report_store_dir = os.path.join(exp_dir, "reports/")
         make_dirs([self.report_store_dir])
@@ -72,18 +78,16 @@ class BasicBacktester:
         dataset_params = self.load_dataset_params(dataset_params_path)
         self.q_threshold = dataset_params["q_threshold"]
         self.n_bins = dataset_params["n_bins"]
-        (
-            self.historical_pricing,
-            self.historical_predictions,
-            self.historical_labels,
-        ) = self.load_historical_data(
+        self.historical_data_dict = self.build_historical_data_dict(
             base_currency=base_currency,
             historical_pricing_path=historical_pricing_path,
             historical_predictions_path=historical_predictions_path,
             historical_labels_path=historical_labels_path,
+            historical_q_predictions_path=historical_q_predictions_path,
+            historical_q_labels_path=historical_q_labels_path,
         )
-        self.tradable_coins = self.historical_pricing.columns
-        self.index = self.historical_predictions.index
+        self.tradable_coins = self.historical_data_dict["pricing"].columns
+        self.index = self.historical_data_dict["predictions"].index
 
         self.initialize()
 
@@ -102,12 +106,14 @@ class BasicBacktester:
 
         return dataset_params
 
-    def load_historical_data(
+    def build_historical_data_dict(
         self,
         base_currency,
         historical_pricing_path,
         historical_predictions_path,
         historical_labels_path,
+        historical_q_predictions_path,  # On here this is not used, this is for compatible.
+        historical_q_labels_path,  # On here this is not used, this is for compatible.
     ):
         historical_pricing = data_loader(
             path=historical_pricing_path, compression="gzip"
@@ -129,7 +135,11 @@ class BasicBacktester:
         historical_predictions = historical_predictions[columns_with_base_currency]
         historical_labels = historical_labels[columns_with_base_currency]
 
-        return historical_pricing, historical_predictions, historical_labels
+        return {
+            "pricing": historical_pricing,
+            "predictions": historical_predictions,
+            "labels": historical_labels,
+        }
 
     def initialize(self):
         self.historical_caches = {}
@@ -219,19 +229,23 @@ class BasicBacktester:
     def display_accuracy(self):
         accuracies = {}
 
-        for column in self.historical_predictions.columns:
+        for column in self.historical_data_dict["predictions"].columns:
             class_accuracy = {}
-            for class_num in range(self.historical_labels[column].max() + 1):
-                class_mask = self.historical_predictions[column] == class_num
+            for class_num in range(
+                self.historical_data_dict["labels"][column].max() + 1
+            ):
+                class_mask = (
+                    self.historical_data_dict["predictions"][column] == class_num
+                )
                 class_accuracy["class_" + str(class_num)] = (
-                    self.historical_labels[column][class_mask] == class_num
+                    self.historical_data_dict["labels"][column][class_mask] == class_num
                 ).mean()
 
             accuracy = pd.Series(
                 {
                     "total": (
-                        self.historical_predictions[column]
-                        == self.historical_labels[column]
+                        self.historical_data_dict["predictions"][column]
+                        == self.historical_data_dict["labels"][column]
                     ).mean(),
                     **class_accuracy,
                 }

@@ -5,6 +5,7 @@ from abc import abstractmethod
 from .utils import data_loader, Position, compute_quantile, nan_to_zero
 from .basic_backtester import BasicBacktester
 from tqdm import tqdm
+from IPython.display import display_markdown, display
 
 
 CONFIG = {
@@ -18,10 +19,11 @@ CONFIG = {
     "possible_in_debt": True,
     "achieved_with_commission": False,
     "max_n_updated": None,
+    "entry_q_prediction_threhold": 8,
 }
 
 
-class BacktesterV1(BasicBacktester):
+class BacktesterV2(BasicBacktester):
     def __init__(
         self,
         base_currency,
@@ -37,6 +39,7 @@ class BacktesterV1(BasicBacktester):
         possible_in_debt=CONFIG["possible_in_debt"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
+        entry_q_prediction_threhold=CONFIG["entry_q_prediction_threhold"],
     ):
         super().__init__(
             base_currency=base_currency,
@@ -53,6 +56,51 @@ class BacktesterV1(BasicBacktester):
             achieved_with_commission=achieved_with_commission,
             max_n_updated=max_n_updated,
         )
+
+        self.entry_q_prediction_threhold = entry_q_prediction_threhold
+
+    def build_historical_data_dict(
+        self,
+        base_currency,
+        historical_pricing_path,
+        historical_predictions_path,
+        historical_labels_path,
+        historical_q_predictions_path,
+        historical_q_labels_path,
+    ):
+        historical_pricing = data_loader(
+            path=historical_pricing_path, compression="gzip"
+        )
+
+        historical_predictions = data_loader(path=historical_predictions_path)
+        historical_labels = data_loader(path=historical_labels_path)
+        historical_q_predictions = data_loader(path=historical_q_predictions_path)
+        historical_q_labels = data_loader(path=historical_q_labels_path)
+
+        # Re-order columns
+        columns = historical_pricing.columns
+        historical_predictions.columns = columns
+        historical_labels.columns = columns
+        historical_q_predictions.columns = columns
+        historical_q_labels.columns = columns
+
+        # Filter by base_currency
+        columns_with_base_currency = columns[
+            columns.str.endswith(base_currency.upper())
+        ]
+        historical_pricing = historical_pricing[columns_with_base_currency]
+        historical_predictions = historical_predictions[columns_with_base_currency]
+        historical_labels = historical_labels[columns_with_base_currency]
+        historical_q_predictions = historical_q_predictions[columns_with_base_currency]
+        historical_q_labels = historical_q_labels[columns_with_base_currency]
+
+        return {
+            "pricing": historical_pricing,
+            "predictions": historical_predictions,
+            "labels": historical_labels,
+            "q_predictions": historical_q_predictions,
+            "q_labels": historical_q_labels,
+        }
 
     def compute_cost_to_order(self, position):
         cache_to_order = position.entry_price * position.qty
@@ -331,6 +379,37 @@ class BacktesterV1(BasicBacktester):
             append=True,
         )
 
+    def display_q_accuracy(self):
+        accuracies = {}
+
+        for column in self.historical_data_dict["q_predictions"].columns:
+            class_accuracy = {}
+            for class_num in range(
+                self.historical_data_dict["q_labels"][column].max() + 1
+            ):
+                class_mask = (
+                    self.historical_data_dict["q_predictions"][column] == class_num
+                )
+                class_accuracy["class_" + str(class_num)] = (
+                    self.historical_data_dict["q_labels"][column][class_mask]
+                    == class_num
+                ).mean()
+
+            accuracy = pd.Series(
+                {
+                    "total": (
+                        self.historical_data_dict["q_predictions"][column]
+                        == self.historical_data_dict["q_labels"][column]
+                    ).mean(),
+                    **class_accuracy,
+                }
+            )
+            accuracies[column] = accuracy
+
+        accuracies = pd.concat(accuracies).unstack().T
+        display_markdown("#### Q Accuracy of signals", raw=True)
+        display(accuracies)
+
     def run(self, display=True):
         self.initialize()
 
@@ -338,10 +417,19 @@ class BacktesterV1(BasicBacktester):
             # Step1: Prepare pricing and signal
             pricing = self.historical_data_dict["pricing"].loc[now]
             predictions = self.historical_data_dict["predictions"].loc[now]
+            q_predictions = self.historical_data_dict["q_predictions"].loc[now]
 
             # Set assets which has signals
-            positive_assets = self.tradable_coins[predictions == 0]
-            negative_assets = self.tradable_coins[predictions == 1]
+            positive_assets = self.tradable_coins[
+                (predictions == 0) & (q_predictions >= self.entry_q_prediction_threhold)
+            ]
+            negative_assets = self.tradable_coins[
+                (predictions == 1)
+                & (
+                    q_predictions
+                    <= (self.n_bins - 1) - self.entry_q_prediction_threhold
+                )
+            ]
 
             # Exit
             self.handle_exit(
@@ -384,6 +472,7 @@ class BacktesterV1(BasicBacktester):
 
         if display is True:
             self.display_accuracy()
+            self.display_q_accuracy()
             self.display_metrics()
             self.display_report(report=report)
 
@@ -391,4 +480,4 @@ class BacktesterV1(BasicBacktester):
 if __name__ == "__main__":
     import fire
 
-    fire.Fire(BacktesterV1)
+    fire.Fire(BacktesterV2)

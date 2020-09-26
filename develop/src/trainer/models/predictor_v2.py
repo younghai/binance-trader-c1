@@ -32,7 +32,7 @@ MODEL_CONFIG = {
         "n_class_y_per_asset": 4,
         "n_class_qy_per_asset": 10,
         "n_blocks": 3,
-        "n_block_layers": 24,
+        "n_block_layers": 16,
         "growth_rate": 12,
         "dropout": 0.2,
         "channel_reduction": 0.5,
