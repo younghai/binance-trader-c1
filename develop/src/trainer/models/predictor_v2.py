@@ -63,17 +63,21 @@ class PredictorV2(BasicPredictor):
         pin_memory=True,
         num_workers=16,
         mode="train",
+        default_d_config=DATA_CONFIG,
+        default_m_config=MODEL_CONFIG,
     ):
         super().__init__(
             data_dir=data_dir,
             test_data_dir=test_data_dir,
-            d_config={**DATA_CONFIG, **d_config},
-            m_config={**MODEL_CONFIG, **m_config},
+            d_config=d_config,
+            m_config=m_config,
             exp_dir=exp_dir,
             device=device,
             pin_memory=pin_memory,
             num_workers=num_workers,
             mode=mode,
+            default_d_config=default_d_config,
+            default_m_config=default_m_config,
         )
 
     def _compute_train_loss(self, train_data_dict):

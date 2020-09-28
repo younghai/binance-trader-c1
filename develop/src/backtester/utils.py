@@ -24,9 +24,6 @@ def compute_quantile(x, bins):
         if bins[idx] < x <= bins[idx + 1]:
             return idx
 
-    import pdb
-
-    pdb.set_trace()
     raise RuntimeError("unreachable")
 
 

@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 from abc import abstractmethod
-from .utils import data_loader, Position, compute_quantile, nan_to_zero
+from .utils import data_loader, Position, compute_quantile, nan_to_zero, make_dirs
 from .basic_backtester import BasicBacktester
 from tqdm import tqdm
 from IPython.display import display_markdown, display
@@ -18,17 +18,21 @@ CONFIG = {
     "compound_interest": False,
     "possible_in_debt": True,
     "achieved_with_commission": False,
+    "achieved_with_aux_condition": True,
     "max_n_updated": None,
     "entry_q_prediction_threhold": 9,
+    "entry_aux_q_prediction_threhold": 9,
 }
 
 
-class BacktesterV2(BasicBacktester):
+class BacktesterV3(BasicBacktester):
     def __init__(
         self,
         base_currency,
         dataset_dir,
         exp_dir,
+        aux_dataset_dir,
+        aux_exp_dir,
         report_prefix=CONFIG["report_prefix"],
         position_side=CONFIG["position_side"],
         entry_ratio=CONFIG["entry_ratio"],
@@ -38,26 +42,80 @@ class BacktesterV2(BasicBacktester):
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
+        achieved_with_aux_condition=CONFIG["achieved_with_aux_condition"],
         max_n_updated=CONFIG["max_n_updated"],
         entry_q_prediction_threhold=CONFIG["entry_q_prediction_threhold"],
+        entry_aux_q_prediction_threhold=CONFIG["entry_aux_q_prediction_threhold"],
     ):
-        super().__init__(
+        assert position_side in ("long", "short", "longshort")
+        self.base_currency = base_currency
+        self.report_prefix = report_prefix
+        self.position_side = position_side
+        self.entry_ratio = entry_ratio
+        self.commission = commission
+        self.min_holding_minutes = min_holding_minutes
+        self.max_holding_minutes = max_holding_minutes
+        self.compound_interest = compound_interest
+        self.possible_in_debt = possible_in_debt
+        self.achieved_with_commission = achieved_with_commission
+        self.achieved_with_aux_condition = achieved_with_aux_condition
+        self.max_n_updated = max_n_updated
+
+        self.report_store_dir = os.path.join(exp_dir, "aux_reports/")
+        make_dirs([self.report_store_dir])
+
+        # Load data
+        self.bins = self.load_bins(os.path.join(dataset_dir, "bins.csv"))
+        self.aux_bins = self.load_bins(os.path.join(aux_dataset_dir, "bins.csv"))
+
+        dataset_params = self.load_dataset_params(
+            os.path.join(dataset_dir, "params.json")
+        )
+        self.q_threshold = dataset_params["q_threshold"]
+        self.n_bins = dataset_params["n_bins"]
+
+        aux_dataset_params = self.load_dataset_params(
+            os.path.join(aux_dataset_dir, "params.json")
+        )
+        self.aux_q_threshold = aux_dataset_params["q_threshold"]
+        self.aux_n_bins = aux_dataset_params["n_bins"]
+
+        self.historical_data_dict = self.build_historical_data_dict(
             base_currency=base_currency,
-            dataset_dir=dataset_dir,
-            exp_dir=exp_dir,
-            report_prefix=report_prefix,
-            position_side=position_side,
-            entry_ratio=entry_ratio,
-            commission=commission,
-            min_holding_minutes=min_holding_minutes,
-            max_holding_minutes=max_holding_minutes,
-            compound_interest=compound_interest,
-            possible_in_debt=possible_in_debt,
-            achieved_with_commission=achieved_with_commission,
-            max_n_updated=max_n_updated,
+            historical_data_path_dict={
+                "pricing": os.path.join(dataset_dir, "test/pricing.csv"),
+                "predictions": os.path.join(
+                    exp_dir, "generated_output/predictions.csv"
+                ),
+                "labels": os.path.join(exp_dir, "generated_output/labels.csv"),
+                "q_predictions": os.path.join(
+                    exp_dir, "generated_output/q_predictions.csv"
+                ),
+                "q_labels": os.path.join(exp_dir, "generated_output/q_labels.csv"),
+                "aux_predictions": os.path.join(
+                    aux_exp_dir, "generated_output/predictions.csv"
+                ),
+                "aux_labels": os.path.join(
+                    aux_exp_dir, "generated_output/aux_labels.csv"
+                ),
+                "aux_q_predictions": os.path.join(
+                    aux_exp_dir, "generated_output/q_predictions.csv"
+                ),
+                "aux_q_labels": os.path.join(
+                    aux_exp_dir, "generated_output/q_labels.csv"
+                ),
+            },
+        )
+        self.tradable_coins = self.historical_data_dict["pricing"].columns
+        self.index = (
+            self.historical_data_dict["predictions"].index
+            & self.historical_data_dict["aux_predictions"].index
         )
 
         self.entry_q_prediction_threhold = entry_q_prediction_threhold
+        self.entry_aux_q_prediction_threhold = entry_aux_q_prediction_threhold
+
+        self.initialize()
 
     def compute_cost_to_order(self, position):
         cache_to_order = position.entry_price * position.qty
@@ -150,15 +208,26 @@ class BacktesterV2(BasicBacktester):
         else:
             trade_return = 0
 
-        q = compute_quantile(trade_return, bins=self.bins[position.asset])
+        if self.achieved_with_aux_condition is True:
+            q = compute_quantile(trade_return, bins=self.aux_bins[position.asset])
 
-        if position.side == "long":
-            if q >= self.q_threshold:
-                return True
+            if position.side == "long":
+                if q >= self.aux_q_threshold:
+                    return True
 
-        if position.side == "short":
-            if q <= ((self.n_bins - 1) - self.q_threshold):
-                return True
+            if position.side == "short":
+                if q <= ((self.aux_n_bins - 1) - self.aux_q_threshold):
+                    return True
+        else:
+            q = compute_quantile(trade_return, bins=self.bins[position.asset])
+
+            if position.side == "long":
+                if q >= self.q_threshold:
+                    return True
+
+            if position.side == "short":
+                if q <= ((self.n_bins - 1) - self.q_threshold):
+                    return True
 
         return False
 
@@ -375,16 +444,26 @@ class BacktesterV2(BasicBacktester):
             pricing = self.historical_data_dict["pricing"].loc[now]
             predictions = self.historical_data_dict["predictions"].loc[now]
             q_predictions = self.historical_data_dict["q_predictions"].loc[now]
+            aux_predictions = self.historical_data_dict["aux_predictions"].loc[now]
+            aux_q_predictions = self.historical_data_dict["aux_q_predictions"].loc[now]
 
             # Set assets which has signals
             positive_assets = self.tradable_coins[
-                (predictions == 0) & (q_predictions >= self.entry_q_prediction_threhold)
+                (predictions == 0)
+                & (aux_predictions == 0)
+                & (q_predictions >= self.entry_q_prediction_threhold)
+                & (aux_q_predictions >= self.entry_aux_q_prediction_threhold)
             ]
             negative_assets = self.tradable_coins[
                 (predictions == 1)
+                & (aux_predictions == 1)
                 & (
                     q_predictions
                     <= (self.n_bins - 1) - self.entry_q_prediction_threhold
+                )
+                & (
+                    aux_q_predictions
+                    <= (self.aux_n_bins - 1) - self.entry_aux_q_prediction_threhold
                 )
             ]
 
@@ -437,4 +516,4 @@ class BacktesterV2(BasicBacktester):
 if __name__ == "__main__":
     import fire
 
-    fire.Fire(BacktesterV2)
+    fire.Fire(BacktesterV3)

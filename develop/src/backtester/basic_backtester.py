@@ -2,6 +2,7 @@ import os
 import json
 import numpy as np
 import pandas as pd
+from copy import copy
 import matplotlib.pyplot as plt
 from abc import abstractmethod
 from IPython.display import display, display_markdown
@@ -58,17 +59,6 @@ class BasicBacktester:
         # Set path to load data
         dataset_params_path = os.path.join(dataset_dir, "params.json")
         bins_path = os.path.join(dataset_dir, "bins.csv")
-        historical_pricing_path = os.path.join(dataset_dir, "test/pricing.csv")
-        historical_predictions_path = os.path.join(
-            exp_dir, "generated_output/predictions.csv"
-        )
-        historical_labels_path = os.path.join(exp_dir, "generated_output/labels.csv")
-        historical_q_predictions_path = os.path.join(
-            exp_dir, "generated_output/q_predictions.csv"
-        )
-        historical_q_labels_path = os.path.join(
-            exp_dir, "generated_output/q_labels.csv"
-        )
 
         self.report_store_dir = os.path.join(exp_dir, "reports/")
         make_dirs([self.report_store_dir])
@@ -80,11 +70,17 @@ class BasicBacktester:
         self.n_bins = dataset_params["n_bins"]
         self.historical_data_dict = self.build_historical_data_dict(
             base_currency=base_currency,
-            historical_pricing_path=historical_pricing_path,
-            historical_predictions_path=historical_predictions_path,
-            historical_labels_path=historical_labels_path,
-            historical_q_predictions_path=historical_q_predictions_path,
-            historical_q_labels_path=historical_q_labels_path,
+            historical_data_path_dict={
+                "pricing": os.path.join(dataset_dir, "test/pricing.csv"),
+                "predictions": os.path.join(
+                    exp_dir, "generated_output/predictions.csv"
+                ),
+                "labels": os.path.join(exp_dir, "generated_output/labels.csv"),
+                "q_predictions": os.path.join(
+                    exp_dir, "generated_output/q_predictions.csv"
+                ),
+                "q_labels": os.path.join(exp_dir, "generated_output/q_labels.csv"),
+            },
         )
         self.tradable_coins = self.historical_data_dict["pricing"].columns
         self.index = self.historical_data_dict["predictions"].index
@@ -109,37 +105,28 @@ class BasicBacktester:
     def build_historical_data_dict(
         self,
         base_currency,
-        historical_pricing_path,
-        historical_predictions_path,
-        historical_labels_path,
-        historical_q_predictions_path,  # On here this is not used, this is for compatible.
-        historical_q_labels_path,  # On here this is not used, this is for compatible.
+        historical_data_path_dict,
     ):
+        historical_data_path_dict = copy(historical_data_path_dict)
         historical_pricing = data_loader(
-            path=historical_pricing_path, compression="gzip"
+            path=historical_data_path_dict.pop("pricing"), compression="gzip"
         )
-
-        historical_predictions = data_loader(path=historical_predictions_path)
-        historical_labels = data_loader(path=historical_labels_path)
-
-        # Re-order columns
         columns = historical_pricing.columns
-        historical_predictions.columns = columns
-        historical_labels.columns = columns
-
-        # Filter by base_currency
         columns_with_base_currency = columns[
             columns.str.endswith(base_currency.upper())
         ]
-        historical_pricing = historical_pricing[columns_with_base_currency]
-        historical_predictions = historical_predictions[columns_with_base_currency]
-        historical_labels = historical_labels[columns_with_base_currency]
 
-        return {
-            "pricing": historical_pricing,
-            "predictions": historical_predictions,
-            "labels": historical_labels,
-        }
+        data_dict = {}
+        for data_type, data_path in historical_data_path_dict.items():
+            data_dict[data_type] = data_loader(path=data_path)
+
+            # Re-order columns
+            data_dict[data_type].columns = columns
+
+            # Filter by base_currency
+            data_dict[data_type] = data_dict[data_type][columns_with_base_currency]
+
+        return data_dict
 
     def initialize(self):
         self.historical_caches = {}

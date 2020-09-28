@@ -75,6 +75,8 @@ class BasicPredictor:
         pin_memory=True,
         num_workers=16,
         mode="train",
+        default_d_config=DATA_CONFIG,
+        default_m_config=MODEL_CONFIG,
     ):
         assert mode in ("train", "test")
         self.data_dir = data_dir
@@ -86,7 +88,10 @@ class BasicPredictor:
         self.mode = mode
 
         self.data_config, self.model_config = self._build_config(
-            d_config=d_config, m_config=m_config
+            d_config=d_config,
+            m_config=m_config,
+            default_d_config=default_d_config,
+            default_m_config=default_m_config,
         )
         self.model = self._build_model()
         self.iterable_train_data_loader = None
@@ -115,10 +120,10 @@ class BasicPredictor:
 
         print(f"[+] Params are stored")
 
-    def _build_config(self, d_config, m_config):
+    def _build_config(self, d_config, m_config, default_d_config, default_m_config):
         # refine path with exp_dirs
-        data_config = copy(DATA_CONFIG)
-        model_config = copy(MODEL_CONFIG)
+        data_config = copy(default_d_config)
+        model_config = copy(default_m_config)
         if not set(m_config.keys()).issubset(set(model_config.keys())):
             raise ValueError(f"{set(m_config.keys()) - set(model_config.keys())}")
 
