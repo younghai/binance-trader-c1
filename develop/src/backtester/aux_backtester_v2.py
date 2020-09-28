@@ -25,7 +25,7 @@ CONFIG = {
 }
 
 
-class BacktesterV3(BasicBacktester):
+class AUXBacktesterV2(BasicBacktester):
     def __init__(
         self,
         base_currency,
@@ -516,4 +516,4 @@ class BacktesterV3(BasicBacktester):
 if __name__ == "__main__":
     import fire
 
-    fire.Fire(BacktesterV3)
+    fire.Fire(AUXBacktesterV2)
