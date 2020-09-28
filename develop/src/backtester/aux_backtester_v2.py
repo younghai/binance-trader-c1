@@ -2,7 +2,8 @@ import os
 import numpy as np
 import pandas as pd
 from abc import abstractmethod
-from .utils import data_loader, Position, compute_quantile, nan_to_zero, make_dirs
+from .utils import data_loader, Position, compute_quantile, nan_to_zero
+from common_utils import make_dirs
 from .basic_backtester import BasicBacktester
 from tqdm import tqdm
 from IPython.display import display_markdown, display
@@ -12,7 +13,7 @@ CONFIG = {
     "report_prefix": "001",
     "position_side": "long",
     "entry_ratio": 0.05,
-    "commission": 0.0015,
+    "commission": 0.001,
     "min_holding_minutes": 1,
     "max_holding_minutes": 10,
     "compound_interest": False,
@@ -20,8 +21,8 @@ CONFIG = {
     "achieved_with_commission": False,
     "achieved_with_aux_condition": True,
     "max_n_updated": None,
-    "entry_q_prediction_threhold": 9,
-    "entry_aux_q_prediction_threhold": 9,
+    "entry_q_prediction_threhold": 8,
+    "entry_aux_q_prediction_threhold": 8,
 }
 
 
@@ -507,8 +508,30 @@ class AUXBacktesterV2(BasicBacktester):
         self.store_report(report=report)
 
         if display is True:
-            self.display_accuracy()
-            self.display_q_accuracy()
+            display_markdown("#### Main Predictions", raw=True)
+            self.display_accuracy(
+                predictions=self.historical_data_dict["predictions"],
+                labels=self.historical_data_dict["labels"],
+            )
+
+            display_markdown("#### Main Q Predictions", raw=True)
+            self.display_accuracy(
+                predictions=self.historical_data_dict["q_predictions"],
+                labels=self.historical_data_dict["q_labels"],
+            )
+
+            display_markdown("#### Auxiliary Predictions", raw=True)
+            self.display_accuracy(
+                predictions=self.historical_data_dict["aux_predictions"],
+                labels=self.historical_data_dict["aux_labels"],
+            )
+
+            display_markdown("#### Auxiliary Q Predictions", raw=True)
+            self.display_accuracy(
+                predictions=self.historical_data_dict["aux_q_predictions"],
+                labels=self.historical_data_dict["aux_q_labels"],
+            )
+
             self.display_metrics()
             self.display_report(report=report)
 

@@ -336,37 +336,6 @@ class BacktesterV2(BasicBacktester):
             append=True,
         )
 
-    def display_q_accuracy(self):
-        accuracies = {}
-
-        for column in self.historical_data_dict["q_predictions"].columns:
-            class_accuracy = {}
-            for class_num in range(
-                self.historical_data_dict["q_labels"][column].max() + 1
-            ):
-                class_mask = (
-                    self.historical_data_dict["q_predictions"][column] == class_num
-                )
-                class_accuracy["class_" + str(class_num)] = (
-                    self.historical_data_dict["q_labels"][column][class_mask]
-                    == class_num
-                ).mean()
-
-            accuracy = pd.Series(
-                {
-                    "total": (
-                        self.historical_data_dict["q_predictions"][column]
-                        == self.historical_data_dict["q_labels"][column]
-                    ).mean(),
-                    **class_accuracy,
-                }
-            )
-            accuracies[column] = accuracy
-
-        accuracies = pd.concat(accuracies).unstack().T
-        display_markdown("#### Q Accuracy of signals", raw=True)
-        display(accuracies)
-
     def run(self, display=True):
         self.initialize()
 
@@ -428,8 +397,18 @@ class BacktesterV2(BasicBacktester):
         self.store_report(report=report)
 
         if display is True:
-            self.display_accuracy()
-            self.display_q_accuracy()
+            display_markdown("#### Main Predictions", raw=True)
+            self.display_accuracy(
+                predictions=self.historical_data_dict["predictions"],
+                labels=self.historical_data_dict["labels"],
+            )
+
+            display_markdown("#### Main Q Predictions", raw=True)
+            self.display_accuracy(
+                predictions=self.historical_data_dict["q_predictions"],
+                labels=self.historical_data_dict["q_labels"],
+            )
+
             self.display_metrics()
             self.display_report(report=report)
 

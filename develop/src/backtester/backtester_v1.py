@@ -383,7 +383,10 @@ class BacktesterV1(BasicBacktester):
         self.store_report(report=report)
 
         if display is True:
-            self.display_accuracy()
+            self.display_accuracy(
+                predictions=self.historical_data_dict["predictions"],
+                labels=self.historical_data_dict["labels"],
+            )
             self.display_metrics()
             self.display_report(report=report)
 

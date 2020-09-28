@@ -108,16 +108,19 @@ class BasicBacktester:
         historical_data_path_dict,
     ):
         historical_data_path_dict = copy(historical_data_path_dict)
-        historical_pricing = data_loader(
+
+        data_dict = {}
+        data_dict["pricing"] = data_loader(
             path=historical_data_path_dict.pop("pricing"), compression="gzip"
         )
-        columns = historical_pricing.columns
+        columns = data_dict["pricing"].columns
         columns_with_base_currency = columns[
             columns.str.endswith(base_currency.upper())
         ]
+        data_dict["pricing"] = data_dict["pricing"][columns_with_base_currency]
 
-        data_dict = {}
         for data_type, data_path in historical_data_path_dict.items():
+            data_path = data_path.replace("aux_", "")
             data_dict[data_type] = data_loader(path=data_path)
 
             # Re-order columns
@@ -213,27 +216,20 @@ class BasicBacktester:
 
         print(f"[+] Report is stored: {self.report_prefix}_{self.base_currency}")
 
-    def display_accuracy(self):
+    def display_accuracy(self, predictions, labels):
         accuracies = {}
 
-        for column in self.historical_data_dict["predictions"].columns:
+        for column in predictions.columns:
             class_accuracy = {}
-            for class_num in range(
-                self.historical_data_dict["labels"][column].max() + 1
-            ):
-                class_mask = (
-                    self.historical_data_dict["predictions"][column] == class_num
-                )
+            for class_num in range(labels[column].max() + 1):
+                class_mask = predictions[column] == class_num
                 class_accuracy["class_" + str(class_num)] = (
-                    self.historical_data_dict["labels"][column][class_mask] == class_num
+                    labels[column][class_mask] == class_num
                 ).mean()
 
             accuracy = pd.Series(
                 {
-                    "total": (
-                        self.historical_data_dict["predictions"][column]
-                        == self.historical_data_dict["labels"][column]
-                    ).mean(),
+                    "total": (predictions[column] == labels[column]).mean(),
                     **class_accuracy,
                 }
             )
