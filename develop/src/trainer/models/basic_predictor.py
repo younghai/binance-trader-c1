@@ -133,8 +133,8 @@ class BasicPredictor:
         data_config = {**data_config, **d_config}
 
         model_params = {
-            **model_config.pop("model_params"),
-            **m_config.pop("model_params"),
+            **model_config.pop("model_params", {}),
+            **m_config.pop("model_params", {}),
         }
         model_config = {**model_config, **m_config, **{"model_params": model_params}}
 
