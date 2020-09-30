@@ -140,6 +140,7 @@ class BasicBacktester:
         self.historical_entry_reasons = defaultdict(list)
         self.historical_exit_reasons = defaultdict(list)
         self.historical_profits = defaultdict(list)
+        self.historical_trade_returns = defaultdict(list)
         self.historical_positions = {}
 
         self.positions = []
@@ -169,6 +170,9 @@ class BasicBacktester:
             "exit_reason"
         )
         historical_profits = pd.Series(self.historical_profits).rename("profit")
+        historical_trade_returns = pd.Series(self.historical_trade_returns).rename(
+            "trade_return"
+        )
         historical_positions = pd.Series(self.historical_positions).rename("position")
 
         report = pd.concat(
@@ -179,6 +183,7 @@ class BasicBacktester:
                 historical_entry_reasons,
                 historical_exit_reasons,
                 historical_profits,
+                historical_trade_returns,
                 historical_positions,
             ],
             axis=1,
@@ -245,15 +250,22 @@ class BasicBacktester:
     def display_metrics(self):
         assert len(self.historical_caches) != 0
         assert len(self.historical_capitals) != 0
+        assert len(self.historical_trade_returns) != 0
+
+        historical_trade_returns = (
+            pd.Series(self.historical_trade_returns).dropna().apply(lambda x: sum(x))
+        )
 
         historical_returns = (
             pd.Series(self.historical_capitals).pct_change(fill_method=None).fillna(0)
         )
 
         metrics = OrderedDict()
-
-        metrics["winning_ratio"] = (
+        metrics["minutely_winning_ratio"] = (
             historical_returns[historical_returns != 0] > 0
+        ).mean()
+        metrics["trade_winning_ratio"] = (
+            historical_trade_returns[historical_trade_returns != 0] > 0
         ).mean()
         metrics["sharpe_ratio"] = emp.sharpe_ratio(historical_returns)
         metrics["max_drawdown"] = emp.max_drawdown(historical_returns)
@@ -265,9 +277,9 @@ class BasicBacktester:
 
     def display_report(self, report):
         display_markdown(f"#### Report: {self.base_currency}", raw=True)
-        _, ax = plt.subplots(3, 1, figsize=(12, 9))
+        _, ax = plt.subplots(4, 1, figsize=(12, 12))
 
-        for idx, column in enumerate(["capital", "return", "cache"]):
+        for idx, column in enumerate(["capital", "cache", "return", "trade_return"]):
             report[column].plot(ax=ax[idx])
             ax[idx].set_title(f"historical {column}")
 
@@ -390,6 +402,67 @@ class BasicBacktester:
 
         return False
 
+    def entry_order(self, asset, side, cache_to_order, pricing, now):
+        if cache_to_order == 0:
+            return
+
+        # if opposite position exists, we dont entry
+        if (
+            self.check_if_opposite_position_exists(order_asset=asset, order_side=side)
+            is True
+        ):
+            return
+
+        entry_price = pricing[asset]
+        qty = cache_to_order / entry_price
+
+        position = Position(
+            asset=asset,
+            side=side,
+            qty=qty,
+            entry_price=entry_price,
+            entry_at=now,
+        )
+
+        updated = self.update_position_if_already_have(position=position)
+        if updated is True:
+            self.report(
+                value={asset: "updated"},
+                target="historical_entry_reasons",
+                now=now,
+                append=True,
+            )
+            return
+        else:
+            cost = self.compute_cost_to_order(position=position)
+            executable_order = self.check_if_executable_order(cost=cost)
+
+            if executable_order is True:
+                self.pay_cache(cost=cost)
+                self.positions.append(position)
+                self.report(
+                    value={asset: "signal"},
+                    target="historical_entry_reasons",
+                    now=now,
+                    append=True,
+                )
+
+    def exit_order(self, position, pricing, now):
+        profit = self.compute_profit(position=position, pricing=pricing, now=now)
+        self.deposit_cache(profit=profit)
+        self.report(
+            value=profit,
+            target="historical_profits",
+            now=now,
+            append=True,
+        )
+        self.report(
+            value=(profit / position.entry_price),
+            target="historical_trade_returns",
+            now=now,
+            append=True,
+        )
+
     def handle_entry(
         self, cache_to_order, positive_assets, negative_assets, pricing, now
     ):
@@ -479,61 +552,6 @@ class BasicBacktester:
         self.positions = [
             position for position in self.positions if position.is_exited is not True
         ]
-
-    def entry_order(self, asset, side, cache_to_order, pricing, now):
-        if cache_to_order == 0:
-            return
-
-        # if opposite position exists, we dont entry
-        if (
-            self.check_if_opposite_position_exists(order_asset=asset, order_side=side)
-            is True
-        ):
-            return
-
-        entry_price = pricing[asset]
-        qty = cache_to_order / entry_price
-
-        position = Position(
-            asset=asset,
-            side=side,
-            qty=qty,
-            entry_price=entry_price,
-            entry_at=now,
-        )
-
-        updated = self.update_position_if_already_have(position=position)
-        if updated is True:
-            self.report(
-                value={asset: "updated"},
-                target="historical_entry_reasons",
-                now=now,
-                append=True,
-            )
-            return
-        else:
-            cost = self.compute_cost_to_order(position=position)
-            executable_order = self.check_if_executable_order(cost=cost)
-
-            if executable_order is True:
-                self.pay_cache(cost=cost)
-                self.positions.append(position)
-                self.report(
-                    value={asset: "signal"},
-                    target="historical_entry_reasons",
-                    now=now,
-                    append=True,
-                )
-
-    def exit_order(self, position, pricing, now):
-        profit = self.compute_profit(position=position, pricing=pricing, now=now)
-        self.deposit_cache(profit=profit)
-        self.report(
-            value={position.asset: profit},
-            target="historical_profits",
-            now=now,
-            append=True,
-        )
 
     @abstractmethod
     def check_if_achieved(self, position, pricing, now):
