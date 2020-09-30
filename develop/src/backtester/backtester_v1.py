@@ -19,6 +19,7 @@ CONFIG = {
     "exit_if_achieved": True,
     "achieved_with_commission": False,
     "max_n_updated": None,
+    "exit_q_threshold": 9,
 }
 
 
@@ -39,6 +40,7 @@ class BacktesterV1(BasicBacktester):
         exit_if_achieved=CONFIG["exit_if_achieved"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
+        exit_q_threshold=CONFIG["exit_q_threshold"],
     ):
         super().__init__(
             base_currency=base_currency,
@@ -55,6 +57,7 @@ class BacktesterV1(BasicBacktester):
             exit_if_achieved=exit_if_achieved,
             achieved_with_commission=achieved_with_commission,
             max_n_updated=max_n_updated,
+            exit_q_threshold=exit_q_threshold,
         )
 
     def check_if_achieved(self, position, pricing, now):
@@ -77,11 +80,11 @@ class BacktesterV1(BasicBacktester):
         q = compute_quantile(trade_return, bins=self.bins[position.asset])
 
         if position.side == "long":
-            if q >= self.q_threshold:
+            if q >= self.exit_q_threshold:
                 return True
 
         if position.side == "short":
-            if q <= ((self.n_bins - 1) - self.q_threshold):
+            if q <= ((self.n_bins - 1) - self.exit_q_threshold):
                 return True
 
         return False

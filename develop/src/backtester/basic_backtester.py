@@ -24,6 +24,7 @@ CONFIG = {
     "exit_if_achieved": True,
     "achieved_with_commission": False,
     "max_n_updated": None,
+    "exit_q_threshold": 9,
 }
 
 
@@ -44,6 +45,7 @@ class BasicBacktester:
         exit_if_achieved=CONFIG["exit_if_achieved"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
+        exit_q_threshold=CONFIG["exit_q_threshold"],
     ):
         assert position_side in ("long", "short", "longshort")
         self.base_currency = base_currency
@@ -69,7 +71,12 @@ class BasicBacktester:
         # Load data
         self.bins = self.load_bins(bins_path)
         dataset_params = self.load_dataset_params(dataset_params_path)
-        self.q_threshold = dataset_params["q_threshold"]
+
+        if exit_q_threshold is None:
+            self.exit_q_threshold = dataset_params["q_threshold"]
+        else:
+            self.exit_q_threshold = exit_q_threshold
+
         self.n_bins = dataset_params["n_bins"]
         self.historical_data_dict = self.build_historical_data_dict(
             base_currency=base_currency,
@@ -211,7 +218,7 @@ class BasicBacktester:
             "achieved_with_commission": self.achieved_with_commission,
             "max_n_updated": self.max_n_updated,
             "tradable_coins": tuple(self.tradable_coins.tolist()),
-            "q_threshold": self.q_threshold,
+            "exit_q_threshold": self.exit_q_threshold,
         }
         with open(
             os.path.join(
@@ -252,26 +259,26 @@ class BasicBacktester:
         assert len(self.historical_capitals) != 0
         assert len(self.historical_trade_returns) != 0
 
+        historical_returns = (
+            pd.Series(self.historical_capitals).pct_change(fill_method=None).fillna(0)
+        )
         historical_trade_returns = (
             pd.Series(self.historical_trade_returns).dropna().apply(lambda x: sum(x))
         )
 
-        historical_returns = (
-            pd.Series(self.historical_capitals).pct_change(fill_method=None).fillna(0)
-        )
-
         metrics = OrderedDict()
-        metrics["minutely_winning_ratio"] = (
-            historical_returns[historical_returns != 0] > 0
-        ).mean()
         metrics["trade_winning_ratio"] = (
             historical_trade_returns[historical_trade_returns != 0] > 0
+        ).mean()
+        metrics["trade_sharpe_ratio"] = emp.sharpe_ratio(historical_trade_returns)
+
+        metrics["winning_ratio"] = (
+            historical_returns[historical_returns != 0] > 0
         ).mean()
         metrics["sharpe_ratio"] = emp.sharpe_ratio(historical_returns)
         metrics["max_drawdown"] = emp.max_drawdown(historical_returns)
         metrics["avg_return"] = historical_returns.mean()
         metrics["total_return"] = historical_returns.add(1).cumprod().sub(1).iloc[-1]
-
         display_markdown(f"#### Performance metrics: {self.base_currency}", raw=True)
         display(pd.Series(metrics))
 
@@ -280,7 +287,12 @@ class BasicBacktester:
         _, ax = plt.subplots(4, 1, figsize=(12, 12))
 
         for idx, column in enumerate(["capital", "cache", "return", "trade_return"]):
-            report[column].plot(ax=ax[idx])
+            if column == "trade_return":
+                report[column].dropna().apply(lambda x: sum(x)).plot(ax=ax[idx])
+
+            else:
+                report[column].plot(ax=ax[idx])
+
             ax[idx].set_title(f"historical {column}")
 
         plt.tight_layout()
@@ -450,14 +462,16 @@ class BasicBacktester:
     def exit_order(self, position, pricing, now):
         profit = self.compute_profit(position=position, pricing=pricing, now=now)
         self.deposit_cache(profit=profit)
+
+        net_profit = profit - (position.entry_price * position.qty)
         self.report(
-            value=profit,
+            value=net_profit,
             target="historical_profits",
             now=now,
             append=True,
         )
         self.report(
-            value=(profit / position.entry_price),
+            value=(net_profit / (position.entry_price * position.qty)),
             target="historical_trade_returns",
             now=now,
             append=True,

@@ -20,7 +20,8 @@ CONFIG = {
     "exit_if_achieved": True,
     "achieved_with_commission": False,
     "max_n_updated": None,
-    "entry_q_prediction_threhold": 9,
+    "entry_q_threshold": 9,
+    "exit_q_threshold": 9,
 }
 
 
@@ -41,7 +42,8 @@ class BacktesterV2(BasicBacktester):
         exit_if_achieved=CONFIG["exit_if_achieved"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
-        entry_q_prediction_threhold=CONFIG["entry_q_prediction_threhold"],
+        entry_q_threshold=CONFIG["entry_q_threshold"],
+        exit_q_threshold=CONFIG["exit_q_threshold"],
     ):
         super().__init__(
             base_currency=base_currency,
@@ -58,9 +60,10 @@ class BacktesterV2(BasicBacktester):
             exit_if_achieved=exit_if_achieved,
             achieved_with_commission=achieved_with_commission,
             max_n_updated=max_n_updated,
+            exit_q_threshold=exit_q_threshold,
         )
 
-        self.entry_q_prediction_threhold = entry_q_prediction_threhold
+        self.entry_q_threshold = entry_q_threshold
 
     def check_if_achieved(self, position, pricing, now):
         current_price = pricing[position.asset]
@@ -82,11 +85,11 @@ class BacktesterV2(BasicBacktester):
         q = compute_quantile(trade_return, bins=self.bins[position.asset])
 
         if position.side == "long":
-            if q >= self.q_threshold:
+            if q >= self.exit_q_threshold:
                 return True
 
         if position.side == "short":
-            if q <= ((self.n_bins - 1) - self.q_threshold):
+            if q <= ((self.n_bins - 1) - self.exit_q_threshold):
                 return True
 
         return False
@@ -102,14 +105,11 @@ class BacktesterV2(BasicBacktester):
 
             # Set assets which has signals
             positive_assets = self.tradable_coins[
-                (predictions == 0) & (q_predictions >= self.entry_q_prediction_threhold)
+                (predictions == 0) & (q_predictions >= self.entry_q_threshold)
             ]
             negative_assets = self.tradable_coins[
                 (predictions == 1)
-                & (
-                    q_predictions
-                    <= (self.n_bins - 1) - self.entry_q_prediction_threhold
-                )
+                & (q_predictions <= (self.n_bins - 1) - self.entry_q_threshold)
             ]
 
             # Exit
