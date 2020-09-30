@@ -17,6 +17,7 @@ CONFIG = {
     "max_holding_minutes": 10,
     "compound_interest": False,
     "possible_in_debt": True,
+    "exit_if_achieved": True,
     "achieved_with_commission": False,
     "max_n_updated": None,
     "entry_q_prediction_threhold": 9,
@@ -37,6 +38,7 @@ class BacktesterV2(BasicBacktester):
         max_holding_minutes=CONFIG["max_holding_minutes"],
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
+        exit_if_achieved=CONFIG["exit_if_achieved"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
         entry_q_prediction_threhold=CONFIG["entry_q_prediction_threhold"],
@@ -53,6 +55,7 @@ class BacktesterV2(BasicBacktester):
             max_holding_minutes=max_holding_minutes,
             compound_interest=compound_interest,
             possible_in_debt=possible_in_debt,
+            exit_if_achieved=exit_if_achieved,
             achieved_with_commission=achieved_with_commission,
             max_n_updated=max_n_updated,
         )
@@ -85,6 +88,18 @@ class BacktesterV2(BasicBacktester):
                 # Skip when position has max_n_updated
                 if self.max_n_updated is not None:
                     if exist_position.n_updated == self.max_n_updated:
+
+                        # Update only entry_at
+                        update_position = Position(
+                            asset=exist_position.asset,
+                            side=exist_position.side,
+                            qty=exist_position.qty,
+                            entry_price=exist_position.entry_price,
+                            entry_at=position.entry_at,
+                            n_updated=exist_position.n_updated,
+                        )
+
+                        self.positions[idx] = update_position
                         # return fake updated mark
                         return True
 
@@ -93,7 +108,7 @@ class BacktesterV2(BasicBacktester):
                     + (position.entry_price * position.qty)
                 ) / (exist_position.qty + position.qty)
 
-                # Update entry_at and qty
+                # Update entry_price, entry_at and qty
                 update_position = Position(
                     asset=exist_position.asset,
                     side=exist_position.side,
@@ -129,7 +144,7 @@ class BacktesterV2(BasicBacktester):
                 (current_price - position.entry_price) * position.qty * -1
             )
 
-        commission_to_order = (current_price * position.qty) * self.commission
+        commission_to_order = profit_without_commission * self.commission
 
         return profit_without_commission - commission_to_order
 
@@ -262,19 +277,20 @@ class BacktesterV2(BasicBacktester):
                 continue
 
             # Handle achievement
-            if (
-                self.check_if_achieved(position=position, pricing=pricing, now=now)
-                is True
-            ):
-                self.exit_order(position=position, pricing=pricing, now=now)
-                self.report(
-                    value={position.asset: "achieved"},
-                    target="historical_exit_reasons",
-                    now=now,
-                    append=True,
-                )
-                self.positions[position_idx].is_exited = True
-                continue
+            if self.exit_if_achieved is True:
+                if (
+                    self.check_if_achieved(position=position, pricing=pricing, now=now)
+                    is True
+                ):
+                    self.exit_order(position=position, pricing=pricing, now=now)
+                    self.report(
+                        value={position.asset: "achieved"},
+                        target="historical_exit_reasons",
+                        now=now,
+                        append=True,
+                    )
+                    self.positions[position_idx].is_exited = True
+                    continue
 
         # Delete exited positions
         self.positions = [

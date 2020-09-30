@@ -21,6 +21,7 @@ CONFIG = {
     "max_holding_minutes": 10,
     "compound_interest": True,
     "possible_in_debt": False,
+    "exit_if_achieved": True,
     "achieved_with_commission": False,
     "max_n_updated": None,
 }
@@ -40,6 +41,7 @@ class BasicBacktester:
         max_holding_minutes=CONFIG["max_holding_minutes"],
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
+        exit_if_achieved=CONFIG["exit_if_achieved"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
     ):
@@ -53,6 +55,7 @@ class BasicBacktester:
         self.max_holding_minutes = max_holding_minutes
         self.compound_interest = compound_interest
         self.possible_in_debt = possible_in_debt
+        self.exit_if_achieved = exit_if_achieved
         self.achieved_with_commission = achieved_with_commission
         self.max_n_updated = max_n_updated
 
