@@ -142,11 +142,7 @@ class BacktesterV2(BasicBacktester):
                 target="historical_capitals",
                 now=now,
             )
-            self.report(
-                value=self.positions,
-                target="historical_positions",
-                now=now,
-            )
+            self.report(value=self.positions, target="historical_positions", now=now)
 
         report = self.generate_report()
         self.store_report(report=report)

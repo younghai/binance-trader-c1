@@ -112,11 +112,7 @@ class BasicBacktester:
 
         return dataset_params
 
-    def build_historical_data_dict(
-        self,
-        base_currency,
-        historical_data_path_dict,
-    ):
+    def build_historical_data_dict(self, base_currency, historical_data_path_dict):
         historical_data_path_dict = copy(historical_data_path_dict)
 
         data_dict = {}
@@ -429,11 +425,7 @@ class BasicBacktester:
         qty = cache_to_order / entry_price
 
         position = Position(
-            asset=asset,
-            side=side,
-            qty=qty,
-            entry_price=entry_price,
-            entry_at=now,
+            asset=asset, side=side, qty=qty, entry_price=entry_price, entry_at=now
         )
 
         updated = self.update_position_if_already_have(position=position)
@@ -464,12 +456,7 @@ class BasicBacktester:
         self.deposit_cache(profit=profit)
 
         net_profit = profit - (position.entry_price * position.qty)
-        self.report(
-            value=net_profit,
-            target="historical_profits",
-            now=now,
-            append=True,
-        )
+        self.report(value=net_profit, target="historical_profits", now=now, append=True)
         self.report(
             value=(net_profit / (position.entry_price * position.qty)),
             target="historical_trade_returns",

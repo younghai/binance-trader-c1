@@ -144,6 +144,7 @@ class BackboneV2(nn.Module):
         preds_qy = self.pred_qy_fc(out)
 
         # out shape: (B, n_class / n_class_per_asset, n_class_per_asset)
-        return preds_y.view(B, -1, self.n_class_y_per_asset), preds_qy.view(
-            B, -1, self.n_class_qy_per_asset
+        return (
+            preds_y.view(B, -1, self.n_class_y_per_asset),
+            preds_qy.view(B, -1, self.n_class_qy_per_asset),
         )

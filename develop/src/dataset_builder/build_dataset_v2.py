@@ -252,6 +252,33 @@ def build_all_bins(file_names, lookahead_window, n_bins):
     return pd.DataFrame(all_bins)
 
 
+def build_train_mask_index(file_names, common_index, train_ratio, lookahead_window):
+    column_pair = ("close", "close")
+
+    boundary_index = int(len(common_index) * train_ratio)
+    train_mask_index = common_index[:boundary_index]
+
+    for file_name in tqdm(file_names):
+        rawdata = load_rawdata(file_name=file_name)
+
+        # build fwd_return(window)
+        colum_pair_df = rawdata[list(column_pair)].copy().sort_index()
+        colum_pair_df.columns = [0, 1]
+
+        colum_pair_df[1] = colum_pair_df[1].shift(-lookahead_window)
+        fwd_return = (
+            colum_pair_df.pct_change(1, axis=1, fill_method=None)[1]
+            .rename(f"fwd_return({lookahead_window})")
+            .sort_index()
+        )
+
+        train_mask_index = train_mask_index[
+            train_mask_index.isin(fwd_return[fwd_return != 0].index)
+        ]
+
+    return train_mask_index
+
+
 def preprocess_features(features, scaler):
     index = features.index
     columns = features.columns
@@ -273,6 +300,7 @@ def store_artifacts(
     train_ratio,
     params,
     data_store_dir,
+    train_mask_index,
 ):
     # Make dirs
     train_data_store_dir = os.path.join(data_store_dir, "train")
@@ -281,28 +309,28 @@ def store_artifacts(
 
     # Store
     boundary_index = int(len(features.index) * train_ratio)
-    features.iloc[:boundary_index].to_csv(
+    features.iloc[:boundary_index].reindex(train_mask_index).to_csv(
         os.path.join(train_data_store_dir, "X.csv"), compression="gzip"
     )
     features.iloc[boundary_index:].to_csv(
         os.path.join(test_data_store_dir, "X.csv"), compression="gzip"
     )
 
-    labels.iloc[:boundary_index].to_csv(
+    labels.iloc[:boundary_index].reindex(train_mask_index).to_csv(
         os.path.join(train_data_store_dir, "Y.csv"), compression="gzip"
     )
     labels.iloc[boundary_index:].to_csv(
         os.path.join(test_data_store_dir, "Y.csv"), compression="gzip"
     )
 
-    q_labels.iloc[:boundary_index].to_csv(
+    q_labels.iloc[:boundary_index].reindex(train_mask_index).to_csv(
         os.path.join(train_data_store_dir, "QY.csv"), compression="gzip"
     )
     q_labels.iloc[boundary_index:].to_csv(
         os.path.join(test_data_store_dir, "QY.csv"), compression="gzip"
     )
 
-    pricing.iloc[:boundary_index].to_csv(
+    pricing.iloc[:boundary_index].reindex(train_mask_index).to_csv(
         os.path.join(train_data_store_dir, "pricing.csv"), compression="gzip"
     )
     pricing.iloc[boundary_index:].to_csv(
@@ -321,7 +349,7 @@ def store_artifacts(
     print(f"[+] Artifacts are stored")
 
 
-def build_dataset(
+def build_dataset_v2(
     rawdata_dir=CONFIG["rawdata_dir"],
     data_store_dir=CONFIG["data_store_dir"],
     lookahead_window=CONFIG["lookahead_window"],
@@ -356,9 +384,7 @@ def build_dataset(
 
     # build q_labels
     q_labels = build_q_labels(
-        file_names=file_names,
-        lookahead_window=lookahead_window,
-        n_bins=n_bins,
+        file_names=file_names, lookahead_window=lookahead_window, n_bins=n_bins
     )
 
     # Build pricing
@@ -371,6 +397,10 @@ def build_dataset(
 
     # Masking with common index
     common_index = features.index & labels.index & q_labels.index
+    train_mask_index = build_train_mask_index(
+        file_names, common_index, train_ratio, lookahead_window
+    )
+
     features = features.reindex(common_index).sort_index()
     labels = labels.reindex(common_index).sort_index()
     q_labels = q_labels.reindex(common_index).sort_index()
@@ -396,10 +426,11 @@ def build_dataset(
         train_ratio=train_ratio,
         params=params,
         data_store_dir=data_store_dir,
+        train_mask_index=train_mask_index,
     )
 
 
 if __name__ == "__main__":
     import fire
 
-    fire.Fire(build_dataset)
+    fire.Fire(build_dataset_v2)
