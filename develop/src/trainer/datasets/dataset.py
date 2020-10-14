@@ -6,7 +6,9 @@ import pandas as pd
 
 
 FILENAME_TEMPLATE = {"X": "X.csv", "QAY": "QAY.csv", "QBY": "QBY.csv"}
-CONFIG = {"base_feature_assets": ["BTC-USDT", "ETH-BTC"]}
+CONFIG = {
+    "base_feature_assets": ["BTC-USDT", "ETH-BTC"],
+}
 
 
 class Dataset(_Dataset):
@@ -16,23 +18,45 @@ class Dataset(_Dataset):
         transforms: Dict[str, Callable],
         lookback_window: int = 60,
         winsorize_threshold: Optional[int] = None,
+        base_feature_assets: List[str] = CONFIG["base_feature_assets"],
     ):
-        load_files = ["X", "Y", "QY"]
+        self.data_caches = {}
+        x = pd.read_csv(
+            os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
+            header=[0, 1],
+            index_col=0,
+            compression="gzip",
+        )
 
+        self.data_caches["BX"] = x[base_feature_assets]
+        self.data_caches["X"] = x[feature_assets].stack(level=0)
         self.data_caches = {
             data_type: pd.read_csv(
                 os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
                 header=0,
                 index_col=0,
                 compression="gzip",
-            )
-            for data_type in load_files
+            ).stack()
+            for data_type in ["QAY", "QBY"]
         }
-        self.transforms = transforms
 
-        # Check if all index are same.
-        assert (self.data_caches["X"].index == self.data_caches["Y"].index).all()
-        assert (self.data_caches["X"].index == self.data_caches["QY"].index).all()
+        # Check if all index are all same.
+        assert (self.data_caches["X"].index == self.data_caches["QAY"].index).all()
+        assert (self.data_caches["X"].index == self.data_caches["QBY"].index).all()
+
+        # Mask data without None
+        mask_index = (
+            self.data_caches["X"].dropna().index
+            & self.data_caches["QAY"].dropna().index
+            & self.data_caches["QBY"].dropna().index
+        ).sort_index()
+
+        self.data_caches["BX"] = self.data_caches["BX"].reindex(mask_index.levels[0])
+        self.data_caches["X"] = self.data_caches["X"].reindex(mask_index)
+        self.data_caches["QAY"] = self.data_caches["QAY"].reindex(mask_index)
+        self.data_caches["QBY"] = self.data_caches["QBY"].reindex(mask_index)
+
+        self.transforms = transforms
 
         self.n_data = len(self.data_caches["X"])
         self.lookback_window = lookback_window

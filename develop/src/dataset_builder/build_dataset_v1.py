@@ -22,7 +22,6 @@ CONFIG = {
     "n_bins": 10,
     "train_ratio": 0.7,
     "scaler_type": "RobustScaler",
-    "column_pairs": [("close", "high"), ("close", "low")],
 }
 COLUMNS = ["open", "high", "low", "close"]
 
@@ -61,7 +60,6 @@ def build_features(file_names):
 
         rawdata = load_rawdata(file_name=file_name)
         feature = _build_feature_by_rawdata(rawdata=rawdata)
-        feature.columns = sorted([(coin_pair, column) for column in feature.columns])
         features[coin_pair] = feature
 
     features = pd.concat(features, axis=1).sort_index()
@@ -278,7 +276,6 @@ def build_dataset_v1(
     n_bins=CONFIG["n_bins"],
     train_ratio=CONFIG["train_ratio"],
     scaler_type=CONFIG["scaler_type"],
-    column_pairs=CONFIG["column_pairs"],
 ):
     assert scaler_type in ("RobustScaler", "StandardScaler")
 
@@ -322,7 +319,6 @@ def build_dataset_v1(
         "n_bins": n_bins,
         "train_ratio": train_ratio,
         "scaler_type": scaler_type,
-        "column_pairs": tuple(column_pairs),
     }
 
     # Store Artifacts
