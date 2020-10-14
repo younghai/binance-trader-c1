@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 
 
-FILENAME_TEMPLATE = {"X": "X.csv", "Y": "Y.csv", "QY": "QY.csv"}
+FILENAME_TEMPLATE = {"X": "X.csv", "QAY": "QAY.csv", "QBY": "QBY.csv"}
+CONFIG = {"base_feature_assets": ["BTC-USDT", "ETH-BTC"]}
 
 
 class Dataset(_Dataset):

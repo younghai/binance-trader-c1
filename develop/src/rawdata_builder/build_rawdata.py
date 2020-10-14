@@ -8,7 +8,7 @@ from common_utils import make_dirs
 CONFIG = {
     "parquet_rawdata_dir": "../../storage/dataset/rawdata/parquet/",
     "csv_rawdata_store_dir": "../../storage/dataset/rawdata/csv/",
-    "candidate_coins_path": "./candidate_coins.txt",
+    "candidate_coins_path": "./candidate_assets.txt",
     "query_min_start_dt": "2018-06-01",
 }
 
@@ -36,7 +36,6 @@ def build_rawdata(
         if file.split("/parquet/")[-1].split(".parquet")[0] in candidate_coins
     ]
 
-    n_skipped = 0
     for file in tqdm(file_list):
         df = pd.read_parquet(file)[["open", "high", "low", "close", "volume"]]
         df = df.resample("1T").ffill()
@@ -45,18 +44,10 @@ def build_rawdata(
         assert not df.isnull().any().any()
 
         csv_name = file.split("rawdata/parquet/")[-1].split(".parquet")[0] + ".csv"
-
-        # skip exists data
-        if df.index[0] > pd.Timestamp(query_min_start_dt, freq="T"):
-            print(f"skipped to save: {csv_name}")
-            n_skipped += 1
-
-            continue
-
         df.index = df.index.tz_localize("utc")
         df.to_csv(csv_rawdata_store_dir + csv_name)
 
-    print(f"skipped: {n_skipped}")
+    print("[+] Built rawdata")
 
 
 if __name__ == "__main__":
