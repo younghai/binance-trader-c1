@@ -17,8 +17,8 @@ pandarallel.initialize()
 
 CONFIG = {
     "rawdata_dir": "../../storage/dataset/rawdata/csv/",
-    "data_store_dir": "../../storage/dataset/dataset_10m_v1/",
-    "lookahead_window": 10,
+    "data_store_dir": "../../storage/dataset/dataset_60m_v1/",
+    "lookahead_window": 60,
     "n_bins": 10,
     "train_ratio": 0.7,
     "scaler_type": "RobustScaler",
@@ -34,10 +34,30 @@ def load_rawdata(file_name):
 
 
 def _build_feature_by_rawdata(rawdata):
-    returns = (
-        rawdata.pct_change(1, fill_method=None)
+    returns_720m = (
+        rawdata.pct_change(720, fill_method=None)
         .iloc[1:]
-        .rename(columns={key: key + "_return" for key in COLUMNS})
+        .rename(columns={key: key + "_return(720)" for key in COLUMNS})
+    ).dropna()
+
+    returns_60m = (
+        (
+            rawdata.pct_change(60, fill_method=None)
+            .iloc[1:]
+            .rename(columns={key: key + "_return(60)" for key in COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_720m.index)
+    )
+
+    returns_1m = (
+        (
+            rawdata.pct_change(1, fill_method=None)
+            .iloc[1:]
+            .rename(columns={key: key + "_return(1)" for key in COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_720m.index)
     )
 
     inner_changes = []
@@ -48,9 +68,11 @@ def _build_feature_by_rawdata(rawdata):
             .rename("_".join(column_pair) + "_change")
         )
 
-    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns.index)
+    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_720m.index)
 
-    return pd.concat([returns, inner_changes], axis=1).sort_index()
+    return pd.concat(
+        [returns_1m, returns_60m, returns_720m, inner_changes], axis=1
+    ).sort_index()
 
 
 def build_features(file_names):

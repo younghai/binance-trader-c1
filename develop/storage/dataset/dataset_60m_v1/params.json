@@ -1,0 +1,1 @@
+{"lookahead_window": 60, "n_bins": 10, "train_ratio": 0.7, "scaler_type": "RobustScaler"}

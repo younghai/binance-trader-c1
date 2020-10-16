@@ -1,1 +1,1 @@
-from .common_utils import make_dirs
+from .common_utils import make_dirs, load_text
