@@ -42,6 +42,7 @@ class Dataset(_Dataset):
                 .stack(level=0)
                 .index.to_list()
             )
+        self.index = pd.Index(self.index)
 
         for data_type in ["QAY", "QBY"]:
             self.data_caches[data_type] = (
@@ -53,6 +54,7 @@ class Dataset(_Dataset):
                 )
                 .stack()
                 .reindex(self.index)
+                .astype(int)
             )
 
         self.transforms = transforms
@@ -68,6 +70,8 @@ class Dataset(_Dataset):
         self.asset_to_id = {
             tradable_asset: idx for idx, tradable_asset in enumerate(tradable_assets)
         }
+
+        del tradable_assets
         print("[+] built dataset")
 
     def __len__(self):
@@ -82,35 +86,33 @@ class Dataset(_Dataset):
         )
 
         # Concat with BX
-        data_dict["X"] = np.swapaxes(
-            pd.concat(
-                [
-                    self.data_caches["BX"].iloc[
-                        boundary_index - 59 : boundary_index + 1
-                    ],
-                    self.data_caches["X"][self.index[idx][1]].iloc[
-                        boundary_index - 59 : boundary_index + 1
-                    ],
+        concat_df = pd.concat(
+            [
+                self.data_caches["BX"].iloc[boundary_index - 59 : boundary_index + 1],
+                self.data_caches["X"][self.index[idx][1]].iloc[
+                    boundary_index - 59 : boundary_index + 1
                 ],
-                axis=1,
-            ).values.astype("float32"),
-            0,
-            1,
-        )
+            ],
+            axis=1,
+        ).astype("float32")
+
+        data_dict["X"] = np.swapaxes(concat_df.values, 0, 1,)
 
         if self.winsorize_threshold is not None:
             data_dict["X"] = data_dict["X"].clip(
                 -self.winsorize_threshold, self.winsorize_threshold
             )
 
-        data_dict["QAY"] = int(self.data_caches["QAY"].iloc[idx])
+        data_dict["QAY"] = self.data_caches["QAY"].iloc[idx]
 
-        data_dict["QBY"] = int(self.data_caches["QBY"].iloc[idx])
+        data_dict["QBY"] = self.data_caches["QBY"].iloc[idx]
 
-        data_dict["ID"] = int(self.asset_to_id[self.index[idx][1]])
+        data_dict["ID"] = self.asset_to_id[self.index[idx][1]]
 
         # transform
         for data_type, transform in self.transforms.items():
             data_dict[data_type] = transform(data_dict[data_type])
+
+        del concat_df
 
         return data_dict

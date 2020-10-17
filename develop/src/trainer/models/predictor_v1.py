@@ -81,43 +81,33 @@ class PredictorV1(BasicPredictor):
         )
 
     def _compute_train_loss(self, train_data_dict):
-        X, QAY, QBY, ID = (
-            train_data_dict["X"],
-            train_data_dict["QAY"],
-            train_data_dict["QBY"],
-            train_data_dict["ID"],
-        )
-
         # Set train mode
         self.model.train()
         self.model.zero_grad()
 
         # Set loss
-        preds_qay, preds_qby = self.model(x=X, id=ID)
+        preds_qay, preds_qby = self.model(
+            x=train_data_dict["X"], id=train_data_dict["ID"]
+        )
 
         # Y loss
-        loss = self.criterion(preds_qay, QAY)
-        loss += self.criterion(preds_qby, QBY)
+        loss = self.criterion(preds_qay, train_data_dict["QAY"])
+        loss += self.criterion(preds_qby, train_data_dict["QBY"])
 
         return loss
 
     def _compute_test_loss(self, test_data_dict):
-        X, QAY, QBY, ID = (
-            test_data_dict["X"],
-            test_data_dict["QAY"],
-            test_data_dict["QBY"],
-            test_data_dict["ID"],
-        )
-
         # Set eval mode
         self.model.eval()
 
         # Set loss
-        preds_qay, preds_qby = self.model(x=X, id=ID)
+        preds_qay, preds_qby = self.model(
+            x=test_data_dict["X"], id=test_data_dict["ID"]
+        )
 
         # Y loss
-        loss = self.criterion(preds_qay, QAY)
-        loss += self.criterion(preds_qby, QBY)
+        loss = self.criterion(preds_qay, test_data_dict["QAY"])
+        loss += self.criterion(preds_qby, test_data_dict["QBY"])
         loss = loss.detach()
 
         return loss
