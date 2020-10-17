@@ -208,4 +208,4 @@ class PredictorV1(BasicPredictor):
 if __name__ == "__main__":
     import fire
 
-    fire.Fire(PredictorV2)
+    fire.Fire(PredictorV1)

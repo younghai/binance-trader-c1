@@ -3,11 +3,12 @@ from typing import Dict, List, Callable, Optional
 import os
 import numpy as np
 import pandas as pd
+import joblib
 from tqdm import tqdm
 from common_utils import load_text
 
 
-FILENAME_TEMPLATE = {"X": "X.csv", "QAY": "QAY.csv", "QBY": "QBY.csv"}
+FILENAME_TEMPLATE = {"X": "X.pkl.gz", "QAY": "QAY.pkl.gz", "QBY": "QBY.pkl.gz"}
 CONFIG = {
     "base_feature_assets": ["BTC-USDT", "ETH-BTC"],
 }
@@ -24,11 +25,8 @@ class Dataset(_Dataset):
     ):
         print("[+] Start to build dataset")
         self.data_caches = {}
-        self.data_caches["X"] = pd.read_csv(
+        self.data_caches["X"] = joblib.load(
             os.path.join(data_dir, FILENAME_TEMPLATE["X"]),
-            header=[0, 1],
-            index_col=0,
-            compression="gzip",
         )
         self.data_caches["BX"] = self.data_caches["X"][base_feature_assets]
 
@@ -46,12 +44,7 @@ class Dataset(_Dataset):
 
         for data_type in ["QAY", "QBY"]:
             self.data_caches[data_type] = (
-                pd.read_csv(
-                    os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
-                    header=0,
-                    index_col=0,
-                    compression="gzip",
-                )
+                joblib.load(os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),)
                 .stack()
                 .reindex(self.index)
                 .astype(int)

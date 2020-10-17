@@ -11,6 +11,7 @@ import joblib
 from common_utils import make_dirs
 from typing import Callable, List, Dict
 from pandarallel import pandarallel
+import subprocess
 
 pandarallel.initialize()
 
@@ -34,44 +35,83 @@ def load_rawdata(file_name):
 
 
 def _build_feature_by_rawdata(rawdata):
-    returns_720m = (
-        rawdata.pct_change(720, fill_method=None)
-        .iloc[1:]
-        .rename(columns={key: key + "_return(720)" for key in COLUMNS})
+    returns_1440m = (
+        rawdata.pct_change(1440, fill_method=None).rename(
+            columns={key: key + "_return(1440)" for key in COLUMNS}
+        )
     ).dropna()
+
+    madiv_1440m = (
+        (
+            rawdata.rolling(1440)
+            .mean()
+            .rename(columns={key: key + "_madiv(1440)" for key in COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1440m.index)
+    )
+
+    returns_720m = (
+        (
+            rawdata.pct_change(720, fill_method=None).rename(
+                columns={key: key + "_return(720)" for key in COLUMNS}
+            )
+        )
+        .dropna()
+        .reindex(returns_1440m.index)
+    )
+
+    madiv_720m = (
+        (
+            rawdata.rolling(720)
+            .mean()
+            .rename(columns={key: key + "_madiv(720)" for key in COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1440m.index)
+    )
 
     returns_60m = (
         (
-            rawdata.pct_change(60, fill_method=None)
-            .iloc[1:]
-            .rename(columns={key: key + "_return(60)" for key in COLUMNS})
+            rawdata.pct_change(60, fill_method=None).rename(
+                columns={key: key + "_return(60)" for key in COLUMNS}
+            )
         )
         .dropna()
-        .reindex(returns_720m.index)
+        .reindex(returns_1440m.index)
+    )
+
+    madiv_60m = (
+        (
+            rawdata.rolling(60)
+            .mean()
+            .rename(columns={key: key + "_madiv(60)" for key in COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1440m.index)
     )
 
     returns_1m = (
         (
-            rawdata.pct_change(1, fill_method=None)
-            .iloc[1:]
-            .rename(columns={key: key + "_return(1)" for key in COLUMNS})
+            rawdata.pct_change(1, fill_method=None).rename(
+                columns={key: key + "_return(1)" for key in COLUMNS}
+            )
         )
         .dropna()
-        .reindex(returns_720m.index)
+        .reindex(returns_1440m.index)
     )
 
-    inner_changes = []
-    for column_pair in sorted(list(combinations(COLUMNS, 2))):
-        inner_changes.append(
-            rawdata[list(column_pair)]
-            .pct_change(1, axis=1, fill_method=None)[column_pair[-1]]
-            .rename("_".join(column_pair) + "_change")
-        )
-
-    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_720m.index)
-
     return pd.concat(
-        [returns_1m, returns_60m, returns_720m, inner_changes], axis=1
+        [
+            returns_1440m,
+            madiv_1440m,
+            returns_720m,
+            madiv_720m,
+            returns_60m,
+            madiv_60m,
+            returns_1m,
+        ],
+        axis=1,
     ).sort_index()
 
 
@@ -191,7 +231,7 @@ def _build_qb_label(rawdata, lookahead_window, n_bins):
     fwd_return = (
         fwd_1m_return.add(1)
         .rolling(lookahead_window)
-        .parallel_apply(lambda x: x.prod())
+        .prod()
         .sub(1)
         .shift(-lookahead_window)
     )
@@ -251,33 +291,25 @@ def store_artifacts(
 
     # Store
     boundary_index = int(len(features.index) * train_ratio)
-    features.iloc[:boundary_index].to_csv(
-        os.path.join(train_data_store_dir, "X.csv"), compression="gzip"
-    )
-    features.iloc[boundary_index:].to_csv(
-        os.path.join(test_data_store_dir, "X.csv"), compression="gzip"
-    )
 
-    qa_labels.iloc[:boundary_index].to_csv(
-        os.path.join(train_data_store_dir, "QAY.csv"), compression="gzip"
-    )
-    qa_labels.iloc[boundary_index:].to_csv(
-        os.path.join(test_data_store_dir, "QAY.csv"), compression="gzip"
-    )
+    for file_name, data in [
+        ("X.pkl", features),
+        ("QAY.pkl", qa_labels),
+        ("QBY.pkl", qb_labels),
+        ("pricing.pkl", pricing),
+    ]:
+        data.iloc[:boundary_index].to_pickle(
+            os.path.join(train_data_store_dir, file_name)
+        )
+        data.iloc[boundary_index:].to_pickle(
+            os.path.join(test_data_store_dir, file_name)
+        )
 
-    qb_labels.iloc[:boundary_index].to_csv(
-        os.path.join(train_data_store_dir, "QBY.csv"), compression="gzip"
-    )
-    qb_labels.iloc[boundary_index:].to_csv(
-        os.path.join(test_data_store_dir, "QBY.csv"), compression="gzip"
-    )
-
-    pricing.iloc[:boundary_index].to_csv(
-        os.path.join(train_data_store_dir, "pricing.csv"), compression="gzip"
-    )
-    pricing.iloc[boundary_index:].to_csv(
-        os.path.join(test_data_store_dir, "pricing.csv"), compression="gzip"
-    )
+        for file_path in [
+            os.path.join(train_data_store_dir, file_name),
+            os.path.join(test_data_store_dir, file_name),
+        ]:
+            subprocess.call(["gzip", file_path])
 
     joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))
     bins.to_csv(os.path.join(data_store_dir, "bins.csv"))

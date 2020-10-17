@@ -5,6 +5,7 @@ from abc import abstractmethod
 from .utils import data_loader, Position, compute_quantile, nan_to_zero
 from .basic_backtester import BasicBacktester
 from tqdm import tqdm
+from IPython.display import display_markdown, display
 
 
 CONFIG = {
@@ -19,6 +20,7 @@ CONFIG = {
     "exit_if_achieved": True,
     "achieved_with_commission": False,
     "max_n_updated": None,
+    "entry_q_threshold": 9,
     "exit_q_threshold": 9,
 }
 
@@ -40,6 +42,7 @@ class BacktesterV1(BasicBacktester):
         exit_if_achieved=CONFIG["exit_if_achieved"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
+        entry_q_threshold=CONFIG["entry_q_threshold"],
         exit_q_threshold=CONFIG["exit_q_threshold"],
     ):
         super().__init__(
@@ -59,6 +62,8 @@ class BacktesterV1(BasicBacktester):
             max_n_updated=max_n_updated,
             exit_q_threshold=exit_q_threshold,
         )
+
+        self.entry_q_threshold = entry_q_threshold
 
     def check_if_achieved(self, position, pricing, now):
         current_price = pricing[position.asset]
@@ -96,10 +101,16 @@ class BacktesterV1(BasicBacktester):
             # Step1: Prepare pricing and signal
             pricing = self.historical_data_dict["pricing"].loc[now]
             predictions = self.historical_data_dict["predictions"].loc[now]
+            q_predictions = self.historical_data_dict["q_predictions"].loc[now]
 
             # Set assets which has signals
-            positive_assets = self.tradable_coins[predictions == 0]
-            negative_assets = self.tradable_coins[predictions == 1]
+            positive_assets = self.tradable_coins[
+                (predictions == 0) & (q_predictions >= self.entry_q_threshold)
+            ]
+            negative_assets = self.tradable_coins[
+                (predictions == 1)
+                & (q_predictions <= (self.n_bins - 1) - self.entry_q_threshold)
+            ]
 
             # Exit
             self.handle_exit(
@@ -137,10 +148,18 @@ class BacktesterV1(BasicBacktester):
         self.store_report(report=report)
 
         if display is True:
+            display_markdown("#### Main Predictions", raw=True)
             self.display_accuracy(
                 predictions=self.historical_data_dict["predictions"],
                 labels=self.historical_data_dict["labels"],
             )
+
+            display_markdown("#### Main Q Predictions", raw=True)
+            self.display_accuracy(
+                predictions=self.historical_data_dict["q_predictions"],
+                labels=self.historical_data_dict["q_labels"],
+            )
+
             self.display_metrics()
             self.display_report(report=report)
 
