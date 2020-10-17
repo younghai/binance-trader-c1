@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from functools import partial
-from itertools import permutations
+from itertools import combinations
 from sklearn import preprocessing
 import joblib
 from common_utils import make_dirs
@@ -61,7 +61,7 @@ def _build_feature_by_rawdata(rawdata):
     )
 
     inner_changes = []
-    for column_pair in sorted(list(permutations(COLUMNS, 2))):
+    for column_pair in sorted(list(combinations(COLUMNS, 2))):
         inner_changes.append(
             rawdata[list(column_pair)]
             .pct_change(1, axis=1, fill_method=None)[column_pair[-1]]

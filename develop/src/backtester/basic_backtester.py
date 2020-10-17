@@ -98,7 +98,7 @@ class BasicBacktester:
         self.initialize()
 
     def load_tradable_coins(self, tradable_coins_path):
-        with open("tradable_coins_path", "r") as f:
+        with open(tradable_coins_path, "r") as f:
             tradable_coins = f.read().splitlines()
 
         return tradable_coins

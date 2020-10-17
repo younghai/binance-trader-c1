@@ -3,6 +3,8 @@ from typing import Dict, List, Callable, Optional
 import os
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+from common_utils import load_text
 
 
 FILENAME_TEMPLATE = {"X": "X.csv", "QAY": "QAY.csv", "QBY": "QBY.csv"}
@@ -20,84 +22,95 @@ class Dataset(_Dataset):
         winsorize_threshold: Optional[int] = None,
         base_feature_assets: List[str] = CONFIG["base_feature_assets"],
     ):
+        print("[+] Start to build dataset")
         self.data_caches = {}
-        x = pd.read_csv(
-            os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
+        self.data_caches["X"] = pd.read_csv(
+            os.path.join(data_dir, FILENAME_TEMPLATE["X"]),
             header=[0, 1],
             index_col=0,
             compression="gzip",
         )
+        self.data_caches["BX"] = self.data_caches["X"][base_feature_assets]
 
-        self.data_caches["BX"] = x[base_feature_assets]
-        self.data_caches["X"] = x[feature_assets].stack(level=0)
-        self.data_caches = {
-            data_type: pd.read_csv(
-                os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
-                header=0,
-                index_col=0,
-                compression="gzip",
-            ).stack()
-            for data_type in ["QAY", "QBY"]
-        }
+        self.index = []
+        for asset in tqdm(self.data_caches["X"].columns.levels[0]):
+            self.index += (
+                self.data_caches["X"][[asset]]
+                .dropna()
+                .iloc[lookback_window - 1 :]
+                .sort_index()
+                .stack(level=0)
+                .index.to_list()
+            )
 
-        # Check if all index are all same.
-        assert (self.data_caches["X"].index == self.data_caches["QAY"].index).all()
-        assert (self.data_caches["X"].index == self.data_caches["QBY"].index).all()
-
-        # Mask data without None
-        mask_index = (
-            self.data_caches["X"].dropna().index
-            & self.data_caches["QAY"].dropna().index
-            & self.data_caches["QBY"].dropna().index
-        ).sort_index()
-
-        self.data_caches["BX"] = self.data_caches["BX"].reindex(mask_index.levels[0])
-        self.data_caches["X"] = self.data_caches["X"].reindex(mask_index)
-        self.data_caches["QAY"] = self.data_caches["QAY"].reindex(mask_index)
-        self.data_caches["QBY"] = self.data_caches["QBY"].reindex(mask_index)
+        for data_type in ["QAY", "QBY"]:
+            self.data_caches[data_type] = (
+                pd.read_csv(
+                    os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
+                    header=0,
+                    index_col=0,
+                    compression="gzip",
+                )
+                .stack()
+                .reindex(self.index)
+            )
 
         self.transforms = transforms
-
-        self.n_data = len(self.data_caches["X"])
+        self.n_data = len(self.index)
         self.lookback_window = lookback_window
         self.winsorize_threshold = winsorize_threshold
 
+        tradable_assets = load_text(
+            os.path.join(
+                data_dir.split("/test")[0].split("/train")[0], "tradable_coins.txt"
+            )
+        )
+        self.asset_to_id = {
+            tradable_asset: idx for idx, tradable_asset in enumerate(tradable_assets)
+        }
+        print("[+] built dataset")
+
     def __len__(self):
-        return self.n_data - self.lookback_window + 1
+        return self.n_data
 
     def __getitem__(self, idx):
         # astype -> Y: int, else: float32
         data_dict = {}
+
+        boundary_index = self.data_caches["X"][self.index[idx][1]].index.get_loc(
+            self.index[idx][0]
+        )
+
+        # Concat with BX
         data_dict["X"] = np.swapaxes(
-            self.data_caches["X"]
-            .iloc[idx : idx + self.lookback_window]
-            .values.astype("float32"),
+            pd.concat(
+                [
+                    self.data_caches["BX"].iloc[
+                        boundary_index - 59 : boundary_index + 1
+                    ],
+                    self.data_caches["X"][self.index[idx][1]].iloc[
+                        boundary_index - 59 : boundary_index + 1
+                    ],
+                ],
+                axis=1,
+            ).values.astype("float32"),
             0,
             1,
         )
+
         if self.winsorize_threshold is not None:
             data_dict["X"] = data_dict["X"].clip(
                 -self.winsorize_threshold, self.winsorize_threshold
             )
 
-        data_dict["Y"] = (
-            self.data_caches["Y"]
-            .iloc[idx + self.lookback_window - 1]
-            .values.astype("int")
-        )
+        data_dict["QAY"] = int(self.data_caches["QAY"].iloc[idx])
 
-        data_dict["QY"] = (
-            self.data_caches["QY"]
-            .iloc[idx + self.lookback_window - 1]
-            .values.astype("int")
-        )
+        data_dict["QBY"] = int(self.data_caches["QBY"].iloc[idx])
+
+        data_dict["ID"] = int(self.asset_to_id[self.index[idx][1]])
 
         # transform
         for data_type, transform in self.transforms.items():
             data_dict[data_type] = transform(data_dict[data_type])
 
         return data_dict
-
-    @property
-    def index(self):
-        return self.data_caches["X"].index[self.lookback_window - 1 :]
