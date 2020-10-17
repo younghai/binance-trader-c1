@@ -147,51 +147,62 @@ class PredictorV1(BasicPredictor):
             ):
                 self._save_model(model=self.model, epoch=epoch)
 
-    # def generate(self, save_dir=None):
-    #     assert self.mode in ("test")
-    #     self.model.eval()
+    def generate(self, save_dir=None):
+        assert self.mode in ("test")
+        self.model.eval()
 
-    #     if save_dir is None:
-    #         save_dir = self.data_config["generate_output_dir"]
+        if save_dir is None:
+            save_dir = self.data_config["generate_output_dir"]
 
-    #     index = self.test_data_loader.dataset.index
+        index = self.test_data_loader.dataset.index
 
-    #     predictions = []
-    #     labels = []
-    #     q_predictions = []
-    #     q_labels = []
-    #     for _ in tqdm(range(len(self.test_data_loader))):
-    #         test_data_dict = self._generate_test_data_dict()
+        qay_predictions = []
+        qay_probabilities = []
+        qay_labels = []
 
-    #         X, Y, QY = test_data_dict["X"], test_data_dict["Y"], test_data_dict["QY"]
+        qby_predictions = []
+        qby_probabilities = []
+        qby_labels = []
+        for _ in tqdm(range(len(self.test_data_loader))):
+            test_data_dict = self._generate_test_data_dict()
 
-    #         y_preds, qy_preds = self.model(X)
+            preds_qay, preds_qby = self.model(
+                x=test_data_dict["X"], id=test_data_dict["ID"]
+            )
 
-    #         B, _, _ = y_preds.size()
+            qay_predictions += preds_qay.argmax(dim=-1).view(B, -1).cpu().tolist()
+            qay_probabilities += preds_qay.max(dim=-1).view(B, -1).cpu().tolist()
+            qay_labels += test_data_dict["QAY"].view(B, -1).cpu().tolist()
 
-    #         predictions += y_preds.argmax(dim=-1).view(B, -1).cpu().tolist()
-    #         labels += Y.view(B, -1).cpu().tolist()
+            qby_predictions += preds_qby.argmax(dim=-1).view(B, -1).cpu().tolist()
+            qby_probabilities += preds_qby.max(dim=-1).view(B, -1).cpu().tolist()
+            qby_labels += test_data_dict["QBY"].view(B, -1).cpu().tolist()
 
-    #         q_predictions += qy_preds.argmax(dim=-1).view(B, -1).cpu().tolist()
-    #         q_labels += QY.view(B, -1).cpu().tolist()
+        # Store signals
+        for data_type, data in [
+            ("qay_predictions", qay_predictions),
+            ("qay_probabilities", qay_probabilities),
+            ("qay_labels", qay_labels),
+            ("qby_predictions", qby_predictions),
+            ("qby_probabilities", qby_probabilities),
+            ("qby_labels", qby_labels),
+        ]:
+            pd.DataFrame(data, index=index).to_csv(
+                os.path.join(save_dir, f"{data_type}.csv")
+            )
 
-    #     pd.DataFrame(predictions, index=index).to_csv(
-    #         os.path.join(save_dir, "predictions.csv")
-    #     )
-    #     pd.DataFrame(labels, index=index).to_csv(os.path.join(save_dir, "labels.csv"))
+    def predict(self, X, id):
+        self.model.eval()
+        preds_qay, preds_qby = self.model(
+            x=X.to(self.device), id=torch.tensor(id).to(self.device)
+        )
 
-    #     pd.DataFrame(q_predictions, index=index).to_csv(
-    #         os.path.join(save_dir, "q_predictions.csv")
-    #     )
-    #     pd.DataFrame(q_labels, index=index).to_csv(
-    #         os.path.join(save_dir, "q_labels.csv")
-    #     )
-
-    # def predict(self, X):
-    #     self.model.eval()
-    #     y_preds, qy_preds = self.model(X.to(self.device))
-
-    #     return (y_preds.argmax(dim=-1).cpu(), qy_preds.argmax(dim=-1).cpu())
+        return {
+            "qay_prediction": preds_qay.argmax(dim=-1).cpu(),
+            "qay_probability": preds_qay.max(dim=-1).cpu(),
+            "qby_prediction": preds_qby.argmax(dim=-1).cpu(),
+            "qby_probability": preds_qby.max(dim=-1).cpu(),
+        }
 
 
 if __name__ == "__main__":
