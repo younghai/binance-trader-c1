@@ -11,9 +11,10 @@ tmp/
 .venv
 .python-version
 .nbconvert
-X.csv
-Y.csv
-pricing.csv
-*/storage/dataset/rawdata
+*/storage/dataset
 notebook_cookie_secret
-.git
+*.csv
+*.git
+*.pkl
+*.pkl.gz
+*.DS_Store

@@ -11,7 +11,6 @@ import joblib
 from common_utils import make_dirs
 from typing import Callable, List, Dict
 from pandarallel import pandarallel
-import subprocess
 
 pandarallel.initialize()
 
@@ -206,7 +205,7 @@ def _build_qa_label(rawdata, lookahead_window, n_bins):
 
     qa_label = fwd_return.dropna().parallel_apply(partial(compute_quantile, bins=bins))
 
-    return qa_label
+    return qa_label.sort_index()
 
 
 def build_qa_labels(file_names, lookahead_window, n_bins):
@@ -231,7 +230,7 @@ def _build_qb_label(rawdata, lookahead_window, n_bins):
     fwd_return = (
         fwd_1m_return.add(1)
         .rolling(lookahead_window)
-        .prod()
+        .parallel_apply(lambda x: x.prod())
         .sub(1)
         .shift(-lookahead_window)
     )
@@ -244,7 +243,7 @@ def _build_qb_label(rawdata, lookahead_window, n_bins):
 
     qb_label = fwd_return.dropna().parallel_apply(partial(compute_quantile, bins=bins))
 
-    return qb_label
+    return qb_label.sort_index()
 
 
 def build_qb_labels(file_names, lookahead_window, n_bins):
@@ -268,7 +267,7 @@ def build_pricing(file_names):
         coin_pair = file_name.split("/")[-1].split(".")[0]
 
         close = load_rawdata(file_name=file_name)["close"].rename(coin_pair)
-        pricing.append(close)
+        pricing.append(close.sort_index())
 
     return pd.concat(pricing, axis=1).sort_index()
 
@@ -293,23 +292,17 @@ def store_artifacts(
     boundary_index = int(len(features.index) * train_ratio)
 
     for file_name, data in [
-        ("X.pkl", features),
-        ("QAY.pkl", qa_labels),
-        ("QBY.pkl", qb_labels),
-        ("pricing.pkl", pricing),
+        ("X.pkl.gz", features),
+        ("QAY.pkl.gz", qa_labels),
+        ("QBY.pkl.gz", qb_labels),
+        ("pricing.pkl.gz", pricing),
     ]:
         data.iloc[:boundary_index].to_pickle(
-            os.path.join(train_data_store_dir, file_name)
+            os.path.join(train_data_store_dir, file_name), compression="gzip"
         )
         data.iloc[boundary_index:].to_pickle(
-            os.path.join(test_data_store_dir, file_name)
+            os.path.join(test_data_store_dir, file_name), compression="gzip"
         )
-
-        for file_path in [
-            os.path.join(train_data_store_dir, file_name),
-            os.path.join(test_data_store_dir, file_name),
-        ]:
-            subprocess.call(["gzip", file_path])
 
     joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))
     bins.to_csv(os.path.join(data_store_dir, "bins.csv"))
