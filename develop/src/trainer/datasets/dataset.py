@@ -7,7 +7,11 @@ from tqdm import tqdm
 from common_utils import load_text
 
 
-FILENAME_TEMPLATE = {"X": "X.pkl.gz", "QAY": "QAY.pkl.gz", "QBY": "QBY.pkl.gz"}
+FILENAME_TEMPLATE = {
+    "X": "X.parquet.zstd",
+    "QAY": "QAY.parquet.zstd",
+    "QBY": "QBY.parquet.zstd",
+}
 CONFIG = {
     "base_feature_assets": ["BTC-USDT", "ETH-BTC"],
 }
@@ -24,8 +28,8 @@ class Dataset(_Dataset):
     ):
         print("[+] Start to build dataset")
         self.data_caches = {}
-        self.data_caches["X"] = pd.read_pickle(
-            os.path.join(data_dir, FILENAME_TEMPLATE["X"]), compression="gzip"
+        self.data_caches["X"] = pd.read_parquet(
+            os.path.join(data_dir, FILENAME_TEMPLATE["X"])
         )
         self.data_caches["BX"] = self.data_caches["X"][base_feature_assets]
 
@@ -43,10 +47,8 @@ class Dataset(_Dataset):
 
         for data_type in ["QAY", "QBY"]:
             self.data_caches[data_type] = (
-                pd.read_pickle(
-                    os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
-                    compression="gzip",
-                )
+                pd.read_parquet(os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),)
+                .sort_index()
                 .stack()
                 .reindex(self.index)
                 .astype(int)

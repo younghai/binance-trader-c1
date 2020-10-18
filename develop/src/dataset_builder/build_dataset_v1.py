@@ -11,6 +11,8 @@ import joblib
 from common_utils import make_dirs
 from typing import Callable, List, Dict
 from pandarallel import pandarallel
+import pyarrow.parquet as pq
+import pyarrow as pa
 
 pandarallel.initialize()
 
@@ -292,16 +294,21 @@ def store_artifacts(
     boundary_index = int(len(features.index) * train_ratio)
 
     for file_name, data in [
-        ("X.pkl.gz", features),
-        ("QAY.pkl.gz", qa_labels),
-        ("QBY.pkl.gz", qb_labels),
-        ("pricing.pkl.gz", pricing),
+        ("X.parquet.zstd", features),
+        ("QAY.parquet.zstd", qa_labels),
+        ("QBY.parquet.zstd", qb_labels),
+        ("pricing.parquet.zstd", pricing),
     ]:
-        data.iloc[:boundary_index].to_pickle(
-            os.path.join(train_data_store_dir, file_name), compression="gzip"
+
+        pq.write_table(
+            table=pa.Table.from_pandas(data.iloc[:boundary_index]),
+            where=os.path.join(train_data_store_dir, file_name),
+            compression="zstd",
         )
-        data.iloc[boundary_index:].to_pickle(
-            os.path.join(test_data_store_dir, file_name), compression="gzip"
+        pq.write_table(
+            table=pa.Table.from_pandas(data.iloc[boundary_index:]),
+            where=os.path.join(test_data_store_dir, file_name),
+            compression="zstd",
         )
 
     joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))
