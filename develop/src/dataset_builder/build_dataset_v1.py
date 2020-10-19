@@ -52,26 +52,6 @@ def _build_feature_by_rawdata(rawdata):
         .reindex(returns_1440m.index)
     )
 
-    returns_720m = (
-        (
-            rawdata.pct_change(720, fill_method=None).rename(
-                columns={key: key + "_return(720)" for key in COLUMNS}
-            )
-        )
-        .dropna()
-        .reindex(returns_1440m.index)
-    )
-
-    madiv_720m = (
-        (
-            rawdata.rolling(720)
-            .mean()
-            .rename(columns={key: key + "_madiv(720)" for key in COLUMNS})
-        )
-        .dropna()
-        .reindex(returns_1440m.index)
-    )
-
     returns_60m = (
         (
             rawdata.pct_change(60, fill_method=None).rename(
@@ -103,16 +83,7 @@ def _build_feature_by_rawdata(rawdata):
     )
 
     return pd.concat(
-        [
-            returns_1440m,
-            madiv_1440m,
-            returns_720m,
-            madiv_720m,
-            returns_60m,
-            madiv_60m,
-            returns_1m,
-        ],
-        axis=1,
+        [returns_1440m, madiv_1440m, returns_60m, madiv_60m, returns_1m,], axis=1,
     ).sort_index()
 
 

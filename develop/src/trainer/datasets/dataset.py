@@ -13,9 +13,6 @@ FILENAME_TEMPLATE = {
     "QAY": "QAY.parquet.zstd",
     "QBY": "QBY.parquet.zstd",
 }
-CONFIG = {
-    "base_feature_assets": ["BTC-USDT", "ETH-BTC"],
-}
 
 
 class Dataset(_Dataset):
@@ -23,9 +20,10 @@ class Dataset(_Dataset):
         self,
         data_dir: str,
         transforms: Dict[str, Callable],
+        base_feature_assets: List[str],
+        drop_feature_assets: List[str],
         lookback_window: int = 60,
         winsorize_threshold: Optional[int] = None,
-        base_feature_assets: List[str] = CONFIG["base_feature_assets"],
     ):
         print("[+] Start to build dataset")
         self.data_caches = {}
@@ -34,17 +32,25 @@ class Dataset(_Dataset):
         )
         self.data_caches["BX"] = self.data_caches["X"][base_feature_assets]
 
+        trainable_assets = [
+            asset
+            for asset in self.data_caches["X"].columns.levels[0]
+            if asset not in drop_feature_assets
+        ]
+        self.data_caches["X"] = self.data_caches["X"][trainable_assets]
+
         self.index = []
-        for asset in tqdm(self.data_caches["X"].columns.levels[0]):
-            self.index += (
-                self.data_caches["X"][[asset]]
+        for asset in tqdm(trainable_assets):
+            self.index += [
+                (index, asset)
+                for index in self.data_caches["X"][[asset]]
                 .dropna()
                 .iloc[lookback_window - 1 :]
-                .sort_index()
-                .stack(level=0)
-                .index.to_list()
-            )
+                .index
+            ]
+
         self.index = pd.Index(self.index)
+        gc.collect()
 
         for data_type in ["QAY", "QBY"]:
             self.data_caches[data_type] = (
@@ -52,6 +58,7 @@ class Dataset(_Dataset):
                     os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
                     engine="pyarrow",
                 )
+                .sort_index()
                 .stack()
                 .reindex(self.index)
                 .astype(int)
@@ -67,6 +74,11 @@ class Dataset(_Dataset):
                 data_dir.split("/test")[0].split("/train")[0], "tradable_coins.txt"
             )
         )
+        tradable_assets = [
+            tradable_asset
+            for tradable_asset in tradable_assets
+            if tradable_asset not in drop_feature_assets
+        ]
         self.asset_to_id = {
             tradable_asset: idx for idx, tradable_asset in enumerate(tradable_assets)
         }

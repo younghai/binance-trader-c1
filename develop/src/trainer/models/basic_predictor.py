@@ -20,6 +20,8 @@ DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
     "winsorize_threshold": None,
+    "base_feature_assets": ["BTC-USDT", "ETH-BTC"],
+    "drop_feature_assets": [],
 }
 
 MODEL_CONFIG = {
@@ -37,7 +39,7 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 84,
+        "in_channels": 60,
         "n_assets": 35,
         "n_class_qay": 10,
         "n_class_qby": 10,
@@ -156,6 +158,8 @@ class BasicPredictor:
             "transforms": transforms,
             "lookback_window": self.model_config["lookback_window"],
             "winsorize_threshold": self.data_config["winsorize_threshold"],
+            "base_feature_assets": self.data_config["base_feature_assets"],
+            "drop_feature_assets": self.data_config["drop_feature_assets"],
         }
 
         base_data_loader_params = {

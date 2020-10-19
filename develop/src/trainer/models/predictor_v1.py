@@ -10,6 +10,8 @@ DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
     "winsorize_threshold": None,
+    "base_feature_assets": ["BTC-USDT", "ETH-BTC"],
+    "drop_feature_assets": [],
 }
 
 MODEL_CONFIG = {
@@ -27,7 +29,7 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 84,
+        "in_channels": 60,
         "n_assets": 35,
         "n_class_qay": 10,
         "n_class_qby": 10,
