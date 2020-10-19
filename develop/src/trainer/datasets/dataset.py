@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from common_utils import load_text
+import gc
 
 
 FILENAME_TEMPLATE = {
@@ -29,7 +30,7 @@ class Dataset(_Dataset):
         print("[+] Start to build dataset")
         self.data_caches = {}
         self.data_caches["X"] = pd.read_parquet(
-            os.path.join(data_dir, FILENAME_TEMPLATE["X"])
+            os.path.join(data_dir, FILENAME_TEMPLATE["X"]), engine="pyarrow"
         )
         self.data_caches["BX"] = self.data_caches["X"][base_feature_assets]
 
@@ -47,8 +48,10 @@ class Dataset(_Dataset):
 
         for data_type in ["QAY", "QBY"]:
             self.data_caches[data_type] = (
-                pd.read_parquet(os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),)
-                .sort_index()
+                pd.read_parquet(
+                    os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
+                    engine="pyarrow",
+                )
                 .stack()
                 .reindex(self.index)
                 .astype(int)
@@ -69,6 +72,7 @@ class Dataset(_Dataset):
         }
 
         del tradable_assets
+        gc.collect()
         print("[+] built dataset")
 
     def __len__(self):
