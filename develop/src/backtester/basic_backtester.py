@@ -81,19 +81,29 @@ class BasicBacktester:
         self.historical_data_dict = self.build_historical_data_dict(
             base_currency=base_currency,
             historical_data_path_dict={
-                "pricing": os.path.join(dataset_dir, "test/pricing.csv"),
-                "predictions": os.path.join(
-                    exp_dir, "generated_output/predictions.csv"
+                "pricing": os.path.join(dataset_dir, "test/pricing.parquet.zstd"),
+                "qay_predictions": os.path.join(
+                    exp_dir, "generated_output/qay_predictions.parquet.zstd"
                 ),
-                "labels": os.path.join(exp_dir, "generated_output/labels.csv"),
-                "q_predictions": os.path.join(
-                    exp_dir, "generated_output/q_predictions.csv"
+                "qby_predictions": os.path.join(
+                    exp_dir, "generated_output/qby_predictions.parquet.zstd"
                 ),
-                "q_labels": os.path.join(exp_dir, "generated_output/q_labels.csv"),
+                "qay_probabilities": os.path.join(
+                    exp_dir, "generated_output/qay_probabilities.parquet.zstd"
+                ),
+                "qby_probabilities": os.path.join(
+                    exp_dir, "generated_output/qby_probabilities.parquet.zstd"
+                ),
+                "qay_labels": os.path.join(
+                    exp_dir, "generated_output/qay_labels.parquet.zstd"
+                ),
+                "qby_labels": os.path.join(
+                    exp_dir, "generated_output/qby_labels.parquet.zstd"
+                ),
             },
         )
         self.tradable_coins = self.historical_data_dict["pricing"].columns
-        self.index = self.historical_data_dict["predictions"].index
+        self.index = self.historical_data_dict["qay_predictions"].index
 
         self.initialize()
 
@@ -117,7 +127,7 @@ class BasicBacktester:
 
         data_dict = {}
         data_dict["pricing"] = data_loader(
-            path=historical_data_path_dict.pop("pricing"), compression="gzip"
+            path=historical_data_path_dict.pop("pricing")
         )
         columns = data_dict["pricing"].columns
         columns_with_base_currency = columns[

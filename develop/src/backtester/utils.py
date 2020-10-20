@@ -9,11 +9,8 @@ def nan_to_zero(value):
     return value
 
 
-def data_loader(path, compression=None):
-    if compression is not None:
-        return pd.read_csv(path, header=0, index_col=0, compression=compression)
-
-    return pd.read_csv(path, header=0, index_col=0)
+def data_loader(path):
+    return pd.read_parquet(path)
 
 
 def compute_quantile(x, bins):

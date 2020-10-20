@@ -20,7 +20,10 @@ CONFIG = {
     "exit_if_achieved": True,
     "achieved_with_commission": False,
     "max_n_updated": None,
-    "entry_q_threshold": 9,
+    "entry_qay_threshold": 9,
+    "entry_qby_threshold": 9,
+    "entry_qay_prob_threshold": 0.2,
+    "entry_qby_prob_threshold": 0.2,
     "exit_q_threshold": 9,
 }
 
@@ -42,8 +45,11 @@ class BacktesterV1(BasicBacktester):
         exit_if_achieved=CONFIG["exit_if_achieved"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
-        entry_q_threshold=CONFIG["entry_q_threshold"],
         exit_q_threshold=CONFIG["exit_q_threshold"],
+        entry_qay_threshold=CONFIG["entry_qay_threshold"],
+        entry_qby_threshold=CONFIG["entry_qby_threshold"],
+        entry_qay_prob_threshold=CONFIG["entry_qay_prob_threshold"],
+        entry_qby_prob_threshold=CONFIG["entry_qby_prob_threshold"],
     ):
         super().__init__(
             base_currency=base_currency,
@@ -63,7 +69,10 @@ class BacktesterV1(BasicBacktester):
             exit_q_threshold=exit_q_threshold,
         )
 
-        self.entry_q_threshold = entry_q_threshold
+        self.entry_qay_threshold = entry_qay_threshold
+        self.entry_qby_threshold = entry_qby_threshold
+        self.entry_qay_prob_threshold = entry_qay_prob_threshold
+        self.entry_qby_prob_threshold = entry_qby_prob_threshold
 
     def check_if_achieved(self, position, pricing, now):
         current_price = pricing[position.asset]
@@ -100,16 +109,23 @@ class BacktesterV1(BasicBacktester):
         for now in tqdm(self.index):
             # Step1: Prepare pricing and signal
             pricing = self.historical_data_dict["pricing"].loc[now]
-            predictions = self.historical_data_dict["predictions"].loc[now]
-            q_predictions = self.historical_data_dict["q_predictions"].loc[now]
+            qay_prediction = self.historical_data_dict["qay_predictions"].loc[now]
+            qby_prediction = self.historical_data_dict["qby_predictions"].loc[now]
+            qay_probability = self.historical_data_dict["qay_probabilities"].loc[now]
+            qby_probability = self.historical_data_dict["qby_probabilities"].loc[now]
 
             # Set assets which has signals
             positive_assets = self.tradable_coins[
-                (predictions == 0) & (q_predictions >= self.entry_q_threshold)
+                (qay_prediction >= self.entry_qay_threshold)
+                & (qby_prediction >= self.entry_qby_threshold)
+                & (qay_probability >= self.entry_qay_prob_threshold)
+                & (qby_probability >= self.entry_qby_prob_threshold)
             ]
             negative_assets = self.tradable_coins[
-                (predictions == 1)
-                & (q_predictions <= (self.n_bins - 1) - self.entry_q_threshold)
+                (qay_predictions <= (self.n_bins - 1) - self.entry_qay_threshold)
+                & (qby_predictions <= (self.n_bins - 1) - self.entry_qby_threshold)
+                & (qay_probability >= self.entry_qay_prob_threshold)
+                & (qby_probability >= self.entry_qby_prob_threshold)
             ]
 
             # Exit
@@ -148,16 +164,16 @@ class BacktesterV1(BasicBacktester):
         self.store_report(report=report)
 
         if display is True:
-            display_markdown("#### Main Predictions", raw=True)
+            display_markdown("#### QAY Predictions", raw=True)
             self.display_accuracy(
-                predictions=self.historical_data_dict["predictions"],
-                labels=self.historical_data_dict["labels"],
+                predictions=self.historical_data_dict["qay_predictions"],
+                labels=self.historical_data_dict["qay_labels"],
             )
 
-            display_markdown("#### Main Q Predictions", raw=True)
+            display_markdown("#### QBY Predictions", raw=True)
             self.display_accuracy(
-                predictions=self.historical_data_dict["q_predictions"],
-                labels=self.historical_data_dict["q_labels"],
+                predictions=self.historical_data_dict["qby_predictions"],
+                labels=self.historical_data_dict["qby_labels"],
             )
 
             self.display_metrics()

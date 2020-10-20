@@ -172,13 +172,13 @@ class PredictorV1(BasicPredictor):
                 x=test_data_dict["X"], id=test_data_dict["ID"]
             )
 
-            qay_predictions += preds_qay.argmax(dim=-1).view(B, -1).cpu().tolist()
-            qay_probabilities += preds_qay.max(dim=-1).view(B, -1).cpu().tolist()
-            qay_labels += test_data_dict["QAY"].view(B, -1).cpu().tolist()
+            qay_predictions += preds_qay.argmax(dim=-1).view(-1).cpu().tolist()
+            qay_probabilities += preds_qay.max(dim=-1).values.view(-1).cpu().tolist()
+            qay_labels += test_data_dict["QAY"].view(-1).cpu().tolist()
 
-            qby_predictions += preds_qby.argmax(dim=-1).view(B, -1).cpu().tolist()
-            qby_probabilities += preds_qby.max(dim=-1).view(B, -1).cpu().tolist()
-            qby_labels += test_data_dict["QBY"].view(B, -1).cpu().tolist()
+            qby_predictions += preds_qby.argmax(dim=-1).view(-1).cpu().tolist()
+            qby_probabilities += preds_qby.max(dim=-1).values.view(-1).cpu().tolist()
+            qby_labels += test_data_dict["QBY"].view(-1).cpu().tolist()
 
         # Store signals
         for data_type, data in [
@@ -189,7 +189,7 @@ class PredictorV1(BasicPredictor):
             ("qby_probabilities", qby_probabilities),
             ("qby_labels", qby_labels),
         ]:
-            pd.DataFrame(data, index=index).to_csv(
+            pd.Series(data, index=index).sort_index().unstack().to_csv(
                 os.path.join(save_dir, f"{data_type}.csv")
             )
 
