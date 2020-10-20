@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from .basic_predictor import BasicPredictor
+import pyarrow.parquet as pq
+import pyarrow as pa
 
 
 DATA_CONFIG = {
@@ -149,7 +151,7 @@ class PredictorV1(BasicPredictor):
             ):
                 self._save_model(model=self.model, epoch=epoch)
 
-    def generate(self, save_dir=None):
+    def generate(self, save_dir=None, test=False):
         assert self.mode in ("test")
         self.model.eval()
 
@@ -165,7 +167,7 @@ class PredictorV1(BasicPredictor):
         qby_predictions = []
         qby_probabilities = []
         qby_labels = []
-        for _ in tqdm(range(len(self.test_data_loader))):
+        for idx in tqdm(range(len(self.test_data_loader))):
             test_data_dict = self._generate_test_data_dict()
 
             preds_qay, preds_qby = self.model(
@@ -180,6 +182,11 @@ class PredictorV1(BasicPredictor):
             qby_probabilities += preds_qby.max(dim=-1).values.view(-1).cpu().tolist()
             qby_labels += test_data_dict["QBY"].view(-1).cpu().tolist()
 
+            if test is True:
+                index = index[: 100 * self.model_config["batch_size"]]
+                if idx == 99:
+                    break
+
         # Store signals
         for data_type, data in [
             ("qay_predictions", qay_predictions),
@@ -189,8 +196,12 @@ class PredictorV1(BasicPredictor):
             ("qby_probabilities", qby_probabilities),
             ("qby_labels", qby_labels),
         ]:
-            pd.Series(data, index=index).sort_index().unstack().to_csv(
-                os.path.join(save_dir, f"{data_type}.csv")
+            pq.write_table(
+                table=pa.Table.from_pandas(
+                    pd.Series(data, index=index).sort_index().unstack()
+                ),
+                where=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
+                compression="zstd",
             )
 
     def predict(self, X, id):
