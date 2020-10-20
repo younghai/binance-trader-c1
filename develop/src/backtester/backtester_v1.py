@@ -122,8 +122,8 @@ class BacktesterV1(BasicBacktester):
                 & (qby_probability >= self.entry_qby_prob_threshold)
             ]
             negative_assets = self.tradable_coins[
-                (qay_predictions <= (self.n_bins - 1) - self.entry_qay_threshold)
-                & (qby_predictions <= (self.n_bins - 1) - self.entry_qby_threshold)
+                (qay_prediction <= (self.n_bins - 1) - self.entry_qay_threshold)
+                & (qby_prediction <= (self.n_bins - 1) - self.entry_qby_threshold)
                 & (qay_probability >= self.entry_qay_prob_threshold)
                 & (qby_probability >= self.entry_qby_prob_threshold)
             ]
@@ -178,6 +178,8 @@ class BacktesterV1(BasicBacktester):
 
             self.display_metrics()
             self.display_report(report=report)
+
+        return self
 
 
 if __name__ == "__main__":

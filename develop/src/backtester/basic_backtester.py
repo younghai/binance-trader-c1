@@ -260,7 +260,7 @@ class BasicBacktester:
         display_markdown("#### Accuracy of signals", raw=True)
         display(accuracies)
 
-    def display_metrics(self):
+    def build_metrics(self):
         assert len(self.historical_caches) != 0
         assert len(self.historical_capitals) != 0
         assert len(self.historical_trade_returns) != 0
@@ -285,8 +285,12 @@ class BasicBacktester:
         metrics["max_drawdown"] = emp.max_drawdown(historical_returns)
         metrics["avg_return"] = historical_returns.mean()
         metrics["total_return"] = historical_returns.add(1).cumprod().sub(1).iloc[-1]
+
+        return pd.Series(metrics)
+
+    def display_metrics(self):
         display_markdown(f"#### Performance metrics: {self.base_currency}", raw=True)
-        display(pd.Series(metrics))
+        display(self.build_metrics())
 
     def display_report(self, report):
         display_markdown(f"#### Report: {self.base_currency}", raw=True)
