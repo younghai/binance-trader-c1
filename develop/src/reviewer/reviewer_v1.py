@@ -6,6 +6,8 @@ from tqdm import tqdm
 import backtester
 from .utils import grid
 import os
+import pandas as pd
+import joblib
 
 
 @dataclass
@@ -29,7 +31,9 @@ class ReviewerV1:
 
     def display_metrics(self):
         display(
-            pd.concat([backtester.build_metrics() for backtester in self.backtesters])
+            pd.concat(
+                [backtester.build_metrics() for backtester in self.backtesters], axis=1
+            ),
         )
 
     def display_report(self, index):
@@ -38,5 +42,5 @@ class ReviewerV1:
         )
 
     def store(self, store_path):
-        joblib.dump(self, store_path)
+        joblib.dump(self, store_path, compress=3)
         print("[+] Stored!")

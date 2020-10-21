@@ -6,6 +6,7 @@ from .utils import data_loader, Position, compute_quantile, nan_to_zero
 from .basic_backtester import BasicBacktester
 from tqdm import tqdm
 from IPython.display import display_markdown, display
+import gc
 
 
 CONFIG = {
@@ -22,8 +23,8 @@ CONFIG = {
     "max_n_updated": None,
     "entry_qay_threshold": 9,
     "entry_qby_threshold": 9,
-    "entry_qay_prob_threshold": 0.2,
-    "entry_qby_prob_threshold": 0.2,
+    "entry_qay_prob_threshold": 0,
+    "entry_qby_prob_threshold": 0,
     "exit_q_threshold": 9,
 }
 
@@ -104,6 +105,7 @@ class BacktesterV1(BasicBacktester):
         return False
 
     def run(self, display=True):
+        self.build()
         self.initialize()
 
         for now in tqdm(self.index):
@@ -178,6 +180,10 @@ class BacktesterV1(BasicBacktester):
 
             self.display_metrics()
             self.display_report(report=report)
+
+        # Remove historical data dict to reduce memory usage
+        del self.historical_data_dict
+        gc.collect()
 
         return self
 

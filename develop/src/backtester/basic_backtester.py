@@ -60,69 +60,23 @@ class BasicBacktester:
         self.exit_if_achieved = exit_if_achieved
         self.achieved_with_commission = achieved_with_commission
         self.max_n_updated = max_n_updated
+        self.exit_q_threshold = exit_q_threshold
 
-        # Set path to load data
-        dataset_params_path = os.path.join(dataset_dir, "params.json")
-        bins_path = os.path.join(dataset_dir, "bins.csv")
-
-        self.report_store_dir = os.path.join(exp_dir, "reports/")
-        make_dirs([self.report_store_dir])
-
-        # Load data
-        self.bins = self.load_bins(bins_path)
-        dataset_params = self.load_dataset_params(dataset_params_path)
-
-        if exit_q_threshold is None:
-            self.exit_q_threshold = dataset_params["q_threshold"]
-        else:
-            self.exit_q_threshold = exit_q_threshold
-
-        self.n_bins = dataset_params["n_bins"]
-        self.historical_data_dict = self.build_historical_data_dict(
-            base_currency=base_currency,
-            historical_data_path_dict={
-                "pricing": os.path.join(dataset_dir, "test/pricing.parquet.zstd"),
-                "qay_predictions": os.path.join(
-                    exp_dir, "generated_output/qay_predictions.parquet.zstd"
-                ),
-                "qby_predictions": os.path.join(
-                    exp_dir, "generated_output/qby_predictions.parquet.zstd"
-                ),
-                "qay_probabilities": os.path.join(
-                    exp_dir, "generated_output/qay_probabilities.parquet.zstd"
-                ),
-                "qby_probabilities": os.path.join(
-                    exp_dir, "generated_output/qby_probabilities.parquet.zstd"
-                ),
-                "qay_labels": os.path.join(
-                    exp_dir, "generated_output/qay_labels.parquet.zstd"
-                ),
-                "qby_labels": os.path.join(
-                    exp_dir, "generated_output/qby_labels.parquet.zstd"
-                ),
-            },
-        )
-        self.tradable_coins = self.historical_data_dict["pricing"].columns
-        self.index = self.historical_data_dict["qay_predictions"].index
+        self.dataset_dir = dataset_dir
+        self.exp_dir = exp_dir
 
         self.initialize()
 
-    def load_tradable_coins(self, tradable_coins_path):
-        with open(tradable_coins_path, "r") as f:
-            tradable_coins = f.read().splitlines()
-
-        return tradable_coins
-
-    def load_bins(self, bins_path):
+    def _load_bins(self, bins_path):
         return pd.read_csv(bins_path, header=0, index_col=0)
 
-    def load_dataset_params(self, dataset_params_path):
+    def _load_dataset_params(self, dataset_params_path):
         with open(dataset_params_path, "r") as f:
             dataset_params = json.load(f)
 
         return dataset_params
 
-    def build_historical_data_dict(self, base_currency, historical_data_path_dict):
+    def _build_historical_data_dict(self, base_currency, historical_data_path_dict):
         historical_data_path_dict = copy(historical_data_path_dict)
 
         data_dict = {}
@@ -146,6 +100,50 @@ class BasicBacktester:
             data_dict[data_type] = data_dict[data_type][columns_with_base_currency]
 
         return data_dict
+
+    def build(self):
+
+        # Set path to load data
+        dataset_params_path = os.path.join(self.dataset_dir, "params.json")
+        bins_path = os.path.join(self.dataset_dir, "bins.csv")
+
+        self.report_store_dir = os.path.join(self.exp_dir, "reports/")
+        make_dirs([self.report_store_dir])
+
+        # Load data
+        self.bins = self._load_bins(bins_path)
+        dataset_params = self._load_dataset_params(dataset_params_path)
+
+        if self.exit_q_threshold is None:
+            self.exit_q_threshold = dataset_params["q_threshold"]
+
+        self.n_bins = dataset_params["n_bins"]
+        self.historical_data_dict = self._build_historical_data_dict(
+            base_currency=self.base_currency,
+            historical_data_path_dict={
+                "pricing": os.path.join(self.dataset_dir, "test/pricing.parquet.zstd"),
+                "qay_predictions": os.path.join(
+                    self.exp_dir, "generated_output/qay_predictions.parquet.zstd"
+                ),
+                "qby_predictions": os.path.join(
+                    self.exp_dir, "generated_output/qby_predictions.parquet.zstd"
+                ),
+                "qay_probabilities": os.path.join(
+                    self.exp_dir, "generated_output/qay_probabilities.parquet.zstd"
+                ),
+                "qby_probabilities": os.path.join(
+                    self.exp_dir, "generated_output/qby_probabilities.parquet.zstd"
+                ),
+                "qay_labels": os.path.join(
+                    self.exp_dir, "generated_output/qay_labels.parquet.zstd"
+                ),
+                "qby_labels": os.path.join(
+                    self.exp_dir, "generated_output/qby_labels.parquet.zstd"
+                ),
+            },
+        )
+        self.tradable_coins = self.historical_data_dict["pricing"].columns
+        self.index = self.historical_data_dict["qay_predictions"].index
 
     def initialize(self):
         self.historical_caches = {}
