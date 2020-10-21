@@ -75,6 +75,52 @@ class BacktesterV1(BasicBacktester):
         self.entry_qay_prob_threshold = entry_qay_prob_threshold
         self.entry_qby_prob_threshold = entry_qby_prob_threshold
 
+    def store_report(self, report):
+        mettrics = self.build_metrics()
+        mettrics.to_csv(
+            os.path.join(
+                self.report_store_dir,
+                f"metrics_{self.report_prefix}_{self.base_currency}.csv",
+            )
+        )
+
+        report.to_csv(
+            os.path.join(
+                self.report_store_dir,
+                f"report_{self.report_prefix}_{self.base_currency}.csv",
+            )
+        )
+
+        params = {
+            "base_currency": self.base_currency,
+            "position_side": self.position_side,
+            "entry_ratio": self.entry_ratio,
+            "commission": self.commission,
+            "min_holding_minutes": self.min_holding_minutes,
+            "max_holding_minutes": self.max_holding_minutes,
+            "compound_interest": self.compound_interest,
+            "possible_in_debt": self.possible_in_debt,
+            "achieved_with_commission": self.achieved_with_commission,
+            "max_n_updated": self.max_n_updated,
+            "tradable_coins": tuple(self.tradable_coins.tolist()),
+            "exit_if_achieved": self.exit_if_achieved,
+            "exit_q_threshold": self.exit_q_threshold,
+            "entry_qay_threshold": self.entry_qay_threshold,
+            "entry_qby_threshold": self.entry_qby_threshold,
+            "entry_qay_prob_threshold": self.entry_qay_prob_threshold,
+            "entry_qby_prob_threshold": self.entry_qby_prob_threshold,
+        }
+        with open(
+            os.path.join(
+                self.report_store_dir,
+                f"params_{self.report_prefix}_{self.base_currency}.csv",
+            ),
+            "w",
+        ) as f:
+            json.dump(params, f)
+
+        print(f"[+] Report is stored: {self.report_prefix}_{self.base_currency}")
+
     def check_if_achieved(self, position, pricing, now):
         current_price = pricing[position.asset]
 
@@ -184,8 +230,6 @@ class BacktesterV1(BasicBacktester):
         # Remove historical data dict to reduce memory usage
         del self.historical_data_dict
         gc.collect()
-
-        return self
 
 
 if __name__ == "__main__":

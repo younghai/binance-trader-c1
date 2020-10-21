@@ -204,12 +204,21 @@ class BasicBacktester:
         return report
 
     def store_report(self, report):
+        mettrics = self.build_metrics()
+        mettrics.to_csv(
+            os.path.join(
+                self.report_store_dir,
+                f"metrics_{self.report_prefix}_{self.base_currency}.csv",
+            )
+        )
+
         report.to_csv(
             os.path.join(
                 self.report_store_dir,
                 f"report_{self.report_prefix}_{self.base_currency}.csv",
             )
         )
+
         params = {
             "base_currency": self.base_currency,
             "position_side": self.position_side,
@@ -222,6 +231,7 @@ class BasicBacktester:
             "achieved_with_commission": self.achieved_with_commission,
             "max_n_updated": self.max_n_updated,
             "tradable_coins": tuple(self.tradable_coins.tolist()),
+            "exit_if_achieved": self.exit_if_achieved,
             "exit_q_threshold": self.exit_q_threshold,
         }
         with open(
