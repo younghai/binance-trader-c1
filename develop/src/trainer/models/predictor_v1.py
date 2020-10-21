@@ -4,8 +4,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from .basic_predictor import BasicPredictor
-import pyarrow.parquet as pq
-import pyarrow as pa
+from common_utils import to_parquet
 
 
 DATA_CONFIG = {
@@ -196,12 +195,9 @@ class PredictorV1(BasicPredictor):
             ("qby_probabilities", qby_probabilities),
             ("qby_labels", qby_labels),
         ]:
-            pq.write_table(
-                table=pa.Table.from_pandas(
-                    pd.Series(data, index=index).sort_index().unstack()
-                ),
-                where=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
-                compression="zstd",
+            to_parquet(
+                df=pd.Series(data, index=index).sort_index().unstack(),
+                path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
             )
 
     def predict(self, X, id):

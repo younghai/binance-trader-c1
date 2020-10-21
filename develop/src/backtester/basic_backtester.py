@@ -10,10 +10,12 @@ from .utils import data_loader, Position
 from common_utils import make_dirs
 from collections import OrderedDict, defaultdict
 import empyrical as emp
+from common_utils import to_parquet
 
 
 CONFIG = {
     "report_prefix": "001",
+    "detail_report": False,
     "position_side": "long",
     "entry_ratio": 0.1,
     "commission": 0.0015,
@@ -35,6 +37,7 @@ class BasicBacktester:
         dataset_dir,
         exp_dir,
         report_prefix=CONFIG["report_prefix"],
+        detail_report=CONFIG["detail_report"],
         position_side=CONFIG["position_side"],
         entry_ratio=CONFIG["entry_ratio"],
         commission=CONFIG["commission"],
@@ -50,6 +53,7 @@ class BasicBacktester:
         assert position_side in ("long", "short", "longshort")
         self.base_currency = base_currency
         self.report_prefix = report_prefix
+        self.detail_report = detail_report
         self.position_side = position_side
         self.entry_ratio = entry_ratio
         self.commission = commission
@@ -148,16 +152,21 @@ class BasicBacktester:
     def initialize(self):
         self.historical_caches = {}
         self.historical_capitals = {}
-        self.historical_entry_reasons = defaultdict(list)
-        self.historical_exit_reasons = defaultdict(list)
-        self.historical_profits = defaultdict(list)
         self.historical_trade_returns = defaultdict(list)
-        self.historical_positions = {}
+
+        if self.detail_report is True:
+            self.historical_entry_reasons = defaultdict(list)
+            self.historical_exit_reasons = defaultdict(list)
+            self.historical_profits = defaultdict(list)
+            self.historical_positions = {}
 
         self.positions = []
         self.cache = 1
 
     def report(self, value, target, now, append=False):
+        if hasattr(self, target) is False:
+            return
+
         if append is True:
             getattr(self, target)[now].append(value)
             return
@@ -174,49 +183,57 @@ class BasicBacktester:
             .fillna(0)
             .rename("return")
         )
-        historical_entry_reasons = pd.Series(self.historical_entry_reasons).rename(
-            "entry_reason"
-        )
-        historical_exit_reasons = pd.Series(self.historical_exit_reasons).rename(
-            "exit_reason"
-        )
-        historical_profits = pd.Series(self.historical_profits).rename("profit")
         historical_trade_returns = pd.Series(self.historical_trade_returns).rename(
             "trade_return"
         )
-        historical_positions = pd.Series(self.historical_positions).rename("position")
 
-        report = pd.concat(
-            [
-                historical_caches,
-                historical_capitals,
-                historical_returns,
+        report = [
+            historical_caches,
+            historical_capitals,
+            historical_returns,
+            historical_trade_returns,
+        ]
+
+        if self.detail_report is True:
+            historical_entry_reasons = pd.Series(self.historical_entry_reasons).rename(
+                "entry_reason"
+            )
+            historical_exit_reasons = pd.Series(self.historical_exit_reasons).rename(
+                "exit_reason"
+            )
+            historical_profits = pd.Series(self.historical_profits).rename("profit")
+            historical_positions = pd.Series(self.historical_positions).rename(
+                "position"
+            )
+
+            report += [
                 historical_entry_reasons,
                 historical_exit_reasons,
                 historical_profits,
-                historical_trade_returns,
                 historical_positions,
-            ],
-            axis=1,
-        ).sort_index()
+            ]
+
+        report = pd.concat(report, axis=1,).sort_index()
         report.index = pd.to_datetime(report.index)
 
         return report
 
     def store_report(self, report):
-        mettrics = self.build_metrics()
-        mettrics.to_csv(
-            os.path.join(
+        metrics = self.build_metrics().to_frame().T
+        to_parquet(
+            df=metrics,
+            path=os.path.join(
                 self.report_store_dir,
-                f"metrics_{self.report_prefix}_{self.base_currency}.csv",
-            )
+                f"metrics_{self.report_prefix}_{self.base_currency}.parquet.zstd",
+            ),
         )
 
-        report.to_csv(
-            os.path.join(
+        to_parquet(
+            df=report,
+            path=os.path.join(
                 self.report_store_dir,
-                f"report_{self.report_prefix}_{self.base_currency}.csv",
-            )
+                f"report_{self.report_prefix}_{self.base_currency}.parquet.zstd",
+            ),
         )
 
         params = {
@@ -237,7 +254,7 @@ class BasicBacktester:
         with open(
             os.path.join(
                 self.report_store_dir,
-                f"params_{self.report_prefix}_{self.base_currency}.csv",
+                f"params_{self.report_prefix}_{self.base_currency}.json",
             ),
             "w",
         ) as f:

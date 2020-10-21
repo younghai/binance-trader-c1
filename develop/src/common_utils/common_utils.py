@@ -1,4 +1,6 @@
 import os
+import pyarrow.parquet as pq
+import pyarrow as pa
 
 
 def make_dirs(dirs):
@@ -11,3 +13,9 @@ def load_text(path):
         text = f.read().splitlines()
 
     return text
+
+
+def to_parquet(df, path, compression="zstd"):
+    pq.write_table(
+        table=pa.Table.from_pandas(df), where=path, compression=compression,
+    )

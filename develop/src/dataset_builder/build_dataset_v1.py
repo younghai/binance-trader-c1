@@ -8,11 +8,10 @@ from functools import partial
 from itertools import combinations
 from sklearn import preprocessing
 import joblib
-from common_utils import make_dirs
+from common_utils import make_dirs, to_parquet
 from typing import Callable, List, Dict
 from pandarallel import pandarallel
-import pyarrow.parquet as pq
-import pyarrow as pa
+
 
 pandarallel.initialize()
 
@@ -270,16 +269,14 @@ def store_artifacts(
         ("QBY.parquet.zstd", qb_labels),
         ("pricing.parquet.zstd", pricing),
     ]:
-
-        pq.write_table(
-            table=pa.Table.from_pandas(data.iloc[:boundary_index]),
-            where=os.path.join(train_data_store_dir, file_name),
-            compression="zstd",
+        to_parquet(
+            df=data.iloc[:boundary_index],
+            path=os.path.join(train_data_store_dir, file_name),
         )
-        pq.write_table(
-            table=pa.Table.from_pandas(data.iloc[boundary_index:]),
-            where=os.path.join(test_data_store_dir, file_name),
-            compression="zstd",
+
+        to_parquet(
+            df=data.iloc[boundary_index:],
+            path=os.path.join(test_data_store_dir, file_name),
         )
 
     joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))

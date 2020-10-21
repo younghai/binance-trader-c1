@@ -1,14 +1,15 @@
 from dataclasses import dataclass
 from typing import Dict, List
 from joblib import Parallel, delayed
-from IPython.display import display
+from IPython.display import display, display_markdown
 from tqdm import tqdm
 import backtester
-from .utils import grid
 import os
 import pandas as pd
-import joblib
 from glob import glob
+import matplotlib.pyplot as plt
+from .utils import grid
+import json
 
 
 @dataclass
@@ -30,13 +31,28 @@ class ReviewerV1:
             [delayed(backtester.run)(display=False) for backtester in self.backtesters]
         )
 
+    def load_artifact(self, artifact_type, index):
+        assert artifact_type in ("metrics", "report", "params")
+
+        file_path = os.path.join(
+            self.grid_params["exp_dir"],
+            f"reports/{artifact_type}_{self.reviewer_prefix}_{index}_{self.grid_params['base_currency']}.parquet.zstd",
+        )
+
+        if artifact_type in ("metrics", "report"):
+            artifact = pd.read_parquet(file_path)
+        else:
+            artifact = json.load(open(file_path.replace(".parquet.zstd", "json"), "r"))
+
+        return artifact
+
     def load_artifacts(self, artifact_type):
         assert artifact_type in ("metrics", "report")
 
         file_paths = glob(
             os.path.join(
                 self.grid_params["exp_dir"],
-                f"reports/{artifact_type}_{self.reviewer_prefix}_*_{self.grid_params['base_currency']}.csv",
+                f"reports/{artifact_type}_{self.reviewer_prefix}_*_{self.grid_params['base_currency']}.parquet.zstd",
             )
         )
         file_paths = sorted(
@@ -48,30 +64,34 @@ class ReviewerV1:
             ),
         )
 
-        artifacts = [
-            pd.read_csv(file_path, header=0, index_col=0) for file_path in file_paths
-        ]
+        artifacts = [pd.read_parquet(file_path) for file_path in file_paths]
 
         return artifacts
 
     def display_metrics(self):
-        display(pd.concat(self.load_artifacts(artifact_type="metrics"), axis=1),)
+        display(
+            pd.concat(self.load_artifacts(artifact_type="metrics")).reset_index(
+                drop=True
+            )
+        )
 
-    def display_reports(self):
-        for report_id, report in enumerate(self.load_artifacts(artifact_type="report")):
-            display_markdown(f"#### Report: {report_id}", raw=True)
-            _, ax = plt.subplots(4, 1, figsize=(12, 12))
+    def display_reports(self, index):
+        report = self.load_artifact(artifact_type="report", index=index)
 
-            for idx, column in enumerate(
-                ["capital", "cache", "return", "trade_return"]
-            ):
-                if column == "trade_return":
-                    report[column].dropna().apply(lambda x: sum(x)).plot(ax=ax[idx])
+        display_markdown(f"#### Report: {index}", raw=True)
+        _, ax = plt.subplots(4, 1, figsize=(12, 12))
 
-                else:
-                    report[column].plot(ax=ax[idx])
+        for idx, column in enumerate(["capital", "cache", "return", "trade_return"]):
+            if column == "trade_return":
+                report[column].dropna().apply(lambda x: sum(x)).plot(ax=ax[idx])
 
-                ax[idx].set_title(f"historical {column}")
+            else:
+                report[column].plot(ax=ax[idx])
 
-            plt.tight_layout()
-            plt.show()
+            ax[idx].set_title(f"historical {column}")
+
+        plt.tight_layout()
+        plt.show()
+
+    def display_params(self, index):
+        display(pd.Series(self.load_artifact(artifact_type="params", index=index)))

@@ -7,10 +7,13 @@ from .basic_backtester import BasicBacktester
 from tqdm import tqdm
 from IPython.display import display_markdown, display
 import gc
+import json
+from common_utils import to_parquet
 
 
 CONFIG = {
     "report_prefix": "001",
+    "detail_report": False,
     "position_side": "long",
     "entry_ratio": 0.05,
     "commission": 0.0015,
@@ -36,6 +39,7 @@ class BacktesterV1(BasicBacktester):
         dataset_dir,
         exp_dir,
         report_prefix=CONFIG["report_prefix"],
+        detail_report=CONFIG["detail_report"],
         position_side=CONFIG["position_side"],
         entry_ratio=CONFIG["entry_ratio"],
         commission=CONFIG["commission"],
@@ -57,6 +61,7 @@ class BacktesterV1(BasicBacktester):
             dataset_dir=dataset_dir,
             exp_dir=exp_dir,
             report_prefix=report_prefix,
+            detail_report=detail_report,
             position_side=position_side,
             entry_ratio=entry_ratio,
             commission=commission,
@@ -76,19 +81,21 @@ class BacktesterV1(BasicBacktester):
         self.entry_qby_prob_threshold = entry_qby_prob_threshold
 
     def store_report(self, report):
-        mettrics = self.build_metrics()
-        mettrics.to_csv(
-            os.path.join(
+        metrics = self.build_metrics().to_frame().T
+        to_parquet(
+            df=metrics,
+            path=os.path.join(
                 self.report_store_dir,
-                f"metrics_{self.report_prefix}_{self.base_currency}.csv",
-            )
+                f"metrics_{self.report_prefix}_{self.base_currency}.parquet.zstd",
+            ),
         )
 
-        report.to_csv(
-            os.path.join(
+        to_parquet(
+            df=report,
+            path=os.path.join(
                 self.report_store_dir,
-                f"report_{self.report_prefix}_{self.base_currency}.csv",
-            )
+                f"report_{self.report_prefix}_{self.base_currency}.parquet.zstd",
+            ),
         )
 
         params = {
@@ -113,7 +120,7 @@ class BacktesterV1(BasicBacktester):
         with open(
             os.path.join(
                 self.report_store_dir,
-                f"params_{self.report_prefix}_{self.base_currency}.csv",
+                f"params_{self.report_prefix}_{self.base_currency}.json",
             ),
             "w",
         ) as f:
