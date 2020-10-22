@@ -42,7 +42,7 @@ class ReviewerV1:
         if artifact_type in ("metrics", "report"):
             artifact = pd.read_parquet(file_path)
         else:
-            artifact = json.load(open(file_path.replace(".parquet.zstd", "json"), "r"))
+            artifact = json.load(open(file_path.replace(".parquet.zstd", ".json"), "r"))
 
         return artifact
 
