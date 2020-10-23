@@ -167,7 +167,13 @@ class BacktesterV1(BasicBacktester):
             if self.compound_interest is False:
                 cache_to_order = self.entry_ratio
             else:
-                cache_to_order = nan_to_zero(value=(self.cache * self.entry_ratio))
+                # Entry with capital base
+                cache_to_order = nan_to_zero(
+                    value=(
+                        self.compute_capital(pricing=pricing, now=now)
+                        * self.entry_ratio
+                    )
+                )
 
             # Entry
             self.handle_entry(
