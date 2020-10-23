@@ -6,7 +6,7 @@ from copy import copy
 import matplotlib.pyplot as plt
 from abc import abstractmethod
 from IPython.display import display, display_markdown
-from .utils import data_loader, Position
+from .utils import data_loader, Position, compute_quantile
 from common_utils import make_dirs
 from collections import OrderedDict, defaultdict
 import empyrical as emp
@@ -24,6 +24,7 @@ CONFIG = {
     "compound_interest": True,
     "possible_in_debt": False,
     "exit_if_achieved": True,
+    "achieve_ratio": 1,
     "achieved_with_commission": False,
     "max_n_updated": None,
     "exit_q_threshold": 9,
@@ -46,6 +47,7 @@ class BasicBacktester:
         compound_interest=CONFIG["compound_interest"],
         possible_in_debt=CONFIG["possible_in_debt"],
         exit_if_achieved=CONFIG["exit_if_achieved"],
+        achieve_ratio=CONFIG["achieve_ratio"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
         exit_q_threshold=CONFIG["exit_q_threshold"],
@@ -62,6 +64,7 @@ class BasicBacktester:
         self.compound_interest = compound_interest
         self.possible_in_debt = possible_in_debt
         self.exit_if_achieved = exit_if_achieved
+        self.achieve_ratio = achieve_ratio
         self.achieved_with_commission = achieved_with_commission
         self.max_n_updated = max_n_updated
         self.exit_q_threshold = exit_q_threshold
@@ -249,6 +252,7 @@ class BasicBacktester:
             "max_n_updated": self.max_n_updated,
             "tradable_coins": tuple(self.tradable_coins.tolist()),
             "exit_if_achieved": self.exit_if_achieved,
+            "achieve_ratio": self.achieve_ratio,
             "exit_q_threshold": self.exit_q_threshold,
         }
         with open(
@@ -529,6 +533,22 @@ class BasicBacktester:
 
     def handle_exit(self, positive_assets, negative_assets, pricing, now):
         for position_idx, position in enumerate(self.positions):
+            # Handle achievement
+            if self.exit_if_achieved is True:
+                if (
+                    self.check_if_achieved(position=position, pricing=pricing, now=now)
+                    is True
+                ):
+                    self.exit_order(position=position, pricing=pricing, now=now)
+                    self.report(
+                        value={position.asset: "achieved"},
+                        target="historical_exit_reasons",
+                        now=now,
+                        append=True,
+                    )
+                    self.positions[position_idx].is_exited = True
+                    continue
+
             passed_minutes = (
                 pd.Timestamp(now) - pd.Timestamp(position.entry_at)
             ).total_seconds() / 60
@@ -572,30 +592,41 @@ class BasicBacktester:
                 self.positions[position_idx].is_exited = True
                 continue
 
-            # Handle achievement
-            if self.exit_if_achieved is True:
-                if (
-                    self.check_if_achieved(position=position, pricing=pricing, now=now)
-                    is True
-                ):
-                    self.exit_order(position=position, pricing=pricing, now=now)
-                    self.report(
-                        value={position.asset: "achieved"},
-                        target="historical_exit_reasons",
-                        now=now,
-                        append=True,
-                    )
-                    self.positions[position_idx].is_exited = True
-                    continue
-
         # Delete exited positions
         self.positions = [
             position for position in self.positions if position.is_exited is not True
         ]
 
-    @abstractmethod
     def check_if_achieved(self, position, pricing, now):
-        pass
+        current_price = pricing[position.asset]
+
+        diff_price = current_price - position.entry_price
+        if self.achieved_with_commission is True:
+            if position.side == "long":
+                commission = (current_price + position.entry_price) * self.commission
+            if position.side == "short":
+                commission = -((current_price + position.entry_price) * self.commission)
+
+            diff_price = diff_price - commission
+
+        if diff_price != 0:
+            trade_return = diff_price / position.entry_price
+        else:
+            trade_return = 0
+
+        q = compute_quantile(
+            trade_return / self.achieve_ratio, bins=self.bins[position.asset]
+        )
+
+        if position.side == "long":
+            if q >= self.exit_q_threshold:
+                return True
+
+        if position.side == "short":
+            if q <= ((self.n_bins - 1) - self.exit_q_threshold):
+                return True
+
+        return False
 
     @abstractmethod
     def run(self):
