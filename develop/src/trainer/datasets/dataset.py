@@ -71,7 +71,8 @@ class Dataset(_Dataset):
 
         tradable_assets = load_text(
             os.path.join(
-                data_dir.split("/test")[0].split("/train")[0], "tradable_coins.txt"
+                data_dir.replace("/test", "").replace("/train", ""),
+                "tradable_coins.txt",
             )
         )
         tradable_assets = [

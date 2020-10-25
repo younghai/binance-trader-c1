@@ -78,8 +78,8 @@ class BackboneV1(nn.Module):
         self.pred_qay_fc = nn.Linear(in_channels, self.n_class_qay)
         self.pred_qby_fc = nn.Linear(in_channels, self.n_class_qby)
 
-        self.embed_qay_fc = nn.Embedding(n_assets, self.n_class_qay)
-        self.embed_qby_fc = nn.Embedding(n_assets, self.n_class_qby)
+        assert self.n_class_qay == self.n_class_qby
+        self.embed_fc = nn.Embedding(n_assets, self.n_class_qay)
 
         # Initialize
         for m in self.modules():
@@ -140,7 +140,7 @@ class BackboneV1(nn.Module):
         out = self.blocks(self.first_conv(x))
         out = self.global_avg_pool(self.act(self.norm(out))).view(B, -1)
 
-        preds_qay = self.pred_qay_fc(out) * self.embed_qay_fc(id)
-        preds_qby = self.pred_qby_fc(out) * self.embed_qby_fc(id)
+        preds_qay = self.pred_qay_fc(out) * self.embed_fc(id)
+        preds_qby = self.pred_qby_fc(out) * self.embed_fc(id)
 
         return preds_qay, preds_qby

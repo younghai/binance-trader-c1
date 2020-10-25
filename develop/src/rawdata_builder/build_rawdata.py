@@ -2,45 +2,62 @@ import os
 import pandas as pd
 from glob import glob
 from tqdm import tqdm
-from common_utils import make_dirs, load_text
+from common_utils import (
+    make_dirs,
+    load_text,
+    get_filename_by_path,
+    to_parquet,
+    get_filename_by_path,
+    to_abs_path,
+)
 
 
 CONFIG = {
-    "parquet_rawdata_dir": "../../storage/dataset/rawdata/parquet/",
-    "csv_rawdata_store_dir": "../../storage/dataset/rawdata/csv/",
-    "candidate_assets_path": "./candidate_assets.txt",
+    "raw_rawdata_dir": to_abs_path(__file__, "../../storage/dataset/rawdata/raw/"),
+    "cleaned_rawdata_store_dir": to_abs_path(
+        __file__, "../../storage/dataset/rawdata/cleaned/"
+    ),
+    "candidate_assets_path": to_abs_path(__file__, "./candidate_assets.txt"),
     "query_min_start_dt": "2018-01-01",
+    "boundary_dt_must_have_data": "2019-09-01",
 }
 
 
 def build_rawdata(
-    parquet_rawdata_dir=CONFIG["parquet_rawdata_dir"],
+    raw_rawdata_dir=CONFIG["raw_rawdata_dir"],
+    cleaned_rawdata_store_dir=CONFIG["cleaned_rawdata_store_dir"],
     candidate_assets_path=CONFIG["candidate_assets_path"],
     query_min_start_dt=CONFIG["query_min_start_dt"],
-    csv_rawdata_store_dir=CONFIG["csv_rawdata_store_dir"],
+    boundary_dt_must_have_data=CONFIG["boundary_dt_must_have_data"],
 ):
-    make_dirs([csv_rawdata_store_dir])
+    make_dirs([cleaned_rawdata_store_dir])
     candidate_assets = load_text(path=candidate_assets_path)
 
-    file_list = glob(os.path.join(parquet_rawdata_dir, "*.parquet"))
+    file_list = glob(os.path.join(raw_rawdata_dir, "*.parquet"))
     file_list = [
-        file
-        for file in file_list
-        if file.split("/parquet/")[-1].split(".parquet")[0] in candidate_assets
+        file for file in file_list if get_filename_by_path(file) in candidate_assets
     ]
+    assert len(file_list) != 0
 
+    count_files = 0
     for file in tqdm(file_list):
         df = pd.read_parquet(file)[["open", "high", "low", "close"]]
         df = df.resample("1T").ffill()
 
         df = df[query_min_start_dt:]
+        filename = get_filename_by_path(file)
+        if df.index[0] > pd.Timestamp(boundary_dt_must_have_data):
+            print(f"[!] Skiped: {filename}")
+            continue
+
         assert not df.isnull().any().any()
 
-        csv_name = file.split("rawdata/parquet/")[-1].split(".parquet")[0] + ".csv"
+        store_filename = filename + ".parquet.zstd"
         df.index = df.index.tz_localize("utc")
-        df.to_csv(csv_rawdata_store_dir + csv_name)
+        to_parquet(df=df, path=os.path.join(cleaned_rawdata_store_dir, store_filename))
+        count_files += 1
 
-    print("[+] Built rawdata")
+    print(f"[+] Built rawdata: {count_files}")
 
 
 if __name__ == "__main__":

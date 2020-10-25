@@ -21,7 +21,7 @@ MODEL_CONFIG = {
     "lr": 0.0002,
     "beta1": 0.5,
     "beta2": 0.99,
-    "epochs": 100,
+    "epochs": 10,
     "print_epoch": 1,
     "print_iter": 25,
     "save_epoch": 1,
@@ -30,8 +30,7 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 60,
-        "n_assets": 35,
+        "in_channels": 102,
         "n_class_qay": 10,
         "n_class_qby": 10,
         "n_blocks": 4,

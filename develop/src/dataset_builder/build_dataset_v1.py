@@ -8,8 +8,7 @@ from functools import partial
 from itertools import combinations
 from sklearn import preprocessing
 import joblib
-from common_utils import make_dirs, to_parquet
-from typing import Callable, List, Dict
+from common_utils import make_dirs, to_parquet, to_abs_path, get_filename_by_path
 from pandarallel import pandarallel
 
 
@@ -17,8 +16,8 @@ pandarallel.initialize()
 
 
 CONFIG = {
-    "rawdata_dir": "../../storage/dataset/rawdata/csv/",
-    "data_store_dir": "../../storage/dataset/dataset_60m_v1/",
+    "rawdata_dir": to_abs_path(__file__, "../../storage/dataset/rawdata/cleaned/"),
+    "data_store_dir": to_abs_path(__file__, "../../storage/dataset/dataset_60m_v1/"),
     "lookahead_window": 60,
     "n_bins": 10,
     "train_ratio": 0.7,
@@ -28,7 +27,7 @@ COLUMNS = ["open", "high", "low", "close"]
 
 
 def load_rawdata(file_name):
-    rawdata = pd.read_csv(file_name, header=0, index_col=0)[COLUMNS]
+    rawdata = pd.read_parquet(file_name)[COLUMNS]
     rawdata.index = pd.to_datetime(rawdata.index)
 
     return rawdata
@@ -46,6 +45,26 @@ def _build_feature_by_rawdata(rawdata):
             rawdata.rolling(1440)
             .mean()
             .rename(columns={key: key + "_madiv(1440)" for key in COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1440m.index)
+    )
+
+    returns_720m = (
+        (
+            rawdata.pct_change(720, fill_method=None).rename(
+                columns={key: key + "_return(720)" for key in COLUMNS}
+            )
+        )
+        .dropna()
+        .reindex(returns_1440m.index)
+    )
+
+    madiv_720m = (
+        (
+            rawdata.rolling(720)
+            .mean()
+            .rename(columns={key: key + "_madiv(720)" for key in COLUMNS})
         )
         .dropna()
         .reindex(returns_1440m.index)
@@ -81,15 +100,35 @@ def _build_feature_by_rawdata(rawdata):
         .reindex(returns_1440m.index)
     )
 
+    inner_changes = []
+    for column_pair in sorted(list(combinations(COLUMNS, 2))):
+        inner_changes.append(
+            rawdata[list(column_pair)]
+            .pct_change(1, axis=1, fill_method=None)[column_pair[-1]]
+            .rename("_".join(column_pair) + "_change")
+        )
+
+    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1440m.index)
+
     return pd.concat(
-        [returns_1440m, madiv_1440m, returns_60m, madiv_60m, returns_1m,], axis=1,
+        [
+            returns_1440m,
+            madiv_1440m,
+            returns_720m,
+            madiv_720m,
+            returns_60m,
+            madiv_60m,
+            returns_1m,
+            inner_changes,
+        ],
+        axis=1,
     ).sort_index()
 
 
 def build_features(file_names):
     features = {}
     for file_name in tqdm(file_names):
-        coin_pair = file_name.split("/")[-1].split(".")[0]
+        coin_pair = get_filename_by_path(file_name)
 
         rawdata = load_rawdata(file_name=file_name)
         feature = _build_feature_by_rawdata(rawdata=rawdata)
@@ -147,7 +186,7 @@ def _build_bins(rawdata, lookahead_window, n_bins):
 def build_all_bins(file_names, lookahead_window, n_bins):
     all_bins = {}
     for file_name in tqdm(file_names):
-        coin_pair = file_name.split("/")[-1].split(".")[0]
+        coin_pair = get_filename_by_path(file_name)
 
         rawdata = load_rawdata(file_name=file_name)
         bins = _build_bins(
@@ -183,7 +222,7 @@ def _build_qa_label(rawdata, lookahead_window, n_bins):
 def build_qa_labels(file_names, lookahead_window, n_bins):
     qa_labels = []
     for file_name in tqdm(file_names):
-        coin_pair = file_name.split("/")[-1].split(".")[0]
+        coin_pair = get_filename_by_path(file_name)
 
         rawdata = load_rawdata(file_name=file_name)
         qa_labels.append(
@@ -221,7 +260,7 @@ def _build_qb_label(rawdata, lookahead_window, n_bins):
 def build_qb_labels(file_names, lookahead_window, n_bins):
     qb_labels = []
     for file_name in tqdm(file_names):
-        coin_pair = file_name.split("/")[-1].split(".")[0]
+        coin_pair = get_filename_by_path(file_name)
 
         rawdata = load_rawdata(file_name=file_name)
         qb_labels.append(
@@ -236,7 +275,7 @@ def build_qb_labels(file_names, lookahead_window, n_bins):
 def build_pricing(file_names):
     pricing = []
     for file_name in tqdm(file_names):
-        coin_pair = file_name.split("/")[-1].split(".")[0]
+        coin_pair = get_filename_by_path(file_name)
 
         close = load_rawdata(file_name=file_name)["close"].rename(coin_pair)
         pricing.append(close.sort_index())
@@ -306,6 +345,7 @@ def build_dataset_v1(
 
     # Set file_names
     file_names = sorted(glob(os.path.join(rawdata_dir, "*")))
+    assert len(file_names) != 0
 
     # Build features
     features = build_features(file_names)

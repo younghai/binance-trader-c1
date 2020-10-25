@@ -9,6 +9,7 @@ from abc import abstractmethod
 
 import torch
 import torch.nn as nn
+from common_utils import load_text
 from .utils import save_model, load_model, weights_init
 from .criterions import CRITERIONS
 from ..datasets.dataset import Dataset
@@ -30,7 +31,7 @@ MODEL_CONFIG = {
     "lr": 0.0002,
     "beta1": 0.5,
     "beta2": 0.99,
-    "epochs": 100,
+    "epochs": 10,
     "print_epoch": 1,
     "print_iter": 25,
     "save_epoch": 1,
@@ -39,8 +40,7 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 60,
-        "n_assets": 35,
+        "in_channels": 102,
         "n_class_qay": 10,
         "n_class_qby": 10,
         "n_blocks": 4,
@@ -98,6 +98,7 @@ class BasicPredictor:
             default_m_config=default_m_config,
         )
         self.model = self._build_model()
+
         self.iterable_train_data_loader = None
         self.iterable_test_data_loader = None
 
@@ -124,6 +125,21 @@ class BasicPredictor:
 
         print(f"[+] Params are stored")
 
+    def _list_tradable_assets(self, drop_feature_assets):
+        tradable_assets = load_text(
+            os.path.join(
+                self.data_dir.replace("/test", "").replace("/train", ""),
+                "tradable_coins.txt",
+            )
+        )
+        tradable_assets = [
+            tradable_asset
+            for tradable_asset in tradable_assets
+            if tradable_asset not in drop_feature_assets
+        ]
+
+        return tradable_assets
+
     def _build_config(self, d_config, m_config, default_d_config, default_m_config):
         # refine path with exp_dirs
         data_config = copy(default_d_config)
@@ -143,6 +159,14 @@ class BasicPredictor:
         model_config = {**model_config, **m_config, **{"model_params": model_params}}
 
         data_config = _mutate_config_path(data_config=data_config, exp_dir=self.exp_dir)
+
+        # Mutate model_params' n_assets
+        n_assets = len(
+            self._list_tradable_assets(
+                drop_feature_assets=data_config["drop_feature_assets"]
+            )
+        )
+        model_config["model_params"]["n_assets"] = n_assets
 
         return data_config, model_config
 
