@@ -89,7 +89,7 @@ class BasicBacktester:
         data_dict = {}
         data_dict["pricing"] = data_loader(
             path=historical_data_path_dict.pop("pricing")
-        )
+        ).astype("float16")
         columns = data_dict["pricing"].columns
         columns_with_base_currency = columns[
             columns.str.endswith(base_currency.upper())
@@ -98,7 +98,7 @@ class BasicBacktester:
 
         for data_type, data_path in historical_data_path_dict.items():
             data_path = data_path.replace("aux_", "")
-            data_dict[data_type] = data_loader(path=data_path)
+            data_dict[data_type] = data_loader(path=data_path).astype("float16")
 
             # Re-order columns
             data_dict[data_type].columns = columns
@@ -224,7 +224,7 @@ class BasicBacktester:
     def store_report(self, report):
         metrics = self.build_metrics().to_frame().T
         to_parquet(
-            df=metrics,
+            df=metrics.astype("float32"),
             path=os.path.join(
                 self.report_store_dir,
                 f"metrics_{self.report_prefix}_{self.base_currency}.parquet.zstd",
@@ -232,7 +232,7 @@ class BasicBacktester:
         )
 
         to_parquet(
-            df=report,
+            df=report.astype("float32"),
             path=os.path.join(
                 self.report_store_dir,
                 f"report_{self.report_prefix}_{self.base_currency}.parquet.zstd",
