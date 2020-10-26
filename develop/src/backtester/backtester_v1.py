@@ -13,7 +13,7 @@ CONFIG = {
     "detail_report": False,
     "position_side": "long",
     "entry_ratio": 0.05,
-    "commission": 0.0015,
+    "commission": {"entry": 0.0004, "exit": 0.0003},
     "min_holding_minutes": 1,
     "max_holding_minutes": 10,
     "compound_interest": False,
