@@ -21,7 +21,7 @@ CONFIG = {
     "lookahead_window": 60,
     "n_bins": 10,
     "train_ratio": 0.8,
-    "scaler_type": "RobustScaler",
+    "scaler_type": "StandardScaler",
 }
 COLUMNS = ["open", "high", "low", "close"]
 
@@ -141,7 +141,7 @@ def build_features(file_names):
 
 def build_scaler(features, scaler_type):
     scaler = getattr(preprocessing, scaler_type)()
-    scaler.fit(features[features != 0])
+    scaler.fit(features)
 
     return scaler
 
