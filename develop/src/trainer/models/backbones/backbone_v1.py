@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from trainer.modules.block_1d import DenseBlock, TransitionBlock, NORMS
+from trainer.modules import acts
 
 
 class BackboneV1(nn.Module):
@@ -72,7 +73,7 @@ class BackboneV1(nn.Module):
 
         # Last layers
         self.norm = NORMS[normalization.upper()](num_channels=in_channels)
-        self.act = getattr(F, activation)
+        self.act = getattr(acts, activation)
         self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
 
         self.pred_qay_fc = nn.Linear(in_channels, self.n_class_qay)

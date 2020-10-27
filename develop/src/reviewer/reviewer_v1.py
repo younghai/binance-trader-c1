@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Union
 from joblib import Parallel, delayed
 from IPython.display import display, display_markdown
 from tqdm import tqdm
@@ -10,14 +10,19 @@ from glob import glob
 import matplotlib.pyplot as plt
 from .utils import grid
 import json
+from reviewer import paramset
 
 
 @dataclass
 class ReviewerV1:
     reviewer_prefix: str
-    grid_params: Dict[str, List]
+    grid_params: Union[str, Dict[str, List]]
     backtester_type: str = "BacktesterV1"
     n_jobs: int = 16
+
+    def __post_init__(self):
+        if isinstance(self.grid_params, str):
+            self.grid_params = getattr(paramset, self.grid_params)
 
     def run(self):
         self.backtesters = [

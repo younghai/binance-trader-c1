@@ -1,5 +1,6 @@
 from torch import nn
 from .norms import perform_sn
+from trainer.modules import acts
 
 
 get_activation_func = {
@@ -7,6 +8,7 @@ get_activation_func = {
     "prelu": nn.PReLU,
     "leaky_relu": nn.LeakyReLU,
     "selu": nn.SELU,
+    "mish": acts.Mish,
 }
 
 
