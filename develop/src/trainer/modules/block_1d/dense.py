@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from .norms import NORMS, perform_sn
+from trainer.modules import acts
 
 
 def identity(x):
@@ -29,7 +30,7 @@ class Dense(nn.Module):
         if normalization is not None:
             self.norm = NORMS[normalization.upper()](num_channels=output_dim)
 
-        self.act = getattr(torch, activation, identity)
+        self.act = getattr(acts, activation, identity)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):

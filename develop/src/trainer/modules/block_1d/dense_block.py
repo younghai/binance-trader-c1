@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from .norms import NORMS
 from .seblock import SEBlock
 from .self_attention import SelfAttention1d
+from trainer.modules import acts
 
 
 class BottleneckBlock(nn.Module):
@@ -33,7 +34,7 @@ class BottleneckBlock(nn.Module):
             planes, out_channels, kernel_size=3, stride=1, padding=1, bias=False
         )
 
-        self.act = getattr(F, activation)
+        self.act = getattr(acts, activation)
         self.dropout = nn.Dropout2d(dropout)
 
         # Optional blocks
@@ -72,7 +73,7 @@ class TransitionBlock(nn.Module):
     ):
         super(TransitionBlock, self).__init__()
         self.norm = NORMS[normalization.upper()](num_channels=in_channels)
-        self.act = getattr(F, activation)
+        self.act = getattr(acts, activation)
         self.conv = nn.Conv1d(
             in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False
         )

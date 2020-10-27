@@ -1,6 +1,6 @@
 import torch.nn as nn
-import torch.nn.functional as F
 from .norms import NORMS, perform_sn
+from trainer.modules import acts
 
 
 class FirstBlockDown1d(nn.Module):
@@ -132,7 +132,7 @@ class FirstBlockDown1d(nn.Module):
         else:
             self.conv3 = None
 
-        self.act = getattr(F, activation)
+        self.act = getattr(acts, activation)
 
     def forward(self, x):
         h = x
