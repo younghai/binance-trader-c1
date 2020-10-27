@@ -13,10 +13,11 @@ CONFIG = {
     "detail_report": False,
     "position_side": "long",
     "entry_ratio": 0.05,
-    "commission": {"entry": 0.0004, "exit": 0.0003},
+    "commission": {"entry": 0.0004, "exit": 0.0002},
     "min_holding_minutes": 1,
     "max_holding_minutes": 10,
     "compound_interest": False,
+    "order_criterion": "capital",
     "possible_in_debt": True,
     "exit_if_achieved": True,
     "achieve_ratio": 1,
@@ -44,6 +45,7 @@ class BacktesterV1(BasicBacktester):
         min_holding_minutes=CONFIG["min_holding_minutes"],
         max_holding_minutes=CONFIG["max_holding_minutes"],
         compound_interest=CONFIG["compound_interest"],
+        order_criterion=CONFIG["order_criterion"],
         possible_in_debt=CONFIG["possible_in_debt"],
         exit_if_achieved=CONFIG["exit_if_achieved"],
         achieve_ratio=CONFIG["achieve_ratio"],
@@ -67,6 +69,7 @@ class BacktesterV1(BasicBacktester):
             min_holding_minutes=min_holding_minutes,
             max_holding_minutes=max_holding_minutes,
             compound_interest=compound_interest,
+            order_criterion=order_criterion,
             possible_in_debt=possible_in_debt,
             exit_if_achieved=exit_if_achieved,
             achieve_ratio=achieve_ratio,
@@ -106,6 +109,7 @@ class BacktesterV1(BasicBacktester):
             "min_holding_minutes": self.min_holding_minutes,
             "max_holding_minutes": self.max_holding_minutes,
             "compound_interest": self.compound_interest,
+            "order_criterion": self.order_criterion,
             "possible_in_debt": self.possible_in_debt,
             "achieved_with_commission": self.achieved_with_commission,
             "max_n_updated": self.max_n_updated,
@@ -167,13 +171,17 @@ class BacktesterV1(BasicBacktester):
             if self.compound_interest is False:
                 cache_to_order = self.entry_ratio
             else:
-                # Entry with capital base
-                cache_to_order = nan_to_zero(
-                    value=(
-                        self.compute_capital(pricing=pricing, now=now)
-                        * self.entry_ratio
+                if self.order_criterion == "cache":
+                    cache_to_order = nan_to_zero(value=(self.cache * self.entry_ratio))
+
+                elif self.order_criterion == "capital":
+                    # Entry with capital base
+                    cache_to_order = nan_to_zero(
+                        value=(
+                            self.compute_capital(pricing=pricing, now=now)
+                            * self.entry_ratio
+                        )
                     )
-                )
 
             # Entry
             self.handle_entry(

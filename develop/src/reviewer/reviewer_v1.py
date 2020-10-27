@@ -75,7 +75,7 @@ class ReviewerV1:
             )
         )
 
-    def display_reports(self, index):
+    def display_report(self, index):
         report = self.load_artifact(artifact_type="report", index=index)
 
         display_markdown(f"#### Report: {index}", raw=True)

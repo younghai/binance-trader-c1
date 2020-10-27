@@ -27,7 +27,7 @@ DATA_CONFIG = {
 
 MODEL_CONFIG = {
     "lookback_window": 60,
-    "batch_size": 1024,
+    "batch_size": 512,
     "lr": 0.0002,
     "beta1": 0.5,
     "beta2": 0.99,
@@ -44,7 +44,7 @@ MODEL_CONFIG = {
         "n_class_qay": 10,
         "n_class_qby": 10,
         "n_blocks": 4,
-        "n_block_layers": 12,
+        "n_block_layers": 8,
         "growth_rate": 12,
         "dropout": 0.2,
         "channel_reduction": 0.5,

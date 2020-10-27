@@ -34,7 +34,7 @@ class BottleneckBlock(nn.Module):
         )
 
         self.act = getattr(F, activation)
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout2d(dropout)
 
         # Optional blocks
         self.seblock = None
@@ -76,7 +76,7 @@ class TransitionBlock(nn.Module):
         self.conv = nn.Conv1d(
             in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False
         )
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout2d(dropout)
 
     def forward(self, x: torch.Tensor):
         out = self.dropout(self.conv(self.act(self.norm(x))))
