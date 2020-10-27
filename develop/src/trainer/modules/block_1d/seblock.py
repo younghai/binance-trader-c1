@@ -9,6 +9,7 @@ get_activation_func = {
     "leaky_relu": nn.LeakyReLU,
     "selu": nn.SELU,
     "mish": acts.Mish,
+    "tanhexp": acts.TanhExp,
 }
 
 
