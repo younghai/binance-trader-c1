@@ -48,7 +48,7 @@ MODEL_CONFIG = {
         "growth_rate": 12,
         "dropout": 0.2,
         "channel_reduction": 0.5,
-        "activation": "selu",
+        "activation": "tanhexp",
         "normalization": "gn",
         "seblock": True,
         "sablock": True,
