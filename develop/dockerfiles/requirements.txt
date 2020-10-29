@@ -11,3 +11,4 @@ matplotlib
 fastparquet
 pyarrow
 empyrical
+kaggle

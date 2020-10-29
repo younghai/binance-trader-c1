@@ -16,6 +16,9 @@ bash:
 build_container:
 	docker build develop/dockerfiles -t binance_trader_v2:latest
 
+download_kaggle_data:
+	python -m rawdata_builder.download_kaggle_data $(ARGS)
+
 build_rawdata:
 	python -m rawdata_builder.build_rawdata $(ARGS)
 
