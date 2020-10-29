@@ -1,3 +1,4 @@
+pandarallel
 fire
 black
 joblib
@@ -10,4 +11,3 @@ matplotlib
 fastparquet
 pyarrow
 empyrical
-pandalallel

@@ -18,4 +18,4 @@ WORKDIR /app
 RUN pip install -r requirements.txt
 RUN rm -rf /app/*
 
-ENV PYTHONPATH $PYTHONPATH:/app:/app/src:/develop:/develop/src
+ENV PYTHONPATH $PYTHONPATH:/app:/app/src:
