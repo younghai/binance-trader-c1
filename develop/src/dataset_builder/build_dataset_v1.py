@@ -23,7 +23,8 @@ CONFIG = {
     "train_ratio": 0.8,
     "scaler_type": "StandardScaler",
 }
-COLUMNS = ["open", "high", "low", "close"]
+COLUMNS = ["open", "high", "low", "close", "volume"]
+RETURN_COLUMNS = ["open", "high", "low", "close"]
 
 
 def load_rawdata(file_name):
@@ -34,92 +35,105 @@ def load_rawdata(file_name):
 
 
 def _build_feature_by_rawdata(rawdata):
-    returns_1440m = (
-        rawdata.pct_change(1440, fill_method=None).rename(
-            columns={key: key + "_return(1440)" for key in COLUMNS}
-        )
+    returns_1410m = (
+        rawdata[RETURN_COLUMNS]
+        .pct_change(1410, fill_method=None)
+        .rename(columns={key: key + "_return(1410)" for key in RETURN_COLUMNS})
     ).dropna()
 
-    madiv_1440m = (
+    madiv_1410m = (
         (
-            rawdata.rolling(1440)
+            rawdata[RETURN_COLUMNS]
+            .rolling(1410)
             .mean()
-            .rename(columns={key: key + "_madiv(1440)" for key in COLUMNS})
+            .rename(columns={key: key + "_madiv(1410)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1440m.index)
+        .reindex(returns_1410m.index)
     )
 
-    returns_720m = (
+    returns_690m = (
         (
-            rawdata.pct_change(720, fill_method=None).rename(
-                columns={key: key + "_return(720)" for key in COLUMNS}
-            )
+            rawdata[RETURN_COLUMNS]
+            .pct_change(690, fill_method=None)
+            .rename(columns={key: key + "_return(690)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1440m.index)
+        .reindex(returns_1410m.index)
     )
 
-    madiv_720m = (
+    madiv_690m = (
         (
-            rawdata.rolling(720)
+            rawdata[RETURN_COLUMNS]
+            .rolling(690)
             .mean()
-            .rename(columns={key: key + "_madiv(720)" for key in COLUMNS})
+            .rename(columns={key: key + "_madiv(690)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1440m.index)
+        .reindex(returns_1410m.index)
     )
 
     returns_60m = (
         (
-            rawdata.pct_change(60, fill_method=None).rename(
-                columns={key: key + "_return(60)" for key in COLUMNS}
-            )
+            rawdata[RETURN_COLUMNS]
+            .pct_change(60, fill_method=None)
+            .rename(columns={key: key + "_return(60)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1440m.index)
+        .reindex(returns_1410m.index)
     )
 
     madiv_60m = (
         (
-            rawdata.rolling(60)
+            rawdata[RETURN_COLUMNS]
+            .rolling(60)
             .mean()
-            .rename(columns={key: key + "_madiv(60)" for key in COLUMNS})
+            .rename(columns={key: key + "_madiv(60)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1440m.index)
+        .reindex(returns_1410m.index)
     )
 
     returns_1m = (
         (
-            rawdata.pct_change(1, fill_method=None).rename(
-                columns={key: key + "_return(1)" for key in COLUMNS}
-            )
+            rawdata[RETURN_COLUMNS]
+            .pct_change(1, fill_method=None)
+            .rename(columns={key: key + "_return(1)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1440m.index)
+        .reindex(returns_1410m.index)
     )
 
+    mean_volume_changes_60m = (
+        (rawdata["volume"] + 1e-7)
+        .rolling(60)
+        .mean()
+        .pct_change(1, fill_method=None)
+        .dropna()
+        .reindex(returns_1410m.index)
+    ).clip(-1000, 1000)
+
     inner_changes = []
-    for column_pair in sorted(list(combinations(COLUMNS, 2))):
+    for column_pair in sorted(list(combinations(RETURN_COLUMNS, 2))):
         inner_changes.append(
             rawdata[list(column_pair)]
             .pct_change(1, axis=1, fill_method=None)[column_pair[-1]]
             .rename("_".join(column_pair) + "_change")
         )
 
-    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1440m.index)
+    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1410m.index)
 
     return pd.concat(
         [
-            returns_1440m,
-            madiv_1440m,
-            returns_720m,
-            madiv_720m,
+            returns_1410m,
+            madiv_1410m,
+            returns_690m,
+            madiv_690m,
             returns_60m,
             madiv_60m,
             returns_1m,
             inner_changes,
+            mean_volume_changes_60m,
         ],
         axis=1,
     ).sort_index()

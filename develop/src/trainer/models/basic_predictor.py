@@ -40,7 +40,7 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 102,
+        "in_channels": 103,
         "n_class_qay": 10,
         "n_class_qby": 10,
         "n_blocks": 4,

@@ -41,7 +41,7 @@ def build_rawdata(
 
     count_files = 0
     for file in tqdm(file_list):
-        df = pd.read_parquet(file)[["open", "high", "low", "close"]]
+        df = pd.read_parquet(file)[["open", "high", "low", "close", "volume"]]
         df = df.resample("1T").ffill()
 
         df = df[query_min_start_dt:]
