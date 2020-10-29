@@ -111,7 +111,15 @@ def _build_feature_by_rawdata(rawdata):
         .pct_change(1, fill_method=None)
         .dropna()
         .reindex(returns_1410m.index)
+        .rename("mean_volume_changes_60m")
     ).clip(-1000, 1000)
+
+    volume_exists = (
+        (rawdata["volume"] == 0)
+        .astype("i")
+        .reindex(returns_1410m.index)
+        .rename("volume_exists")
+    )
 
     inner_changes = []
     for column_pair in sorted(list(combinations(RETURN_COLUMNS, 2))):
@@ -134,6 +142,7 @@ def _build_feature_by_rawdata(rawdata):
             returns_1m,
             inner_changes,
             mean_volume_changes_60m,
+            volume_exists,
         ],
         axis=1,
     ).sort_index()
