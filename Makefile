@@ -34,4 +34,4 @@ generate: run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m trainer.models.predictor_v1 generate --mode=test $(ARGS)
 
 review: run_if_not_exists
-	docker exec -it $(shell $(CONTAINER_NAME)) python -m reviewer.reviewer_v1 $(ARGS)
+	docker exec -it $(shell $(CONTAINER_NAME)) python -m reviewer.reviewer_v1 run $(ARGS)

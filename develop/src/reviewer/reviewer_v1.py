@@ -100,3 +100,9 @@ class ReviewerV1:
 
     def display_params(self, index):
         display(pd.Series(self.load_artifact(artifact_type="params", index=index)))
+
+
+if __name__ == "__main__":
+    import fire
+
+    fire.Fire(ReviewerV1)
