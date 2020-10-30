@@ -7,41 +7,31 @@ build_container:
 rm:
 	docker rm -f $(CONTAINER_NAMES) || echo
 
-run_cpu: rm
-	docker run -d -v $(PWD)/develop:/app binance_trader_v2:latest tail -f /dev/null
-
 run: rm
-	docker run -d --gpus all -v $(PWD)/develop:/app binance_trader_v2:latest tail -f /dev/null || make run_cpu
+	docker run -d --gpus all --shm-size=16gb -v $(PWD)/develop:/app binance_trader_v2:latest tail -f /dev/null || docker run -d -v $(PWD)/develop:/app binance_trader_v2:latest tail -f /dev/null
+
+run_if_not_exists:
+ifeq ($(CONTAINER_NAME),)
+	make run
+endif
 
 bash:
 	docker exec -it $(CONTAINER_NAME) bash
 
-download_kaggle_data:
-ifeq ($(CONTAINER_NAME),)
-	make run
-endif
+download_kaggle_data: run_if_not_exists
 	docker exec -it `docker ps | grep binance_trader_v2:latest | cut -d ' ' -f 1` python -m rawdata_builder.download_kaggle_data $(ARGS)
 
-build_rawdata:
-ifeq ($(CONTAINER_NAME),)
-	make run
-endif
+build_rawdata: run_if_not_exists
 	docker exec -it `docker ps | grep binance_trader_v2:latest | cut -d ' ' -f 1` python -m rawdata_builder.build_rawdata $(ARGS)
 
-build_dataset:
-ifeq ($(CONTAINER_NAME),)
-	make run
-endif
+build_dataset: run_if_not_exists
 	docker exec -it `docker ps | grep binance_trader_v2:latest | cut -d ' ' -f 1` python -m dataset_builder.build_dataset_v1 $(ARGS)
 
-train:
-ifeq ($(CONTAINER_NAME),)
-	make run
-endif
-	docker exec -it `docker ps | grep binance_trader_v2:latest | cut -d ' ' -f 1` python -m trainer.models.predictor_v1 $(ARGS)
+train: run_if_not_exists
+	docker exec -it `docker ps | grep binance_trader_v2:latest | cut -d ' ' -f 1` python -m trainer.models.predictor_v1 train --mode=train $(ARGS)
 
-review:
-ifeq ($(CONTAINER_NAME),)
-	make run
-endif
+generate: run_if_not_exists
+	docker exec -it `docker ps | grep binance_trader_v2:latest | cut -d ' ' -f 1` python -m trainer.models.predictor_v1 generate --mode=test $(ARGS)
+
+review: run_if_not_exists
 	docker exec -it `docker ps | grep binance_trader_v2:latest | cut -d ' ' -f 1` python -m reviewer.reviewer_v1 $(ARGS)

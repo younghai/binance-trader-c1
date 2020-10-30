@@ -9,12 +9,19 @@ from abc import abstractmethod
 
 import torch
 import torch.nn as nn
-from common_utils import load_text
+from common_utils import load_text, to_abs_path
 from .utils import save_model, load_model, weights_init
 from .criterions import CRITERIONS
 from ..datasets.dataset import Dataset
 from torch.utils.data import DataLoader
 from trainer.models import backbones
+
+COMMON_CONFIG = {
+    "data_dir": to_abs_path(__file__, "../../../storage/dataset/dataset_60m_v1/train"),
+    "test_data_dir": to_abs_path(
+        __file__, "../../../storage/dataset/dataset_60m_v1/test"
+    ),
+}
 
 
 DATA_CONFIG = {
@@ -70,14 +77,14 @@ def _mutate_config_path(data_config, exp_dir):
 class BasicPredictor:
     def __init__(
         self,
-        data_dir,
-        test_data_dir,
+        data_dir=COMMON_CONFIG["data_dir"],
+        test_data_dir=COMMON_CONFIG["test_data_dir"],
         d_config={},
         m_config={},
         exp_dir="./experiments",
         device="cuda",
         pin_memory=True,
-        num_workers=16,
+        num_workers=8,
         mode="train",
         default_d_config=DATA_CONFIG,
         default_m_config=MODEL_CONFIG,

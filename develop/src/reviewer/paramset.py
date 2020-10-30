@@ -15,7 +15,7 @@ SET1 = dict(
     entry_qby_threshold=[8, 9],
     entry_qay_prob_threshold=[0, 0.2],
     entry_qby_prob_threshold=[0, 0.2],
-    exit_q_threshold=[8, 9],
+    exit_q_threshold=[9],
 )
 
 SET2 = dict(
@@ -35,7 +35,7 @@ SET2 = dict(
     entry_qby_threshold=[8, 9],
     entry_qay_prob_threshold=[0, 0.2],
     entry_qby_prob_threshold=[0, 0.2],
-    exit_q_threshold=[8, 9],
+    exit_q_threshold=[9],
 )
 
 C_SET1 = dict(
@@ -55,7 +55,7 @@ C_SET1 = dict(
     entry_qby_threshold=[8, 9],
     entry_qay_prob_threshold=[0, 0.2],
     entry_qby_prob_threshold=[0, 0.2],
-    exit_q_threshold=[8, 9],
+    exit_q_threshold=[9],
 )
 
 C_SET2 = dict(
@@ -75,5 +75,5 @@ C_SET2 = dict(
     entry_qby_threshold=[8, 9],
     entry_qay_prob_threshold=[0, 0.2],
     entry_qby_prob_threshold=[0, 0.2],
-    exit_q_threshold=[8, 9],
+    exit_q_threshold=[9],
 )

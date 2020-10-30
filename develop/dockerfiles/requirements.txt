@@ -12,3 +12,4 @@ fastparquet
 pyarrow
 empyrical
 kaggle
+sklearn

@@ -4,8 +4,14 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from .basic_predictor import BasicPredictor
-from common_utils import to_parquet
+from common_utils import to_parquet, to_abs_path
 
+COMMON_CONFIG = {
+    "data_dir": to_abs_path(__file__, "../../../storage/dataset/dataset_60m_v1/train"),
+    "test_data_dir": to_abs_path(
+        __file__, "../../../storage/dataset/dataset_60m_v1/test"
+    ),
+}
 
 DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
@@ -56,14 +62,14 @@ class PredictorV1(BasicPredictor):
 
     def __init__(
         self,
-        data_dir,
-        test_data_dir,
+        data_dir=COMMON_CONFIG["data_dir"],
+        test_data_dir=COMMON_CONFIG["test_data_dir"],
         d_config={},
         m_config={},
         exp_dir="./experiments",
         device="cuda",
         pin_memory=True,
-        num_workers=16,
+        num_workers=8,
         mode="train",
         default_d_config=DATA_CONFIG,
         default_m_config=MODEL_CONFIG,
