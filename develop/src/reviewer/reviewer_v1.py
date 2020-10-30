@@ -12,6 +12,7 @@ from .utils import grid
 import json
 from reviewer import paramset
 from common_utils import to_abs_path
+from tabulate import tabulate
 
 
 @dataclass
@@ -29,7 +30,7 @@ class ReviewerV1:
             self.grid_params["dataset_dir"] = self.dataset_dir
             self.grid_params["exp_dir"] = self.exp_dir
 
-    def run(self):
+    def run(self, in_shell=False):
         self.backtesters = [
             getattr(backtester, self.backtester_type)(
                 report_prefix=f"{self.reviewer_prefix}_{idx}", **params
@@ -40,6 +41,8 @@ class ReviewerV1:
         Parallel(n_jobs=self.n_jobs, verbose=1)(
             [delayed(backtester.run)(display=False) for backtester in self.backtesters]
         )
+
+        self.display_metrics(in_shell=in_shell)
 
     def load_artifact(self, artifact_type, index):
         assert artifact_type in ("metrics", "report", "params")
@@ -78,12 +81,15 @@ class ReviewerV1:
 
         return artifacts
 
-    def display_metrics(self):
-        display(
-            pd.concat(self.load_artifacts(artifact_type="metrics")).reset_index(
-                drop=True
-            )
+    def display_metrics(self, in_shell=False):
+        metrics = pd.concat(self.load_artifacts(artifact_type="metrics")).reset_index(
+            drop=True
         )
+
+        if in_shell is True:
+            print(tabulate(metrics, headers="keys", tablefmt="psql"))
+        else:
+            display(metrics)
 
     def display_report(self, index):
         report = self.load_artifact(artifact_type="report", index=index)
