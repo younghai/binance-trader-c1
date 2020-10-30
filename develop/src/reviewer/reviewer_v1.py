@@ -11,10 +11,13 @@ import matplotlib.pyplot as plt
 from .utils import grid
 import json
 from reviewer import paramset
+from common_utils import to_abs_path
 
 
 @dataclass
 class ReviewerV1:
+    dataset_dir: str = to_abs_path(__file__, "../../storage/dataset/dataset_60m_v1/")
+    exp_dir: str = to_abs_path(__file__, "../../storage/experiments/v001/")
     reviewer_prefix: str = "v001"
     grid_params: Union[str, Dict[str, List]] = "SET1"
     backtester_type: str = "BacktesterV1"
@@ -23,6 +26,8 @@ class ReviewerV1:
     def __post_init__(self):
         if isinstance(self.grid_params, str):
             self.grid_params = getattr(paramset, self.grid_params)
+            self.grid_params["dataset_dir"] = self.dataset_dir
+            self.grid_params["exp_dir"] = self.exp_dir
 
     def run(self):
         self.backtesters = [

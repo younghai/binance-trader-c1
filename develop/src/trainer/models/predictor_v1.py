@@ -8,6 +8,7 @@ from common_utils import to_parquet, to_abs_path
 
 COMMON_CONFIG = {
     "data_dir": to_abs_path(__file__, "../../../storage/dataset/dataset_60m_v1/train"),
+    "exp_dir": to_abs_path(__file__, "../../../storage/experiments/v001"),
     "test_data_dir": to_abs_path(
         __file__, "../../../storage/dataset/dataset_60m_v1/test"
     ),
@@ -66,7 +67,7 @@ class PredictorV1(BasicPredictor):
         test_data_dir=COMMON_CONFIG["test_data_dir"],
         d_config={},
         m_config={},
-        exp_dir="./experiments",
+        exp_dir=COMMON_CONFIG["exp_dir"],
         device="cuda",
         pin_memory=True,
         num_workers=8,

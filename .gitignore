@@ -2,6 +2,7 @@ __pycache__
 .pyc
 .pytest_cache
 .ipynb_checkpoints
+*.pyc
 *.h
 *.c
 *.so
@@ -12,6 +13,7 @@ tmp/
 .python-version
 .nbconvert
 */storage/dataset
+*/storage/experiments
 notebook_cookie_secret
 *.csv
 *.git
