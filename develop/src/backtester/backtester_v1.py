@@ -28,6 +28,7 @@ CONFIG = {
     "entry_qay_prob_threshold": 0,
     "entry_qby_prob_threshold": 0,
     "exit_q_threshold": 9,
+    "sum_probs_above_threshold": False,
 }
 
 
@@ -56,6 +57,7 @@ class BacktesterV1(BasicBacktester):
         entry_qby_threshold=CONFIG["entry_qby_threshold"],
         entry_qay_prob_threshold=CONFIG["entry_qay_prob_threshold"],
         entry_qby_prob_threshold=CONFIG["entry_qby_prob_threshold"],
+        sum_probs_above_threshold=CONFIG["sum_probs_above_threshold"],
     ):
         super().__init__(
             base_currency=base_currency,
@@ -76,12 +78,14 @@ class BacktesterV1(BasicBacktester):
             achieved_with_commission=achieved_with_commission,
             max_n_updated=max_n_updated,
             exit_q_threshold=exit_q_threshold,
+            sum_probs_above_threshold=sum_probs_above_threshold,
         )
 
         self.entry_qay_threshold = entry_qay_threshold
         self.entry_qby_threshold = entry_qby_threshold
         self.entry_qay_prob_threshold = entry_qay_prob_threshold
         self.entry_qby_prob_threshold = entry_qby_prob_threshold
+        self.sum_probs_above_threshold = sum_probs_above_threshold
 
     def store_report(self, report):
         metrics = self.build_metrics().to_frame().T
@@ -137,26 +141,74 @@ class BacktesterV1(BasicBacktester):
         self.build()
         self.initialize()
 
+        self.historical_data_dict["qay_predictions"] = self.historical_data_dict[
+            "qay_predictions"
+        ].reindex(self.tradable_coins, axis=1)
+        self.historical_data_dict["qby_predictions"] = self.historical_data_dict[
+            "qby_predictions"
+        ].reindex(self.tradable_coins, axis=1)
+        self.historical_data_dict["qay_probabilities"] = self.historical_data_dict[
+            "qay_probabilities"
+        ].reindex(self.tradable_coins, axis=1, level=1)
+        self.historical_data_dict["qby_probabilities"] = self.historical_data_dict[
+            "qby_probabilities"
+        ].reindex(self.tradable_coins, axis=1, level=1)
+
+        for data_type in [
+            "qay_predictions",
+            "qby_predictions",
+            "qay_probabilities",
+            "qby_probabilities",
+        ]:
+            assert len(self.historical_data_dict[data_type].dropna()) != 0
+
         for now in tqdm(self.index):
             # Step1: Prepare pricing and signal
             pricing = self.historical_data_dict["pricing"].loc[now]
             qay_prediction = self.historical_data_dict["qay_predictions"].loc[now]
             qby_prediction = self.historical_data_dict["qby_predictions"].loc[now]
-            qay_probability = self.historical_data_dict["qay_probabilities"].loc[now]
-            qby_probability = self.historical_data_dict["qby_probabilities"].loc[now]
+            qay_probabilities = self.historical_data_dict["qay_probabilities"].loc[now]
+            qby_probabilities = self.historical_data_dict["qby_probabilities"].loc[now]
+
+            if self.sum_probs_above_threshold is True:
+                positive_qay_probability = qay_probabilities[
+                    qay_probabilities.index.get_level_values(0)
+                    >= self.entry_qay_threshold
+                ].sum(axis=0, level=1)
+                positive_qby_probability = qby_probabilities[
+                    qby_probabilities.index.get_level_values(0)
+                    >= self.entry_qby_threshold
+                ].sum(axis=0, level=1)
+                negative_qay_probability = qay_probabilities[
+                    qay_probabilities.index.get_level_values(0)
+                    <= (self.n_bins - 1) - self.entry_qay_threshold
+                ].sum(axis=0, level=1)
+                negative_qby_probability = qby_probabilities[
+                    qby_probabilities.index.get_level_values(0)
+                    <= (self.n_bins - 1) - self.entry_qby_threshold
+                ].sum(axis=0, level=1)
+            else:
+                positive_qay_probability = qay_probabilities[self.entry_qay_threshold]
+                positive_qby_probability = qby_probabilities[self.entry_qby_threshold]
+                negative_qay_probability = qay_probabilities[
+                    (self.n_bins - 1) - self.entry_qay_threshold
+                ]
+                negative_qby_probability = qby_probabilities[
+                    (self.n_bins - 1) - self.entry_qby_threshold
+                ]
 
             # Set assets which has signals
             positive_assets = self.tradable_coins[
                 (qay_prediction >= self.entry_qay_threshold)
                 & (qby_prediction >= self.entry_qby_threshold)
-                & (qay_probability >= self.entry_qay_prob_threshold)
-                & (qby_probability >= self.entry_qby_prob_threshold)
+                & (positive_qay_probability >= self.entry_qay_prob_threshold)
+                & (positive_qby_probability >= self.entry_qby_prob_threshold)
             ]
             negative_assets = self.tradable_coins[
                 (qay_prediction <= (self.n_bins - 1) - self.entry_qay_threshold)
                 & (qby_prediction <= (self.n_bins - 1) - self.entry_qby_threshold)
-                & (qay_probability >= self.entry_qay_prob_threshold)
-                & (qby_probability >= self.entry_qby_prob_threshold)
+                & (negative_qay_probability >= self.entry_qay_prob_threshold)
+                & (negative_qby_probability >= self.entry_qby_prob_threshold)
             ]
 
             # Exit

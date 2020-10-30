@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from tqdm import tqdm
 from .basic_predictor import BasicPredictor
 from common_utils import to_parquet, to_abs_path
@@ -180,11 +181,11 @@ class PredictorV1(BasicPredictor):
             )
 
             qay_predictions += preds_qay.argmax(dim=-1).view(-1).cpu().tolist()
-            qay_probabilities += preds_qay.max(dim=-1).values.view(-1).cpu().tolist()
+            qay_probabilities += F.softmax(preds_qay).cpu().tolist()
             qay_labels += test_data_dict["QAY"].view(-1).cpu().tolist()
 
             qby_predictions += preds_qby.argmax(dim=-1).view(-1).cpu().tolist()
-            qby_probabilities += preds_qby.max(dim=-1).values.view(-1).cpu().tolist()
+            qby_probabilities += F.softmax(preds_qby).cpu().tolist()
             qby_labels += test_data_dict["QBY"].view(-1).cpu().tolist()
 
             if test is True:
@@ -195,14 +196,21 @@ class PredictorV1(BasicPredictor):
         # Store signals
         for data_type, data in [
             ("qay_predictions", qay_predictions),
-            ("qay_probabilities", qay_probabilities),
             ("qay_labels", qay_labels),
             ("qby_predictions", qby_predictions),
-            ("qby_probabilities", qby_probabilities),
             ("qby_labels", qby_labels),
         ]:
             to_parquet(
                 df=pd.Series(data, index=index).sort_index().unstack(),
+                path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
+            )
+
+        for data_type, data in [
+            ("qay_probabilities", qay_probabilities),
+            ("qby_probabilities", qby_probabilities),
+        ]:
+            to_parquet(
+                df=pd.DataFrame(data, index=index).sort_index().unstack(),
                 path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
             )
 

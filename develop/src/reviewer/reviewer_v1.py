@@ -20,7 +20,7 @@ class ReviewerV1:
     dataset_dir: str = to_abs_path(__file__, "../../storage/dataset/dataset_60m_v1/")
     exp_dir: str = to_abs_path(__file__, "../../storage/experiments/v001/")
     reviewer_prefix: str = "v001"
-    grid_params: Union[str, Dict[str, List]] = "SET1"
+    grid_params: Union[str, Dict[str, List]] = "V1_SET1"
     backtester_type: str = "BacktesterV1"
     n_jobs: int = 16
 
