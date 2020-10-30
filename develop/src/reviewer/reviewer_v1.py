@@ -15,8 +15,8 @@ from reviewer import paramset
 
 @dataclass
 class ReviewerV1:
-    reviewer_prefix: str
-    grid_params: Union[str, Dict[str, List]]
+    reviewer_prefix: str = "v001"
+    grid_params: Union[str, Dict[str, List]] = "SET1"
     backtester_type: str = "BacktesterV1"
     n_jobs: int = 16
 
