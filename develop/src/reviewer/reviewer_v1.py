@@ -22,8 +22,9 @@ class ReviewerV1:
     reviewer_prefix: str = "v001"
     grid_params: Union[str, Dict[str, List]] = "V1_SET1"
     backtester_type: str = "BacktesterV1"
+    exec_start: int = 0
+    exec_end: int = None
     n_jobs: int = 16
-    n_skips: int = -1
 
     def __post_init__(self):
         if isinstance(self.grid_params, str):
@@ -125,8 +126,8 @@ class ReviewerV1:
                 report_prefix=f"{self.reviewer_prefix}_{idx}", **params
             )
             for idx, params in enumerate(list(grid(self.grid_params)))
-            if idx >= self.n_skips
-        ]
+        ][self.exec_start : self.exec_end]
+
         print(f"[+] Found Backtests: {len(self.backtesters)}")
 
         Parallel(n_jobs=self.n_jobs, verbose=1)(
