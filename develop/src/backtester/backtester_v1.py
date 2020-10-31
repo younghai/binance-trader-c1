@@ -206,7 +206,12 @@ class BacktesterV1(BasicBacktester):
                 cache_to_order = self.entry_ratio
             else:
                 if self.order_criterion == "cache":
-                    cache_to_order = nan_to_zero(value=(self.cache * self.entry_ratio))
+                    if self.cache > 0:
+                        cache_to_order = nan_to_zero(
+                            value=(self.cache * self.entry_ratio)
+                        )
+                    else:
+                        cache_to_order = 0
 
                 elif self.order_criterion == "capital":
                     # Entry with capital base

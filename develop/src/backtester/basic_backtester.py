@@ -32,6 +32,18 @@ CONFIG = {
 }
 
 
+def make_flat(series):
+    flatten = []
+    for key, values in series.to_dict().items():
+        if isinstance(values, list):
+            for value in values:
+                flatten.append(pd.Series({key: value}))
+        else:
+            flatten.append(pd.Series({key: values}))
+
+    return pd.concat(flatten).sort_index()
+
+
 class BasicBacktester:
     def __init__(
         self,
@@ -299,8 +311,8 @@ class BasicBacktester:
         historical_returns = (
             pd.Series(self.historical_capitals).pct_change(fill_method=None).fillna(0)
         )
-        historical_trade_returns = (
-            pd.Series(self.historical_trade_returns).dropna().apply(lambda x: sum(x))
+        historical_trade_returns = make_flat(
+            pd.Series(self.historical_trade_returns).rename("trade_return").dropna()
         )
 
         metrics = OrderedDict()
@@ -308,13 +320,8 @@ class BasicBacktester:
             historical_trade_returns[historical_trade_returns != 0] > 0
         ).mean()
         metrics["trade_sharpe_ratio"] = emp.sharpe_ratio(historical_trade_returns)
-
-        metrics["winning_ratio"] = (
-            historical_returns[historical_returns != 0] > 0
-        ).mean()
-        metrics["sharpe_ratio"] = emp.sharpe_ratio(historical_returns)
+        metrics["trade_avg_return"] = historical_trade_returns.mean()
         metrics["max_drawdown"] = emp.max_drawdown(historical_returns)
-        metrics["avg_return"] = historical_returns.mean()
         metrics["total_return"] = historical_returns.add(1).cumprod().sub(1).iloc[-1]
 
         return pd.Series(metrics)
