@@ -30,21 +30,7 @@ class ReviewerV1:
             self.grid_params["dataset_dir"] = self.dataset_dir
             self.grid_params["exp_dir"] = self.exp_dir
 
-    def run(self, in_shell=False):
-        self.backtesters = [
-            getattr(backtester, self.backtester_type)(
-                report_prefix=f"{self.reviewer_prefix}_{idx}", **params
-            )
-            for idx, params in enumerate(tqdm(list(grid(self.grid_params))))
-        ]
-
-        Parallel(n_jobs=self.n_jobs, verbose=1)(
-            [delayed(backtester.run)(display=False) for backtester in self.backtesters]
-        )
-
-        self.display_metrics(in_shell=in_shell)
-
-    def load_artifact(self, artifact_type, index):
+    def _load_artifact(self, artifact_type, index):
         assert artifact_type in ("metrics", "report", "params")
 
         file_path = os.path.join(
@@ -59,7 +45,7 @@ class ReviewerV1:
 
         return artifact
 
-    def load_artifacts(self, artifact_type):
+    def _load_artifacts(self, artifact_type):
         assert artifact_type in ("metrics", "report")
 
         file_paths = glob(
@@ -81,18 +67,21 @@ class ReviewerV1:
 
         return artifacts
 
-    def display_metrics(self, in_shell=False):
-        metrics = pd.concat(self.load_artifacts(artifact_type="metrics")).reset_index(
+    def _build_metrics(self):
+        return pd.concat(self._load_artifacts(artifact_type="metrics")).reset_index(
             drop=True
         )
 
-        if in_shell is True:
-            print(tabulate(metrics, headers="keys", tablefmt="psql"))
-        else:
-            display(metrics)
+    def display_params(self, index, in_shell=False):
+        params = pd.Series(self._load_artifact(artifact_type="params", index=index))
 
-    def display_report(self, index):
-        report = self.load_artifact(artifact_type="report", index=index)
+        if in_shell is True:
+            print(tabulate(params, headers="keys", tablefmt="psql"))
+        else:
+            display(params)
+
+    def display_report(self, index, in_shell=False):
+        report = self._load_artifact(artifact_type="report", index=index)
 
         display_markdown(f"#### Report: {index}", raw=True)
         _, ax = plt.subplots(4, 1, figsize=(12, 12))
@@ -107,10 +96,41 @@ class ReviewerV1:
             ax[idx].set_title(f"historical {column}")
 
         plt.tight_layout()
-        plt.show()
 
-    def display_params(self, index):
-        display(pd.Series(self.load_artifact(artifact_type="params", index=index)))
+        if in_shell is True:
+            plt.show(block=True)
+        else:
+            plt.show()
+
+    def display_metrics(self, in_shell=False):
+        metrics = self._build_metrics()
+
+        if in_shell is True:
+            print(tabulate(metrics, headers="keys", tablefmt="psql"))
+        else:
+            display(metrics)
+
+    def display(self, in_shell=False):
+        self.display_metrics(in_shell=in_shell)
+
+        metrics = self._build_metrics()
+        best_index = metrics["total_return"].argmax()
+        self.display_params(index=best_index, in_shell=in_shell)
+        self.display_report(index=best_index, in_shell=in_shell)
+
+    def run(self, in_shell=False):
+        self.backtesters = [
+            getattr(backtester, self.backtester_type)(
+                report_prefix=f"{self.reviewer_prefix}_{idx}", **params
+            )
+            for idx, params in enumerate(tqdm(list(grid(self.grid_params))))
+        ]
+
+        Parallel(n_jobs=self.n_jobs, verbose=1)(
+            [delayed(backtester.run)(display=False) for backtester in self.backtesters]
+        )
+
+        self.display(in_shell=in_shell)
 
 
 if __name__ == "__main__":

@@ -181,11 +181,11 @@ class PredictorV1(BasicPredictor):
             )
 
             qay_predictions += preds_qay.argmax(dim=-1).view(-1).cpu().tolist()
-            qay_probabilities += F.softmax(preds_qay).cpu().tolist()
+            qay_probabilities += F.softmax(preds_qay, dim=-1).cpu().tolist()
             qay_labels += test_data_dict["QAY"].view(-1).cpu().tolist()
 
             qby_predictions += preds_qby.argmax(dim=-1).view(-1).cpu().tolist()
-            qby_probabilities += F.softmax(preds_qby).cpu().tolist()
+            qby_probabilities += F.softmax(preds_qby, dim=-1).cpu().tolist()
             qby_labels += test_data_dict["QBY"].view(-1).cpu().tolist()
 
             if test is True:
@@ -210,7 +210,10 @@ class PredictorV1(BasicPredictor):
             ("qby_probabilities", qby_probabilities),
         ]:
             to_parquet(
-                df=pd.DataFrame(data, index=index).sort_index().unstack(),
+                df=pd.DataFrame(data, index=index)
+                .sort_index()
+                .unstack()
+                .swaplevel(0, 1, axis=1),
                 path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
             )
 

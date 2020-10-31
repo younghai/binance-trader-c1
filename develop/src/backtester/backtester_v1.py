@@ -78,7 +78,6 @@ class BacktesterV1(BasicBacktester):
             achieved_with_commission=achieved_with_commission,
             max_n_updated=max_n_updated,
             exit_q_threshold=exit_q_threshold,
-            sum_probs_above_threshold=sum_probs_above_threshold,
         )
 
         self.entry_qay_threshold = entry_qay_threshold
@@ -141,27 +140,6 @@ class BacktesterV1(BasicBacktester):
         self.build()
         self.initialize()
 
-        self.historical_data_dict["qay_predictions"] = self.historical_data_dict[
-            "qay_predictions"
-        ].reindex(self.tradable_coins, axis=1)
-        self.historical_data_dict["qby_predictions"] = self.historical_data_dict[
-            "qby_predictions"
-        ].reindex(self.tradable_coins, axis=1)
-        self.historical_data_dict["qay_probabilities"] = self.historical_data_dict[
-            "qay_probabilities"
-        ].reindex(self.tradable_coins, axis=1, level=1)
-        self.historical_data_dict["qby_probabilities"] = self.historical_data_dict[
-            "qby_probabilities"
-        ].reindex(self.tradable_coins, axis=1, level=1)
-
-        for data_type in [
-            "qay_predictions",
-            "qby_predictions",
-            "qay_probabilities",
-            "qby_probabilities",
-        ]:
-            assert len(self.historical_data_dict[data_type].dropna()) != 0
-
         for now in tqdm(self.index):
             # Step1: Prepare pricing and signal
             pricing = self.historical_data_dict["pricing"].loc[now]
@@ -172,30 +150,34 @@ class BacktesterV1(BasicBacktester):
 
             if self.sum_probs_above_threshold is True:
                 positive_qay_probability = qay_probabilities[
-                    qay_probabilities.index.get_level_values(0)
+                    qay_probabilities.index.get_level_values(1)
                     >= self.entry_qay_threshold
-                ].sum(axis=0, level=1)
+                ].sum(axis=0, level=0)
                 positive_qby_probability = qby_probabilities[
-                    qby_probabilities.index.get_level_values(0)
+                    qby_probabilities.index.get_level_values(1)
                     >= self.entry_qby_threshold
-                ].sum(axis=0, level=1)
+                ].sum(axis=0, level=0)
                 negative_qay_probability = qay_probabilities[
-                    qay_probabilities.index.get_level_values(0)
+                    qay_probabilities.index.get_level_values(1)
                     <= (self.n_bins - 1) - self.entry_qay_threshold
-                ].sum(axis=0, level=1)
+                ].sum(axis=0, level=0)
                 negative_qby_probability = qby_probabilities[
-                    qby_probabilities.index.get_level_values(0)
+                    qby_probabilities.index.get_level_values(1)
                     <= (self.n_bins - 1) - self.entry_qby_threshold
-                ].sum(axis=0, level=1)
+                ].sum(axis=0, level=0)
             else:
-                positive_qay_probability = qay_probabilities[self.entry_qay_threshold]
-                positive_qby_probability = qby_probabilities[self.entry_qby_threshold]
-                negative_qay_probability = qay_probabilities[
-                    (self.n_bins - 1) - self.entry_qay_threshold
-                ]
-                negative_qby_probability = qby_probabilities[
-                    (self.n_bins - 1) - self.entry_qby_threshold
-                ]
+                positive_qay_probability = qay_probabilities.xs(
+                    self.entry_qay_threshold, axis=0, level=1
+                )
+                positive_qby_probability = qby_probabilities.xs(
+                    self.entry_qby_threshold, axis=0, level=1
+                )
+                negative_qay_probability = qay_probabilities.xs(
+                    (self.n_bins - 1) - self.entry_qay_threshold, axis=0, level=1
+                )
+                negative_qby_probability = qby_probabilities.xs(
+                    (self.n_bins - 1) - self.entry_qby_threshold, axis=0, level=1
+                )
 
             # Set assets which has signals
             positive_assets = self.tradable_coins[

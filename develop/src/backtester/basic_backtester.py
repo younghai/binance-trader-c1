@@ -102,11 +102,7 @@ class BasicBacktester:
         data_dict["pricing"] = data_dict["pricing"][columns_with_base_currency]
 
         for data_type, data_path in historical_data_path_dict.items():
-            data_path = data_path.replace("aux_", "")
             data_dict[data_type] = data_loader(path=data_path).astype("float16")
-
-            # Re-order columns
-            data_dict[data_type].columns = columns
 
             # Filter by base_currency
             data_dict[data_type] = data_dict[data_type][columns_with_base_currency]
