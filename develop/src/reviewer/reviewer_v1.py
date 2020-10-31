@@ -23,6 +23,7 @@ class ReviewerV1:
     grid_params: Union[str, Dict[str, List]] = "V1_SET1"
     backtester_type: str = "BacktesterV1"
     n_jobs: int = 16
+    n_skips: int = -1
 
     def __post_init__(self):
         if isinstance(self.grid_params, str):
@@ -123,8 +124,10 @@ class ReviewerV1:
             getattr(backtester, self.backtester_type)(
                 report_prefix=f"{self.reviewer_prefix}_{idx}", **params
             )
-            for idx, params in enumerate(tqdm(list(grid(self.grid_params))))
+            for idx, params in enumerate(list(grid(self.grid_params)))
+            if idx >= self.n_skips
         ]
+        print(f"[+] Found Backtests: {len(self.backtesters)}")
 
         Parallel(n_jobs=self.n_jobs, verbose=1)(
             [delayed(backtester.run)(display=False) for backtester in self.backtesters]
