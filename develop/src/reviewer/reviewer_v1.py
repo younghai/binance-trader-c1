@@ -116,7 +116,11 @@ class ReviewerV1:
         self.display_metrics(in_shell=in_shell)
 
         metrics = self._build_metrics()
-        best_index = metrics["total_return"].argmax()
+        best_index = metrics["total_return"].sort_values(ascending=False).index[0]
+
+        display_markdown(f"### [+] Best index: {best_index}", raw=True)
+
+        display(metrics.loc[best_index])
         self.display_params(index=best_index, in_shell=in_shell)
         self.display_report(index=best_index, in_shell=in_shell)
 
