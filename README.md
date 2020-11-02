@@ -1,1 +1,1 @@
-# BinanceTrader
+# BinanceTraderV2
