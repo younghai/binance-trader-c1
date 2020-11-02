@@ -29,8 +29,32 @@ class ReviewerV1:
     def __post_init__(self):
         if isinstance(self.grid_params, str):
             self.grid_params = getattr(paramset, self.grid_params)
-            self.grid_params["dataset_dir"] = self.dataset_dir
-            self.grid_params["exp_dir"] = self.exp_dir
+
+        self.grid_params["dataset_dir"] = self.dataset_dir
+        self.grid_params["exp_dir"] = self.exp_dir
+
+    def _exists_artifact(self, index):
+        exists = []
+        for artifact_type in ["metrics", "report", "params"]:
+            file_path = os.path.join(
+                self.grid_params["exp_dir"],
+                f"reports/{artifact_type}_{self.reviewer_prefix}_{index}_{self.grid_params['base_currency']}.parquet.zstd",
+            )
+
+            if artifact_type in ("params"):
+                exists.append(
+                    os.path.exists(file_path.replace(".parquet.zstd", ".json"))
+                )
+                continue
+
+            exists.append(os.path.exists(file_path))
+
+        exists = all(exists)
+
+        if exists is True:
+            print(f"[!] Found backtests already done: {index}")
+
+        return exists
 
     def _load_artifact(self, artifact_type, index):
         assert artifact_type in ("metrics", "report", "params")
@@ -131,8 +155,14 @@ class ReviewerV1:
             )
             for idx, params in enumerate(list(grid(self.grid_params)))
         ][self.exec_start : self.exec_end]
+        self.backtesters = [
+            backtester
+            for backtester in self.backtesters
+            if self._exists_artifact(index=backtester.report_prefix.split("_")[-1])
+            is not True
+        ]
 
-        print(f"[+] Found Backtests: {len(self.backtesters)}")
+        print(f"[+] Found backtests to start: {len(self.backtesters)}")
 
         Parallel(n_jobs=self.n_jobs, verbose=1)(
             [delayed(backtester.run)(display=False) for backtester in self.backtesters]
