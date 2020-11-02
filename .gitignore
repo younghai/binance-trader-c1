@@ -12,8 +12,7 @@ tmp/
 .venv
 .python-version
 .nbconvert
-*/storage/dataset
-*/storage/experiments
+*/storage/*
 notebook_cookie_secret
 *.csv
 *.git
