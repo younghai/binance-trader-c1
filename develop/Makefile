@@ -8,12 +8,13 @@ rm:
 	@docker rm -f $(shell $(CONTAINER_NAMES)) 2> /dev/null || echo
 
 run: rm
-	@docker run -d --gpus all --shm-size=16gb -v $(shell pwd):/app binance_trader_v2:latest tail -f /dev/null 2> /dev/null || (make rm ; docker run -d --shm-size=16gb -v $(shell pwd):/app binance_trader_v2:latest tail -f /dev/null)
+	@docker run -d --gpus all --shm-size=16gb -v $(shell pwd):/app binance_trader_v2:latest tail -f /dev/null 2> /dev/null || ($(MAKE) rm ; docker run -d --shm-size=16gb -v $(shell pwd):/app binance_trader_v2:latest tail -f /dev/null)
 
 run_if_not_exists:
 ifeq ($(shell $(CONTAINER_NAME)),)
-	make run
+	$(MAKE) run
 endif
+	@echo
 
 bash: run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) bash

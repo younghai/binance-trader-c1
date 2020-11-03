@@ -1,30 +1,31 @@
 DB_CONTAINER_NAME=docker ps | grep postgres:latest | cut -d ' ' -f 1
 DB_CONTAINER_NAMES=docker ps -a | grep postgres:latest | cut -d ' ' -f 1
+SED_PWD=$(shell (echo $(PWD) | sed 's_/_\\/_g'))
 
-rm_db:
-	@docker rm -f $(shell $(DB_CONTAINER_NAMES)) 2> /dev/null || echo
 
-run_db: rm_db
-	@docker run -d --shm-size=1gb -p 5432:5432 --name db -v $(shell pwd)/storage/db:/var/lib/postgresql/data -e POSTGRES_PASSWORD=password postgres:latest
+install_on_mac:
+	brew install kubectl minikube; \
+	brew cask install virtualbox virtualbox-extension-pack
 
-run_db_if_not_exists:
-ifeq ($(shell $(DB_CONTAINER_NAME)),)
-	make run_db
+_build_yamls:
+	@cat $(shell PWD)/k8s/deployments/database-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' > $(shell PWD)/k8s/deployments/database.yml
+	@cat $(shell PWD)/k8s/service/service-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' > $(shell PWD)/k8s/service/service.yml
+
+_mkdirs:
+	@mkdir -p $(shell PWD)/storage/database
+
+_kube_start_if_not_exists:
+ifeq ($(shell minikube status | grep host | cut -d ' ' -f 2),)
+	minikube start
 endif
+	@echo
 
-up_db: run_db_if_not_exists
-	docker exec -it $(shell $(DB_CONTAINER_NAME)) bash -c \
-	'psql -U postgres -d postgres -c \
-	"create table if not exists pricing (\
-		id serial primary key, \
-		open float not null, \
-		high float not null, \
-		low float not null, \
-		close float not null, \
-		volume float not null, \
-		target_on timestamp not null, \
-		created_on timestamp not null \
-	)"'
+_kube_apply: _build_yamls _mkdirs
+	@kubectl apply -f $(shell PWD)/k8s/admin/namespace.yml
+	@kubectl apply -f $(shell PWD)/k8s/deployments/database.yml
 
-bash_db: run_db_if_not_exists
-	docker exec -it $(shell $(DB_CONTAINER_NAME)) bash
+kube_start: _kube_start_if_not_exists
+	@$(MAKE) _kube_apply
+
+kube_rm:
+	minikube delete
