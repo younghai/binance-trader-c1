@@ -6,7 +6,9 @@ metadata:
 spec:
   selector:
     app: database
+  type: NodePort
   ports:
-    - name: port-1
+    - name: port1
       port: 5432
       targetPort: 5432
+      nodePort: 30432

@@ -23,6 +23,7 @@ endif
 _kube_apply: _build_yamls _mkdirs
 	@kubectl apply -f $(shell PWD)/k8s/admin/namespace.yml
 	@kubectl apply -f $(shell PWD)/k8s/deployments/database.yml
+	@kubectl apply -f $(shell PWD)/k8s/service/service.yml
 
 kube_start: _kube_start_if_not_exists
 	@$(MAKE) _kube_apply
