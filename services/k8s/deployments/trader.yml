@@ -1,0 +1,22 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: trader-deployment
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trader
+  template:
+    metadata:
+      name: trader
+      labels:
+        app: trader
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: trader
+          image: continuumio/miniconda3:latest
+          command: ["tail", "-f", "/dev/null"]
+          imagePullPolicy: "IfNotPresent"
