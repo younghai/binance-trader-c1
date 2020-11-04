@@ -22,8 +22,9 @@ _build_ymls:
 
 _run_if_not_exists:
 ifeq ($(shell minikube status | grep host | cut -d ' ' -f 2),)
-	minikube start
+	minikube start --mount-string="$(shell PWD):$(shell PWD)" --mount
 endif
+	$(eval $(shell minikube docker-env))
 	@echo
 
 _apply: _mkdirs _build_ymls
@@ -32,6 +33,10 @@ _apply: _mkdirs _build_ymls
 	@kubectl apply -f $(shell PWD)/k8s/deployments/data_collector.yml
 	@kubectl apply -f $(shell PWD)/k8s/deployments/trader.yml
 	@kubectl apply -f $(shell PWD)/k8s/service/service.yml
+
+_reapply: _mkdirs _build_ymls
+	@kubectl delete -f $(shell PWD)/k8s/admin/namespace.yml
+	@$(MAKE) _apply
 
 install_on_mac:
 	brew install kubectl minikube; \
@@ -42,6 +47,9 @@ run: _run_if_not_exists
 
 rm:
 	minikube delete
+
+pods:
+	@kubectl -n dev get pods
 
 db_bash:
 	@kubectl -n dev exec -it $(shell $(POD_DB_NAME)) -- bash

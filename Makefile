@@ -41,6 +41,9 @@ svc_run:
 svc_rm:
 	@make -C services rm
 
+svc_pods:
+	@make -C services pods
+
 svc_db_bash:
 	@make -C services db_bash
 
