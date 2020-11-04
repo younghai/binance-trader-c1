@@ -19,4 +19,3 @@ notebook_cookie_secret
 *.pkl
 *.pkl.gz
 *.DS_Store
-database.yml

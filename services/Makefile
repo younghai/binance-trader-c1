@@ -17,8 +17,10 @@ _mkdirs:
 
 _build_ymls:
 	@cat $(shell PWD)/k8s/deployments-template/database-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' > $(shell PWD)/k8s/deployments/database.yml
+	@cat $(shell PWD)/k8s/deployments-template/data_collector-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' > $(shell PWD)/k8s/deployments/data_collector.yml
+	@cat $(shell PWD)/k8s/deployments-template/trader-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' > $(shell PWD)/k8s/deployments/trader.yml
 
-_kube_start_if_not_exists:
+_kube_run_if_not_exists:
 ifeq ($(shell minikube status | grep host | cut -d ' ' -f 2),)
 	minikube start
 endif
@@ -35,7 +37,7 @@ kube_install_on_mac:
 	brew install kubectl minikube; \
 	brew cask install virtualbox virtualbox-extension-pack
 
-kube_start: _kube_start_if_not_exists
+kube_run: _kube_run_if_not_exists
 	@$(MAKE) _kube_apply
 
 kube_rm:
