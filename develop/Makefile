@@ -1,41 +1,41 @@
 CONTAINER_NAME=docker ps | grep binance_trader_develop:latest | cut -d ' ' -f 1
 CONTAINER_NAMES=docker ps -a | grep binance_trader_develop:latest | cut -d ' ' -f 1
 
-build_container:
+_build_container:
 	docker build dockerfiles -t binance_trader_develop:latest
 
-rm:
-	@docker rm -f $(shell $(CONTAINER_NAMES)) 2> /dev/null || echo
-
-run: rm
-	@docker run -d --gpus all --shm-size=16gb -v $(shell pwd):/app binance_trader_develop:latest tail -f /dev/null 2> /dev/null || ($(MAKE) rm ; docker run -d --shm-size=16gb -v $(shell pwd):/app binance_trader_develop:latest tail -f /dev/null)
-
-run_if_not_exists:
+_run_if_not_exists:
 ifeq ($(shell $(CONTAINER_NAME)),)
 	$(MAKE) run
 endif
 	@echo
 
-bash: run_if_not_exists
+rm:
+	@docker rm -f $(shell $(CONTAINER_NAMES)) 2> /dev/null || echo
+
+run: _build_container rm
+	@docker run -d --gpus all --shm-size=16gb -v $(shell pwd):/app binance_trader_develop:latest tail -f /dev/null 2> /dev/null || ($(MAKE) rm ; docker run -d --shm-size=16gb -v $(shell pwd):/app binance_trader_develop:latest tail -f /dev/null)
+
+bash: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) bash
 
-download_kaggle_data: run_if_not_exists
+download_kaggle_data: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m rawdata_builder.download_kaggle_data $(ARGS)
 
-build_rawdata: run_if_not_exists
+build_rawdata: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m rawdata_builder.build_rawdata $(ARGS)
 
-build_dataset: run_if_not_exists
+build_dataset: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m dataset_builder.build_dataset_v1 $(ARGS)
 
-train: run_if_not_exists
+train: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m trainer.models.predictor_v1 train --mode=train $(ARGS)
 
-generate: run_if_not_exists
+generate: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m trainer.models.predictor_v1 generate --mode=test $(ARGS)
 
-review: run_if_not_exists
+review: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m reviewer.reviewer_v1 run --in_shell True $(ARGS)
 
-display_review: run_if_not_exists
+display_review: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m reviewer.reviewer_v1 display --in_shell True $(ARGS)

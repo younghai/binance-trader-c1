@@ -20,34 +20,34 @@ _build_ymls:
 	@cat $(shell PWD)/k8s/deployments-template/data_collector-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' > $(shell PWD)/k8s/deployments/data_collector.yml
 	@cat $(shell PWD)/k8s/deployments-template/trader-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' > $(shell PWD)/k8s/deployments/trader.yml
 
-_kube_run_if_not_exists:
+_run_if_not_exists:
 ifeq ($(shell minikube status | grep host | cut -d ' ' -f 2),)
 	minikube start
 endif
 	@echo
 
-_kube_apply: _mkdirs _build_ymls
+_apply: _mkdirs _build_ymls
 	@kubectl apply -f $(shell PWD)/k8s/admin/namespace.yml
 	@kubectl apply -f $(shell PWD)/k8s/deployments/database.yml
 	@kubectl apply -f $(shell PWD)/k8s/deployments/data_collector.yml
 	@kubectl apply -f $(shell PWD)/k8s/deployments/trader.yml
 	@kubectl apply -f $(shell PWD)/k8s/service/service.yml
 
-kube_install_on_mac:
+install_on_mac:
 	brew install kubectl minikube; \
 	brew cask install virtualbox virtualbox-extension-pack
 
-kube_run: _kube_run_if_not_exists
-	@$(MAKE) _kube_apply
+run: _run_if_not_exists
+	@$(MAKE) _apply
 
-kube_rm:
+rm:
 	minikube delete
 
-kube_db_bash:
+db_bash:
 	@kubectl -n dev exec -it $(shell $(POD_DB_NAME)) -- bash
 
-kube_dc_bash:
+dc_bash:
 	@kubectl -n dev exec -it $(shell $(POD_DC_NAME)) -- bash
 
-kube_td_bash:
+td_bash:
 	@kubectl -n dev exec -it $(shell $(POD_TD_NAME)) -- bash
