@@ -1,14 +1,14 @@
-CONTAINER_NAME=docker ps | grep binance_trader_v2:latest | cut -d ' ' -f 1
-CONTAINER_NAMES=docker ps -a | grep binance_trader_v2:latest | cut -d ' ' -f 1
+CONTAINER_NAME=docker ps | grep binance_trader_develop:latest | cut -d ' ' -f 1
+CONTAINER_NAMES=docker ps -a | grep binance_trader_develop:latest | cut -d ' ' -f 1
 
 build_container:
-	docker build dockerfiles -t binance_trader_v2:latest
+	docker build dockerfiles -t binance_trader_develop:latest
 
 rm:
 	@docker rm -f $(shell $(CONTAINER_NAMES)) 2> /dev/null || echo
 
 run: rm
-	@docker run -d --gpus all --shm-size=16gb -v $(shell pwd):/app binance_trader_v2:latest tail -f /dev/null 2> /dev/null || ($(MAKE) rm ; docker run -d --shm-size=16gb -v $(shell pwd):/app binance_trader_v2:latest tail -f /dev/null)
+	@docker run -d --gpus all --shm-size=16gb -v $(shell pwd):/app binance_trader_develop:latest tail -f /dev/null 2> /dev/null || ($(MAKE) rm ; docker run -d --shm-size=16gb -v $(shell pwd):/app binance_trader_develop:latest tail -f /dev/null)
 
 run_if_not_exists:
 ifeq ($(shell $(CONTAINER_NAME)),)

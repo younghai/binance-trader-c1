@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:latest
+FROM continuumio/miniconda3:latest
 
 RUN apt-get update \
   && apt-get upgrade -y \
@@ -7,6 +7,7 @@ RUN apt-get update \
     git-core \
     vim \
     gettext-base \
+    postgresql-client \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 

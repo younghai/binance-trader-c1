@@ -17,6 +17,6 @@ spec:
       restartPolicy: Always
       containers:
         - name: data-collector
-          image: continuumio/miniconda3:latest
+          image: yanagi7393/binance_trader_services:latest
           command: ["tail", "-f", "/dev/null"]
           imagePullPolicy: "IfNotPresent"

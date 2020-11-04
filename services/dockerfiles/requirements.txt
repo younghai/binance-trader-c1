@@ -1,0 +1,12 @@
+fire
+black
+joblib
+ipython
+numpy
+pandas
+matplotlib
+fastparquet
+pyarrow
+tabulate
+sqlalchemy
+alembic
