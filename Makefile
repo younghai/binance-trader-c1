@@ -2,7 +2,7 @@
 dev_rm:
 	@make -C develop rm
 
-dev_run: 
+dev_run:
 	@make -C develop run
 
 dev_bash:
@@ -34,6 +34,9 @@ svc_push_container:
 
 svc_install_on_mac:
 	@make -C services install_on_mac
+
+svc_install_on_ubuntu:
+	@make -C services install_on_ubuntu
 
 svc_run:
 	@make -C services run
