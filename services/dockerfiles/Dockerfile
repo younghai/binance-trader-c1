@@ -8,6 +8,7 @@ RUN apt-get update \
     vim \
     gettext-base \
     postgresql-client \
+    python-psycopg2 \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 

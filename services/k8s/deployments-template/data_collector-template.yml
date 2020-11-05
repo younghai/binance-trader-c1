@@ -17,9 +17,9 @@ spec:
       restartPolicy: Always
       containers:
         - name: data-collector
-          image: yanagi7393/binance_trader_services:latest
+          image: binance_trader_services:latest
           command: ["tail", "-f", "/dev/null"]
-          imagePullPolicy: "IfNotPresent"
+          imagePullPolicy: "Never"
           env:
             - name: POSTGRES_HOST
               value: database.dev.svc.cluster.local         
