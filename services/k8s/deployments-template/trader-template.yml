@@ -32,6 +32,8 @@ spec:
           volumeMounts:
             - name: host-codes
               mountPath: "/app/src"
+          securityContext:
+            runAsUser: 0
       volumes:
         - name: host-codes
           hostPath:

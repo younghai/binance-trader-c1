@@ -42,6 +42,9 @@ install_on_mac:
 run: _run_if_not_exists
 	@$(MAKE) _apply
 
+stop:
+	minikube stop
+
 rm:
 	minikube delete
 

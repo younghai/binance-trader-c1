@@ -3,7 +3,7 @@ from database.database import BASE
 
 
 class Pricing(BASE):
-    _tablename_ = "pricing"
+    __tablename__ = "pricing"
 
     id = Column(Integer, primary_key=True)
     open = Column(FLOAT, nullable=False)
