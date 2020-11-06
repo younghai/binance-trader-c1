@@ -41,11 +41,11 @@ svc_install_on_ubuntu:
 svc_run:
 	@make -C services run
 
-svc_stop:
-	@make -C services stop
-
 svc_rm:
 	@make -C services rm
+
+svc_delete:
+	@make -C services delete
 
 svc_reapply:
 	@make -C services reapply

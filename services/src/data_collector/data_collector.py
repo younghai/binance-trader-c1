@@ -6,10 +6,12 @@ from typing import List
 from config import CFG
 from database import database as DB
 from database import models
+from .usecase import Usecase
 
 
 @dataclass
 class DataCollector:
+    usecase = Usecase()
     binance_cli: ccxt.binance = ccxt.binance(
         {"enableRateLimit": True, "options": {"defaultType": "future",},}
     )
@@ -40,7 +42,7 @@ class DataCollector:
                 orient="records"
             ):
                 update_data_list.append(
-                    models.Pricing(
+                    dict(
                         timestamp=pricing_row["date"],
                         asset=asset,
                         open=pricing_row["open"],
@@ -51,9 +53,7 @@ class DataCollector:
                     )
                 )
 
-        DB.SESSION.add_all(update_data_list)
-        DB.SESSION.flush()
-        DB.SESSION.commit()
+        self.usecase.inserts(inserts=update_data_list)
 
     def _list_historical_pricing(self, symbol, limit=1500):
         assert limit < 2000
@@ -76,11 +76,9 @@ class DataCollector:
         pricing = pd.DataFrame(
             pricing, columns=["date", "open", "high", "low", "close", "volume"]
         ).set_index("date")
-        pricing.index = (
-            pricing.index.map(lambda x: datetime.utcfromtimestamp(x / 1000))
-            .tz_localize("UTC")
-            .tz_convert("Asia/Tokyo")
-        )
+        pricing.index = pricing.index.map(
+            lambda x: datetime.utcfromtimestamp(x / 1000)
+        ).tz_localize("UTC")
 
         # We drop one value always
         return pricing.sort_index()[:-1]

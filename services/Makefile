@@ -4,7 +4,6 @@ POD_DB_NAME=kubectl -n dev get pods | grep database | awk '{print $$1}'
 POD_TD_NAME=kubectl -n dev get pods | grep trader | awk '{print $$1}'
 
 _mkdirs:
-	@rm -rf $(shell pwd)/storage/database
 	@mkdir -p $(shell pwd)/storage/database
 	@mkdir -p $(shell pwd)/k8s/deployments
 
@@ -55,10 +54,11 @@ install_on_ubuntu:
 run: _run_if_not_exists
 	@$(MAKE) _apply
 
-stop:
+rm:
+	@kubectl delete -f $(shell pwd)/k8s/admin/namespace.yml
 	minikube stop
 
-rm:
+delete:
 	minikube delete
 
 pods:
