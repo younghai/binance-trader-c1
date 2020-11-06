@@ -47,6 +47,9 @@ svc_stop:
 svc_rm:
 	@make -C services rm
 
+svc_reapply:
+	@make -C services reapply
+
 svc_pods:
 	@make -C services pods
 
