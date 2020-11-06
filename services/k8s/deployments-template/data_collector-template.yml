@@ -18,7 +18,7 @@ spec:
       containers:
         - name: data-collector
           image: binance_trader_services:latest
-          command: ["tail", "-f", "/dev/null"]
+          command: ["python", "-m", "data_collector.data_collector", "&&", "tail", "-f", "/dev/null"]
           imagePullPolicy: "Never"
           env:
             - name: POSTGRES_HOST

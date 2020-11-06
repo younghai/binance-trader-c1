@@ -7,23 +7,13 @@ class Pricing(BASE):
 
     id = Column(Integer, primary_key=True)
 
-    timestamp = Column(DateTime(timezone=True), nullable=False)
+    timestamp = Column(DateTime(timezone=False), nullable=False)
     asset = Column(String, nullable=False)
     open = Column(FLOAT, nullable=False)
     high = Column(FLOAT, nullable=False)
     low = Column(FLOAT, nullable=False)
     close = Column(FLOAT, nullable=False)
     volume = Column(FLOAT, nullable=False)
-
-    created_on = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_on = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-        onupdate=func.now(),
-    )
 
     def __init__(self, timestamp, asset, open, high, low, close, volume):
         self.timestamp = timestamp
@@ -33,3 +23,13 @@ class Pricing(BASE):
         self.low = low
         self.close = close
         self.volume = volume
+
+
+class Synced(BASE):
+    __tablename__ = "synced"
+
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime(timezone=False), nullable=False)
+
+    def __init__(self, timestamp):
+        self.timestamp = timestamp

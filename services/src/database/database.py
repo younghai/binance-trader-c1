@@ -7,15 +7,21 @@ ENGINE = create_engine(
     f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ['POSTGRES_HOST']}/{os.environ['POSTGRES_DB']}",
     convert_unicode=False,
 )
-DB_SESSION = scoped_session(
-    sessionmaker(autocommit=False, autoflush=False, bind=ENGINE)
-)
+SESSION = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=ENGINE))
 
 BASE = declarative_base()
-BASE.query = DB_SESSION.query_property()
+BASE.query = SESSION.query_property()
 
 
 def init_db():
-    import database.models
+    from database import models
 
     BASE.metadata.create_all(ENGINE)
+
+    # Initialize all data
+    for table in [models.Pricing, models.Synced]:
+        try:
+            SESSION.query(table).delete()
+            SESSION.commit()
+        except:
+            SESSION.rollback()

@@ -4,6 +4,7 @@ POD_DB_NAME=kubectl -n dev get pods | grep database | awk '{print $$1}'
 POD_TD_NAME=kubectl -n dev get pods | grep trader | awk '{print $$1}'
 
 _mkdirs:
+	@rm -rf $(shell pwd)/storage/database
 	@mkdir -p $(shell pwd)/storage/database
 	@mkdir -p $(shell pwd)/k8s/deployments
 
