@@ -52,6 +52,7 @@ class DataCollector:
                 )
 
         DB.SESSION.add_all(update_data_list)
+        DB.SESSION.flush()
         DB.SESSION.commit()
 
     def _list_historical_pricing(self, symbol, limit=1500):
@@ -75,7 +76,11 @@ class DataCollector:
         pricing = pd.DataFrame(
             pricing, columns=["date", "open", "high", "low", "close", "volume"]
         ).set_index("date")
-        pricing.index = pricing.index.map(lambda x: datetime.fromtimestamp(x / 1000))
+        pricing.index = (
+            pricing.index.map(lambda x: datetime.utcfromtimestamp(x / 1000))
+            .tz_localize("UTC")
+            .tz_convert("Asia/Tokyo")
+        )
 
         # We drop one value always
         return pricing.sort_index()[:-1]

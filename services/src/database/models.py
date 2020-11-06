@@ -7,7 +7,7 @@ class Pricing(BASE):
 
     id = Column(Integer, primary_key=True)
 
-    timestamp = Column(DateTime(timezone=False), nullable=False)
+    timestamp = Column(DateTime(timezone=True), nullable=False)
     asset = Column(String, nullable=False)
     open = Column(FLOAT, nullable=False)
     high = Column(FLOAT, nullable=False)
@@ -29,7 +29,7 @@ class Synced(BASE):
     __tablename__ = "synced"
 
     id = Column(Integer, primary_key=True)
-    timestamp = Column(DateTime(timezone=False), nullable=False)
+    timestamp = Column(DateTime(timezone=True), nullable=False)
 
     def __init__(self, timestamp):
         self.timestamp = timestamp
