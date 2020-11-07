@@ -1,3 +1,4 @@
+PARENT_PWD=$(shell dirname $(shell pwd))
 SED_PWD=$(shell (echo $(shell pwd) | sed 's_/_\\/_g'))
 SED_PARENT_PWD=$(shell (dirname $(shell pwd) | sed 's_/_\\/_g')))
 POD_DC_NAME=kubectl -n dev get pods | grep data-collector | awk '{print $$1}'
@@ -45,7 +46,7 @@ _build_container:
 
 _run_if_not_exists: _mkdirs _build_ymls
 ifneq ($(shell minikube status | grep host | cut -d ' ' -f 2),Running)
-	@minikube start --mount-string="$(shell pwd):$(shell pwd)" --mount && \
+	@minikube start --mount-string="$(PARENT_PWD):$(PARENT_PWD)" --mount && \
 	eval $$(minikube docker-env) && \
 	$(MAKE) _build_container
 endif
@@ -71,11 +72,11 @@ run: _run_if_not_exists
 	@$(MAKE) _apply
 
 rm:
-	@kubectl delete -f $(shell pwd)/k8s/admin/namespace.yml; \
+	@kubectl delete -f $(shell pwd)/k8s/admin/namespace.yml 2> /dev/null; \
 	minikube stop
 
 delete:
-	minikube delete
+	@minikube delete 2> /dev/null
 
 pods:
 	@kubectl -n dev get pods
