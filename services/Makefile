@@ -2,7 +2,7 @@ OS_NAME=$(shell (python -c "import platform; print(platform.system())"))
 
 PARENT_PWD=$(shell dirname $(shell pwd))
 SED_PWD=$(shell (echo $(shell pwd) | sed 's_/_\\/_g'))
-SED_PARENT_PWD=$(shell (dirname $(shell pwd) | sed 's_/_\\/_g')))
+SED_PARENT_PWD=$(shell (dirname $(shell pwd) | sed 's_/_\\/_g'))
 
 POD_DC_NAME=kubectl -n dev get pods | grep data-collector | awk '{print $$1}'
 POD_DB_NAME=kubectl -n dev get pods | grep database | awk '{print $$1}'
@@ -15,7 +15,7 @@ define GENERATE_YML
 	sed "s/{{EXP_NAME}}/$2/g" |\
 	sed "s/{{REPORT_PREFIX}}/$3/g" |\
 	sed "s/{{REPORT_BASE_CURRENCY}}/$4/g" |\
-	sed "s/{{REPORT_ID}}/$5/g" >\
+	sed "s/{{REPORT_ID}}/\"$5\"/g" >\
 	$(shell pwd)/k8s/deployments/$1.yml
 endef
 
@@ -27,7 +27,7 @@ _build_ymls:
 	@read -p "EXP_NAME: " EXP_NAME; EXP_NAME=$${EXP_NAME:-v001}; \
 	read -p "REPORT_PREFIX: " REPORT_PREFIX; REPORT_PREFIX=$${REPORT_PREFIX:-V1_CSET2}; \
 	read -p "REPORT_BASE_CURRENCY: " REPORT_BASE_CURRENCY; REPORT_BASE_CURRENCY=$${REPORT_BASE_CURRENCY:-USDT}; \
-	read -p "REPORT_ID: " REPORT_ID; REPORT_ID=$${REPORT_ID:-\"9\"}; \
+	read -p "REPORT_ID: " REPORT_ID; REPORT_ID=$${REPORT_ID:-9}; \
 	$(call GENERATE_YML,database,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID);\
 	$(call GENERATE_YML,data_collector,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID);\
 	$(call GENERATE_YML,trader,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID)
@@ -78,7 +78,7 @@ else ifeq ($(OS_NAME),Linux)
 	$(MAKE) _install_on_ubuntu
 endif
 
-run: install _run_if_not_exists
+run: _run_if_not_exists
 	@$(MAKE) _apply
 
 rm:

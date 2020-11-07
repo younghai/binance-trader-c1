@@ -32,11 +32,8 @@ dev_display_review:
 svc_push_container:
 	@make -C services push_container
 
-svc_install_on_mac:
-	@make -C services install_on_mac
-
-svc_install_on_ubuntu:
-	@make -C services install_on_ubuntu
+svc_install:
+	@make -C services install
 
 svc_run:
 	@make -C services run
