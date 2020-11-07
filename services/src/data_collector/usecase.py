@@ -8,10 +8,10 @@ from typing import List, Dict
 class Usecase:
     sess = DB.SESSION
 
-    def inserts(self, inserts: List[Dict], n_buffer: int = 1000):
+    def insert_pricings(self, inserts: List[Dict], n_buffer: int = 1000):
         tmpl = """
         INSERT INTO
-            pricing (
+            pricings (
                 timestamp,
                 asset,
                 open,

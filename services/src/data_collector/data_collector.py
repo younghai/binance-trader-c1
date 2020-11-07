@@ -34,26 +34,26 @@ class DataCollector:
         )
 
     def _sync_historical_pricing(self):
-        update_data_list = []
+        inserts = []
         for asset in self.target_coins:
             pricing = self._list_historical_pricing(symbol=asset)
 
             for pricing_row in pricing.reset_index(drop=False).to_dict(
                 orient="records"
             ):
-                update_data_list.append(
-                    dict(
-                        timestamp=pricing_row["date"],
-                        asset=asset,
-                        open=pricing_row["open"],
-                        high=pricing_row["high"],
-                        low=pricing_row["low"],
-                        close=pricing_row["close"],
-                        volume=pricing_row["volume"],
-                    )
+                inserts.append(
+                    {
+                        "timestamp": pricing_row["date"],
+                        "asset": asset,
+                        "open": pricing_row["open"],
+                        "high": pricing_row["high"],
+                        "low": pricing_row["low"],
+                        "close": pricing_row["close"],
+                        "volume": pricing_row["volume"],
+                    }
                 )
 
-        self.usecase.inserts(inserts=update_data_list)
+        self.usecase.insert_pricings(inserts=inserts)
 
     def _list_historical_pricing(self, symbol, limit=1500):
         assert limit < 2000

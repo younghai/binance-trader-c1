@@ -1,9 +1,9 @@
-from sqlalchemy import Column, Integer, FLOAT, String, TIMESTAMP, func
+from sqlalchemy import Column, Integer, FLOAT, String, TIMESTAMP, UniqueConstraint
 from database.database import BASE
 
 
 class Pricing(BASE):
-    __tablename__ = "pricing"
+    __tablename__ = "pricings"
 
     id = Column(Integer, primary_key=True)
 
@@ -15,6 +15,8 @@ class Pricing(BASE):
     close = Column(FLOAT, nullable=False)
     volume = Column(FLOAT, nullable=False)
 
+    __table_args__ = (UniqueConstraint("timestamp", "asset"),)
+
     def __init__(self, timestamp, asset, open, high, low, close, volume):
         self.timestamp = timestamp
         self.asset = asset
@@ -25,11 +27,11 @@ class Pricing(BASE):
         self.volume = volume
 
 
-class Synced(BASE):
-    __tablename__ = "synced"
+class Sync(BASE):
+    __tablename__ = "syncs"
 
     id = Column(Integer, primary_key=True)
-    timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False, unique=True)
 
     def __init__(self, timestamp):
         self.timestamp = timestamp
