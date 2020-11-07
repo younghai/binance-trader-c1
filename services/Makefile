@@ -1,6 +1,9 @@
+OS_NAME=$(shell (python -c "import platform; print(platform.system())"))
+
 PARENT_PWD=$(shell dirname $(shell pwd))
 SED_PWD=$(shell (echo $(shell pwd) | sed 's_/_\\/_g'))
 SED_PARENT_PWD=$(shell (dirname $(shell pwd) | sed 's_/_\\/_g')))
+
 POD_DC_NAME=kubectl -n dev get pods | grep data-collector | awk '{print $$1}'
 POD_DB_NAME=kubectl -n dev get pods | grep database | awk '{print $$1}'
 POD_TD_NAME=kubectl -n dev get pods | grep trader | awk '{print $$1}'
@@ -52,11 +55,11 @@ ifneq ($(shell minikube status | grep host | cut -d ' ' -f 2),Running)
 endif
 	@echo
 
-install_on_mac:
+_install_on_mac:
 	brew install kubectl minikube
 	brew cask install virtualbox virtualbox-extension-pack
 
-install_on_ubuntu:
+_install_on_ubuntu:
 	sudo apt update -y
 	sudo apt install -y virtualbox virtualbox-ext-pack
 
@@ -68,7 +71,14 @@ install_on_ubuntu:
 	sudo chmod +x ./kubectl
 	sudo mv ./kubectl /usr/local/bin/kubectl
 
-run: _run_if_not_exists
+install:
+ifeq ($(OS_NAME),Darwin)
+	$(MAKE) _install_on_mac
+else ifeq ($(OS_NAME),Linux)
+	$(MAKE) _install_on_ubuntu
+endif
+
+run: install _run_if_not_exists
 	@$(MAKE) _apply
 
 rm:
