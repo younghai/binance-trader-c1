@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Integer, FLOAT, String, TIMESTAMP, UniqueConstraint
-from database.database import BASE
+from database import database as DB
 
 
-class Pricing(BASE):
+class Pricing(DB.BASE):
     __tablename__ = "pricings"
 
     id = Column(Integer, primary_key=True)
@@ -27,7 +27,7 @@ class Pricing(BASE):
         self.volume = volume
 
 
-class Sync(BASE):
+class Sync(DB.BASE):
     __tablename__ = "syncs"
 
     id = Column(Integer, primary_key=True)

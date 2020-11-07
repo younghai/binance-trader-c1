@@ -29,12 +29,25 @@ spec:
               value: postgres
             - name: POSTGRES_PASSWORD
               value: password
+            - name: EXP_NAME
+              value: {{EXP_NAME}}
+            - name: REPORT_PREFIX
+              value: {{REPORT_PREFIX}}
+            - name: REPORT_BASE_CURRENCY
+              value: {{REPORT_BASE_CURRENCY}}
+            - name: REPORT_ID
+              value: {{REPORT_ID}}
           volumeMounts:
-            - name: host-codes
+            - name: svc-codes
               mountPath: "/app/src"
+            - name: dev-exps
+              mountPath: "/app/dev/experiments"
           securityContext:
             runAsUser: 0
       volumes:
-        - name: host-codes
+        - name: svc-codes
           hostPath:
             path: {{PWD}}/src
+        - name: dev-exps
+          hostPath:
+            path: {{PARENT_PWD}}/develop/storage/experiments

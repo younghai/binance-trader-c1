@@ -54,3 +54,34 @@ class Usecase:
             self.sess.execute(query, params)
 
         self.sess.commit()
+
+    def insert_syncs(self, inserts: List[Dict], n_buffer: int = 1000):
+        tmpl = """
+        INSERT INTO
+            syncs (
+                timestamp
+            )
+        VALUES {};
+        """.strip()
+
+        def to_tuple(x, i):
+            return (
+                f"(:p{i}_1)",
+                ({f"p{i}_1": x["timestamp"],}),
+            )
+
+        for i in range(0, len(inserts), n_buffer):
+
+            items = [
+                to_tuple(item, j) for j, item in enumerate(inserts[i : i + n_buffer])
+            ]
+
+            query = tmpl.format(",".join([item[0] for item in items]))
+
+            params = {}
+            for item in items:
+                params.update(item[1])
+
+            self.sess.execute(query, params)
+
+        self.sess.commit()

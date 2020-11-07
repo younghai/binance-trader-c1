@@ -1,25 +1,41 @@
 SED_PWD=$(shell (echo $(shell pwd) | sed 's_/_\\/_g'))
+SED_PARENT_PWD=$(shell (dirname $(shell pwd) | sed 's_/_\\/_g')))
 POD_DC_NAME=kubectl -n dev get pods | grep data-collector | awk '{print $$1}'
 POD_DB_NAME=kubectl -n dev get pods | grep database | awk '{print $$1}'
 POD_TD_NAME=kubectl -n dev get pods | grep trader | awk '{print $$1}'
+
+define GENERATE_YML
+	cat "$(shell pwd)/k8s/deployments-template/$1-template.yml" |\
+	sed "s/{{PWD}}/$(SED_PWD)/g" |\
+	sed "s/{{PARENT_PWD}}/$(SED_PARENT_PWD)/g" |\
+	sed "s/{{EXP_NAME}}/$2/g" |\
+	sed "s/{{REPORT_PREFIX}}/$3/g" |\
+	sed "s/{{REPORT_BASE_CURRENCY}}/$4/g" |\
+	sed "s/{{REPORT_ID}}/$5/g" >\
+	$(shell pwd)/k8s/deployments/$1.yml
+endef
 
 _mkdirs:
 	@mkdir -p $(shell pwd)/storage/database
 	@mkdir -p $(shell pwd)/k8s/deployments
 
 _build_ymls:
-	@cat $(shell pwd)/k8s/deployments-template/database-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' > $(shell pwd)/k8s/deployments/database.yml
-	@cat $(shell pwd)/k8s/deployments-template/data_collector-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' >  $(shell pwd)/k8s/deployments/data_collector.yml
-	@cat $(shell pwd)/k8s/deployments-template/trader-template.yml | sed 's/{{PWD}}/$(SED_PWD)/g' > $(shell pwd)/k8s/deployments/trader.yml
+	@read -p "EXP_NAME: " EXP_NAME; EXP_NAME=$${EXP_NAME:-v001}; \
+	read -p "REPORT_PREFIX: " REPORT_PREFIX; REPORT_PREFIX=$${REPORT_PREFIX:-V1_CSET2}; \
+	read -p "REPORT_BASE_CURRENCY: " REPORT_BASE_CURRENCY; REPORT_BASE_CURRENCY=$${REPORT_BASE_CURRENCY:-USDT}; \
+	read -p "REPORT_ID: " REPORT_ID; REPORT_ID=$${REPORT_ID:-\"9\"}; \
+	$(call GENERATE_YML,database,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID);\
+	$(call GENERATE_YML,data_collector,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID);\
+	$(call GENERATE_YML,trader,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID)
 
-_apply: _mkdirs _build_ymls
+_apply:
 	@kubectl apply -f $(shell pwd)/k8s/admin/namespace.yml
 	@kubectl apply -f $(shell pwd)/k8s/deployments/database.yml
 	@kubectl apply -f $(shell pwd)/k8s/deployments/data_collector.yml
 	@kubectl apply -f $(shell pwd)/k8s/deployments/trader.yml
 	@kubectl apply -f $(shell pwd)/k8s/service/service.yml
 
-reapply: _mkdirs _build_ymls
+reapply:
 	@kubectl delete -f $(shell pwd)/k8s/admin/namespace.yml
 	@$(MAKE) _apply
 
@@ -27,7 +43,7 @@ _build_container:
 	docker build dockerfiles -t binance_trader_services:latest
 	docker pull postgres:latest
 
-_run_if_not_exists:
+_run_if_not_exists: _mkdirs _build_ymls
 ifneq ($(shell minikube status | grep host | cut -d ' ' -f 2),Running)
 	@minikube start --mount-string="$(shell pwd):$(shell pwd)" --mount && \
 	eval $$(minikube docker-env) && \
@@ -55,7 +71,7 @@ run: _run_if_not_exists
 	@$(MAKE) _apply
 
 rm:
-	@kubectl delete -f $(shell pwd)/k8s/admin/namespace.yml
+	@kubectl delete -f $(shell pwd)/k8s/admin/namespace.yml; \
 	minikube stop
 
 delete:
