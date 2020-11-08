@@ -1,4 +1,5 @@
 OS_NAME=$(shell (python -c "import platform; print(platform.system())"))
+CPU_CORES=$(shell (python -c "import multiprocessing; print(multiprocessing.cpu_count())"))
 
 PARENT_PWD=$(shell dirname $(shell pwd))
 SED_PWD=$(shell (echo $(shell pwd) | sed 's_/_\\/_g'))
@@ -43,7 +44,11 @@ _build_container:
 	docker build dockerfiles -t binance_trader_services:latest
 	docker pull postgres:latest
 
-_run_if_not_exists: _mkdirs _build_ymls
+_set_minikube_config:
+	minikube config set memory 8192
+	minikube config set cpus $(CPU_CORES)
+
+_run_if_not_exists: _mkdirs _build_ymls _set_minikube_config
 ifneq ($(shell minikube status | grep host | cut -d ' ' -f 2),Running)
 	@minikube start --mount-string="$(PARENT_PWD):$(PARENT_PWD)" --mount && \
 	eval $$(minikube docker-env) && \
@@ -60,7 +65,7 @@ _install_on_ubuntu:
 	sudo apt install -y virtualbox virtualbox-ext-pack
 
 	wget https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-	sudo cp minikube-linux-amd64 /usr/local/bin/minikube
+	sudo mv minikube-linux-amd64 /usr/local/bin/minikube
 	sudo chmod +x /usr/local/bin/minikube
 
 	curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl

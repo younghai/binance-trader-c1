@@ -17,9 +17,7 @@ def load_text(path):
 
 
 def to_parquet(df, path, compression="zstd"):
-    pq.write_table(
-        table=pa.Table.from_pandas(df), where=path, compression=compression,
-    )
+    pq.write_table(table=pa.Table.from_pandas(df), where=path, compression=compression)
 
 
 def get_filename_by_path(path):

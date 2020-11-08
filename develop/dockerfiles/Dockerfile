@@ -1,4 +1,6 @@
-FROM pytorch/pytorch:latest
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
+USER root
 
 RUN apt-get update \
   && apt-get upgrade -y \

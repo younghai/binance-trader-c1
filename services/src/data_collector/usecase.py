@@ -75,10 +75,7 @@ class Usecase:
         """.strip()
 
         def to_tuple(x, i):
-            return (
-                f"(:p{i}_1)",
-                ({f"p{i}_1": x["timestamp"],}),
-            )
+            return (f"(:p{i}_1)", ({f"p{i}_1": x["timestamp"]}))
 
         for i in range(0, len(inserts), n_buffer):
 

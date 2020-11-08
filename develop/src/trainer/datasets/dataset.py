@@ -110,7 +110,7 @@ class Dataset(_Dataset):
             axis=1,
         ).astype("float32")
 
-        data_dict["X"] = np.swapaxes(concat_df.values, 0, 1,)
+        data_dict["X"] = np.swapaxes(concat_df.values, 0, 1)
 
         if self.winsorize_threshold is not None:
             data_dict["X"] = data_dict["X"].clip(

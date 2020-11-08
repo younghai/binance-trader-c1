@@ -20,7 +20,7 @@ initialize_logger()
 class DataCollector:
     usecase = Usecase()
     binance_cli: ccxt.binance = ccxt.binance(
-        {"enableRateLimit": True, "options": {"defaultType": "future",},}
+        {"enableRateLimit": True, "options": {"defaultType": "future"}}
     )
     target_coins: List[str] = tuple(CFG.TRADABLE_COINS)
 

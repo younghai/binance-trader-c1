@@ -229,7 +229,7 @@ class BasicBacktester:
                 historical_positions,
             ]
 
-        report = pd.concat(report, axis=1,).sort_index()
+        report = pd.concat(report, axis=1).sort_index()
         report.index = pd.to_datetime(report.index)
 
         return report
