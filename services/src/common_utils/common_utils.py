@@ -38,3 +38,11 @@ def to_abs_path(file, relative_path):
     return os.path.normpath(
         os.path.join(os.path.dirname(os.path.abspath(file)), relative_path)
     )
+
+
+def initialize_logger():
+    import logging
+    import sys
+
+    handler = logging.StreamHandler(sys.stdout)
+    logging.basicConfig(level="INFO", handlers=[handler])

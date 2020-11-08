@@ -14,3 +14,4 @@ empyrical
 kaggle
 sklearn
 tabulate
+werkzeug

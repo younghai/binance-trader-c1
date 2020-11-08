@@ -1,28 +1,26 @@
+import os
 from dataclasses import dataclass
+from common_utils import load_json
+from werkzeug.utils import cached_property
 
 
 @dataclass
 class Config:
     @property
-    def TARGET_COINS(self):
+    def ENV(self):
+        return os.environ
+
+    @cached_property
+    def REPORT_PARAMS(self):
+        return load_json(
+            f"/app/dev/experiments/{self.ENV['EXP_NAME']}/reports/params_{self.ENV['REPORT_PREFIX']}_{self.ENV['REPORT_ID']}_{self.ENV['REPORT_BASE_CURRENCY']}.json"
+        )
+
+    @cached_property
+    def TRADABLE_COINS(self):
         return [
-            "ADA/USDT",
-            "ATOM/USDT",
-            "BNB/USDT",
-            "BTC/USDT",
-            "EOS/USDT",
-            "ETH/USDT",
-            "LINK/USDT",
-            "LTC/USDT",
-            "OMG/USDT",
-            "THETA/USDT",
-            "TRX/USDT",
-            "VET/USDT",
-            "WAVES/USDT",
-            "XLM-USDT",
-            "XMR/USDT",
-            "XRP/USDT",
-            "ZEC/USDT",
+            tradable_coin.replace("-", "/")
+            for tradable_coin in self.REPORT_PARAMS["tradable_coins"]
         ]
 
 

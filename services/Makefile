@@ -39,10 +39,6 @@ _apply:
 	@kubectl apply -f $(shell pwd)/k8s/deployments/trader.yml
 	@kubectl apply -f $(shell pwd)/k8s/service/service.yml
 
-reapply:
-	@kubectl delete -f $(shell pwd)/k8s/admin/namespace.yml
-	@$(MAKE) _apply
-
 _build_container:
 	docker build dockerfiles -t binance_trader_services:latest
 	docker pull postgres:latest
@@ -87,6 +83,10 @@ rm:
 
 delete:
 	@minikube delete 2> /dev/null
+
+reapply:
+	@kubectl delete -f $(shell pwd)/k8s/admin/namespace.yml
+	@$(MAKE) _apply
 
 pods:
 	@kubectl -n dev get pods

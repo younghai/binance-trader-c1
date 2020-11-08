@@ -2,13 +2,23 @@ from dataclasses import dataclass
 from database import database as DB
 from database import models
 from typing import List, Dict
+import pandas as pd
 
 
 @dataclass
 class Usecase:
     sess = DB.SESSION
 
-    def insert_pricings(self, inserts: List[Dict], n_buffer: int = 1000):
+    def get_last_sync_on(self):
+        timestamp = (
+            DB.SESSION.query(models.Sync)
+            .order_by(models.Sync.timestamp.desc())
+            .first()
+            .timestamp
+        )
+        return pd.Timestamp(timestamp).tz_convert("UTC")
+
+    def insert_pricings(self, inserts: List[Dict], n_buffer: int = 500):
         tmpl = """
         INSERT INTO
             pricings (
@@ -55,7 +65,7 @@ class Usecase:
 
         self.sess.commit()
 
-    def insert_syncs(self, inserts: List[Dict], n_buffer: int = 1000):
+    def insert_syncs(self, inserts: List[Dict], n_buffer: int = 500):
         tmpl = """
         INSERT INTO
             syncs (
@@ -85,3 +95,118 @@ class Usecase:
             self.sess.execute(query, params)
 
         self.sess.commit()
+
+    def update_pricings(self, updates: List[Dict], n_buffer: int = 500):
+        tup_str = ""
+        min_timestamp = []
+        for update in updates:
+            tup_str += f"('{update['timestamp'].isoformat()}'::timestamp, '{update['asset']}'),"
+            min_timestamp.append(update["timestamp"])
+        tup_str = tup_str[:-1]
+        min_timestamp = min(min_timestamp)
+
+        db_items = self.sess.execute(
+            f"""
+            SELECT id,
+                    TIMESTAMP,
+                    asset,
+                    volume
+            FROM   pricings
+            WHERE  ( TIMESTAMP, asset ) IN (VALUES {tup_str})
+                    AND TIMESTAMP >= '{min_timestamp.isoformat()}'::timestamp;
+            """
+        )
+
+        key = lambda ts, asset: f"{ts.isoformat()}_{asset}"
+        db_items_dict = dict()
+        for db_item in db_items:
+            db_items_dict[key(ts=db_item[1], asset=db_item[2])] = {
+                "id": db_item[0],
+                "volume": db_item[3],
+            }
+
+        ids_to_delete = list()
+        to_insert = list()
+        for update in updates:
+            k = key(ts=update["timestamp"], asset=update["asset"])
+            if k in db_items_dict:
+                db_item = db_items_dict[k]
+                if db_item["volume"] != update["volume"]:
+                    # Value changed
+                    ids_to_delete.append(db_item["id"])
+                else:
+                    continue
+
+            to_insert.append(update)
+
+        # Delete if changed
+        self.sess.query(models.Pricing).filter(
+            models.Pricing.id.in_(ids_to_delete)
+        ).delete(synchronize_session=False)
+
+        # Insert
+        if len(to_insert):
+            self.insert_pricings(inserts=to_insert, n_buffer=n_buffer)
+        else:
+            self.sess.commit()
+
+    def update_syncs(self, updates: List[Dict], n_buffer: int = 500):
+        tup_str = ""
+        min_timestamp = []
+        for update in updates:
+            tup_str += f"('{update['timestamp'].isoformat()}'::timestamp),"
+            min_timestamp.append(update["timestamp"])
+        tup_str = tup_str[:-1]
+        min_timestamp = min(min_timestamp)
+
+        db_items = self.sess.execute(
+            f"""
+            SELECT TIMESTAMP
+            FROM   syncs
+            WHERE  ( TIMESTAMP ) IN (VALUES {tup_str})
+                    AND TIMESTAMP >= '{min_timestamp.isoformat()}'::timestamp;
+            """
+        )
+
+        key = lambda ts: f"{ts.isoformat()}"
+        db_timestamps = set([key(ts=db_item[0]) for db_item in db_items])
+
+        to_insert = list()
+        for update in updates:
+            k = key(ts=update["timestamp"])
+            if k in db_timestamps:
+                continue
+
+            to_insert.append(update)
+
+        # Insert
+        if len(to_insert):
+            self.insert_syncs(inserts=to_insert, n_buffer=n_buffer)
+
+    def delete_old_records(self, table: str, limit: int):
+        assert table in ("pricings", "syncs")
+        if table == "pricings":
+            table_class = models.Pricing
+        elif table == "syncs":
+            table_class = models.Sync
+        else:
+            raise NotImplementedError
+
+        table_counts = self.sess.execute(
+            f"""
+            SELECT count(*)
+            FROM   {table};
+            """
+        ).first()[0]
+
+        if table_counts > limit:
+            # Delete overflowed records
+            id_subqueries = (
+                self.sess.query(table_class.id)
+                .order_by(table_class.timestamp.asc())
+                .limit(table_counts - limit)
+            )
+            self.sess.query(table_class).filter(
+                table_class.id.in_(id_subqueries)
+            ).delete(synchronize_session=False)
+            self.sess.commit()
