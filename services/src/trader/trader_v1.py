@@ -40,9 +40,14 @@ class TraderV1:
         self.entry_qby_prob_threshold = CFG.REPORT_PARAMS["entry_qby_prob_threshold"]
         self.sum_probs_above_threshold = CFG.REPORT_PARAMS["sum_probs_above_threshold"]
 
+        self.bins = CFG.BINS
+
     def _build_model(self):
         self.model = PredictorV1(
-            m_config=CFG.MODEL_PARAMS, device="cpu", mode="predict"
+            m_config=CFG.MODEL_PARAMS,
+            d_config=CFG.DATA_PARAMS,
+            device="cpu",
+            mode="predict",
         )
 
     def run(self, display=True):

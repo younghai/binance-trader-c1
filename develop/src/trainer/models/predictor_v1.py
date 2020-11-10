@@ -226,10 +226,10 @@ class PredictorV1(BasicPredictor):
         )
 
         return {
-            "qay_prediction": preds_qay.argmax(dim=-1).view(-1).cpu(),
-            "qay_probability": F.softmax(preds_qay, dim=-1).cpu(),
-            "qby_prediction": preds_qby.argmax(dim=-1).view(-1).cpu(),
-            "qby_probability": F.softmax(preds_qby, dim=-1).cpu(),
+            "qay_prediction": preds_qay.argmax(dim=-1).view(-1).cpu().numpy(),
+            "qay_probability": F.softmax(preds_qay, dim=-1).cpu().numpy(),
+            "qby_prediction": preds_qby.argmax(dim=-1).view(-1).cpu().numpy(),
+            "qby_probability": F.softmax(preds_qby, dim=-1).cpu().numpy(),
         }
 
 

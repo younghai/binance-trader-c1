@@ -1,4 +1,5 @@
 import os
+from os.path import pathsep
 import pyarrow.parquet as pq
 import pyarrow as pa
 from pathlib import Path
@@ -22,6 +23,10 @@ def to_parquet(df, path, compression="zstd"):
 
 def get_filename_by_path(path):
     return Path(path).stem.split(".")[0]
+
+
+def get_parent_dir(path):
+    return Path(path).parent
 
 
 def to_abs_path(file, relative_path):

@@ -18,11 +18,17 @@ class MarketClient:
             "hedgeMode": True,
         }
     )
+    test_mode: bool = False
 
     def __post_init__(self):
+        self.__set_test_mode()
         self.__set_tradable_coins()
         self.__set_dual_position_mode()
         self.__set_leverage()
+
+    def __set_test_mode(self):
+        if self.test_mode is True:
+            self.binance_cli.set_sandbox_mode(True)
 
     def __set_tradable_coins(self):
         list_coins_on_binance = sorted(self.binance_cli.fetch_tickers().keys())

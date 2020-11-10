@@ -1,4 +1,5 @@
 import os
+import shutil
 import fire
 import json
 from tqdm import tqdm
@@ -9,7 +10,7 @@ from abc import abstractmethod
 
 import torch
 import torch.nn as nn
-from common_utils import load_text, to_abs_path
+from common_utils import load_text, to_abs_path, get_parent_dir
 from .utils import save_model, load_model, weights_init
 from .criterions import CRITERIONS
 from ..datasets.dataset import Dataset
@@ -127,9 +128,15 @@ class BasicPredictor:
             "data_dir": self.data_dir,
             "test_data_dir": self.test_data_dir,
             "model_config": self.model_config,
+            "data_config": self.data_config,
         }
         with open(os.path.join(self.exp_dir, f"params.json"), "w") as f:
             json.dump(params, f)
+
+        shutil.copy(
+            os.path.join(get_parent_dir(self.data_dir), "bins.csv"),
+            os.path.join(self.exp_dir, "bins.csv"),
+        )
 
         print(f"[+] Params are stored")
 
