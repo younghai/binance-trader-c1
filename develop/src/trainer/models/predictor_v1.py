@@ -70,7 +70,7 @@ class PredictorV1(BasicPredictor):
         m_config={},
         exp_dir=COMMON_CONFIG["exp_dir"],
         device="cuda",
-        pin_memory=True,
+        pin_memory=False,
         num_workers=8,
         mode="train",
         default_d_config=DATA_CONFIG,
@@ -218,16 +218,18 @@ class PredictorV1(BasicPredictor):
             )
 
     def predict(self, X, id):
+        assert self.mode in ("predict")
         self.model.eval()
+
         preds_qay, preds_qby = self.model(
             x=X.to(self.device), id=torch.tensor(id).to(self.device)
         )
 
         return {
-            "qay_prediction": preds_qay.argmax(dim=-1).cpu(),
-            "qay_probability": preds_qay.max(dim=-1).cpu(),
-            "qby_prediction": preds_qby.argmax(dim=-1).cpu(),
-            "qby_probability": preds_qby.max(dim=-1).cpu(),
+            "qay_prediction": preds_qay.argmax(dim=-1).view(-1).cpu(),
+            "qay_probability": F.softmax(preds_qay, dim=-1).cpu(),
+            "qby_prediction": preds_qby.argmax(dim=-1).view(-1).cpu(),
+            "qby_probability": F.softmax(preds_qby, dim=-1).cpu(),
         }
 
 

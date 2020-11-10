@@ -17,6 +17,7 @@ COPY . /app
 WORKDIR /app
 
 RUN pip install -r requirements.txt
+RUN conda install --yes pytorch torchvision cpuonly -c pytorch && conda clean -afy
 RUN rm -rf /app/*
 
 ENV PYTHONPATH $PYTHONPATH:/app:/app/src:/app/dev/src:

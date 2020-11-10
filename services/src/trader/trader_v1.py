@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from .utils import nan_to_zero
 from .basic_backtester import BasicBacktester
 from tqdm import tqdm
@@ -7,135 +8,42 @@ import gc
 import json
 from common_utils import to_parquet
 
-
-CONFIG = {
-    "report_prefix": "001",
-    "detail_report": False,
-    "position_side": "long",
-    "entry_ratio": 0.05,
-    "commission": {"entry": 0.0004, "exit": 0.0002},
-    "min_holding_minutes": 1,
-    "max_holding_minutes": 60,
-    "compound_interest": False,
-    "order_criterion": "capital",
-    "possible_in_debt": True,
-    "exit_if_achieved": True,
-    "achieve_ratio": 1,
-    "achieved_with_commission": False,
-    "max_n_updated": None,
-    "entry_qay_threshold": 9,
-    "entry_qby_threshold": 9,
-    "entry_qay_prob_threshold": 0,
-    "entry_qby_prob_threshold": 0,
-    "exit_q_threshold": 9,
-    "sum_probs_above_threshold": False,
-}
+from config import CFG
+from trainer.models import PredictorV1
+from data_collector.usecase import Usecase as DCUsecase
 
 
-class BacktesterV1(BasicBacktester):
-    def __init__(
-        self,
-        base_currency,
-        dataset_dir,
-        exp_dir,
-        report_prefix=CONFIG["report_prefix"],
-        detail_report=CONFIG["detail_report"],
-        position_side=CONFIG["position_side"],
-        entry_ratio=CONFIG["entry_ratio"],
-        commission=CONFIG["commission"],
-        min_holding_minutes=CONFIG["min_holding_minutes"],
-        max_holding_minutes=CONFIG["max_holding_minutes"],
-        compound_interest=CONFIG["compound_interest"],
-        order_criterion=CONFIG["order_criterion"],
-        possible_in_debt=CONFIG["possible_in_debt"],
-        exit_if_achieved=CONFIG["exit_if_achieved"],
-        achieve_ratio=CONFIG["achieve_ratio"],
-        achieved_with_commission=CONFIG["achieved_with_commission"],
-        max_n_updated=CONFIG["max_n_updated"],
-        exit_q_threshold=CONFIG["exit_q_threshold"],
-        entry_qay_threshold=CONFIG["entry_qay_threshold"],
-        entry_qby_threshold=CONFIG["entry_qby_threshold"],
-        entry_qay_prob_threshold=CONFIG["entry_qay_prob_threshold"],
-        entry_qby_prob_threshold=CONFIG["entry_qby_prob_threshold"],
-        sum_probs_above_threshold=CONFIG["sum_probs_above_threshold"],
-    ):
-        super().__init__(
-            base_currency=base_currency,
-            dataset_dir=dataset_dir,
-            exp_dir=exp_dir,
-            report_prefix=report_prefix,
-            detail_report=detail_report,
-            position_side=position_side,
-            entry_ratio=entry_ratio,
-            commission=commission,
-            min_holding_minutes=min_holding_minutes,
-            max_holding_minutes=max_holding_minutes,
-            compound_interest=compound_interest,
-            order_criterion=order_criterion,
-            possible_in_debt=possible_in_debt,
-            exit_if_achieved=exit_if_achieved,
-            achieve_ratio=achieve_ratio,
-            achieved_with_commission=achieved_with_commission,
-            max_n_updated=max_n_updated,
-            exit_q_threshold=exit_q_threshold,
+@dataclass
+class TraderV1:
+    dc_usecase = DCUsecase()
+
+    def __post_init__(self):
+        self._set_report_params()
+        self._build_model()
+
+    def _set_report_params(self):
+        self.base_currency = CFG.REPORT_PARAMS["base_currency"]
+        self.position_side = CFG.REPORT_PARAMS["position_side"]
+        self.entry_ratio = CFG.REPORT_PARAMS["entry_ratio"]
+        self.min_holding_minutes = CFG.REPORT_PARAMS["min_holding_minutes"]
+        self.max_holding_minutes = CFG.REPORT_PARAMS["max_holding_minutes"]
+        self.compound_interest = CFG.REPORT_PARAMS["compound_interest"]
+        self.order_criterion = CFG.REPORT_PARAMS["order_criterion"]
+        self.exit_if_achieved = CFG.REPORT_PARAMS["exit_if_achieved"]
+        self.achieve_ratio = CFG.REPORT_PARAMS["achieve_ratio"]
+        self.achieved_with_commission = CFG.REPORT_PARAMS["achieved_with_commission"]
+        self.max_n_updated = CFG.REPORT_PARAMS["max_n_updated"]
+        self.exit_q_threshold = CFG.REPORT_PARAMS["exit_q_threshold"]
+        self.entry_qay_threshold = CFG.REPORT_PARAMS["entry_qay_threshold"]
+        self.entry_qby_threshold = CFG.REPORT_PARAMS["entry_qby_threshold"]
+        self.entry_qay_prob_threshold = CFG.REPORT_PARAMS["entry_qay_prob_threshold"]
+        self.entry_qby_prob_threshold = CFG.REPORT_PARAMS["entry_qby_prob_threshold"]
+        self.sum_probs_above_threshold = CFG.REPORT_PARAMS["sum_probs_above_threshold"]
+
+    def _build_model(self):
+        self.model = PredictorV1(
+            m_config=CFG.MODEL_PARAMS, device="cpu", mode="predict"
         )
-
-        self.entry_qay_threshold = entry_qay_threshold
-        self.entry_qby_threshold = entry_qby_threshold
-        self.entry_qay_prob_threshold = entry_qay_prob_threshold
-        self.entry_qby_prob_threshold = entry_qby_prob_threshold
-        self.sum_probs_above_threshold = sum_probs_above_threshold
-
-    def store_report(self, report):
-        metrics = self.build_metrics().to_frame().T
-        to_parquet(
-            df=metrics,
-            path=os.path.join(
-                self.report_store_dir,
-                f"metrics_{self.report_prefix}_{self.base_currency}.parquet.zstd",
-            ),
-        )
-
-        to_parquet(
-            df=report,
-            path=os.path.join(
-                self.report_store_dir,
-                f"report_{self.report_prefix}_{self.base_currency}.parquet.zstd",
-            ),
-        )
-
-        params = {
-            "base_currency": self.base_currency,
-            "position_side": self.position_side,
-            "entry_ratio": self.entry_ratio,
-            "commission": self.commission,
-            "min_holding_minutes": self.min_holding_minutes,
-            "max_holding_minutes": self.max_holding_minutes,
-            "compound_interest": self.compound_interest,
-            "order_criterion": self.order_criterion,
-            "possible_in_debt": self.possible_in_debt,
-            "achieved_with_commission": self.achieved_with_commission,
-            "max_n_updated": self.max_n_updated,
-            "tradable_coins": tuple(self.tradable_coins.tolist()),
-            "exit_if_achieved": self.exit_if_achieved,
-            "achieve_ratio": self.achieve_ratio,
-            "exit_q_threshold": self.exit_q_threshold,
-            "entry_qay_threshold": self.entry_qay_threshold,
-            "entry_qby_threshold": self.entry_qby_threshold,
-            "entry_qay_prob_threshold": self.entry_qay_prob_threshold,
-            "entry_qby_prob_threshold": self.entry_qby_prob_threshold,
-            "sum_probs_above_threshold": self.sum_probs_above_threshold,
-        }
-        with open(
-            os.path.join(
-                self.report_store_dir,
-                f"params_{self.report_prefix}_{self.base_currency}.json",
-            ),
-            "w",
-        ) as f:
-            json.dump(params, f)
-
-        print(f"[+] Report is stored: {self.report_prefix}_{self.base_currency}")
 
     def run(self, display=True):
         self.build()

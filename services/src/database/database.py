@@ -17,7 +17,7 @@ BASE = declarative_base()
 BASE.query = SESSION.query_property()
 
 
-def init_db():
+def init():
     from database import models
 
     while True:
@@ -26,4 +26,13 @@ def init_db():
             BASE.metadata.create_all(ENGINE)
             break
         except OperationalError:
-            time.sleep(10)
+            time.sleep(5)
+
+
+def wait_connection():
+    while True:
+        try:
+            ENGINE.connect()
+            break
+        except OperationalError:
+            time.sleep(5)

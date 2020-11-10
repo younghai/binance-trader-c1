@@ -84,13 +84,13 @@ class BasicPredictor:
         m_config={},
         exp_dir=COMMON_CONFIG["exp_dir"],
         device="cuda",
-        pin_memory=True,
+        pin_memory=False,
         num_workers=8,
         mode="train",
         default_d_config=DATA_CONFIG,
         default_m_config=MODEL_CONFIG,
     ):
-        assert mode in ("train", "test")
+        assert mode in ("train", "test", "predict")
         self.data_dir = data_dir
         self.test_data_dir = test_data_dir
         self.exp_dir = exp_dir
@@ -128,7 +128,7 @@ class BasicPredictor:
             "test_data_dir": self.test_data_dir,
             "model_config": self.model_config,
         }
-        with open(os.path.join(self.exp_dir, f"params.csv"), "w") as f:
+        with open(os.path.join(self.exp_dir, f"params.json"), "w") as f:
             json.dump(params, f)
 
         print(f"[+] Params are stored")

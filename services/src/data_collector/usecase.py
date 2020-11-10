@@ -9,6 +9,9 @@ import pandas as pd
 class Usecase:
     sess = DB.SESSION
 
+    def __post_init__(self):
+        DB.wait_connection()
+
     def get_last_sync_on(self):
         timestamp = (
             DB.SESSION.query(models.Sync)

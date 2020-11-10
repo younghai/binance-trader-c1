@@ -25,7 +25,7 @@ class DataCollector:
     target_coins: List[str] = tuple(CFG.TRADABLE_COINS)
 
     def __post_init__(self):
-        DB.init_db()
+        DB.init()
 
         self._set_target_coins()
         self._sync_historical_pricing()
