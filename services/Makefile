@@ -20,6 +20,15 @@ define GENERATE_YML
 	$(shell pwd)/k8s/deployments/$1.yml
 endef
 
+define BUILD_SECRET
+	mkdir -p /tmp/k8s_secret; \
+	echo -n $1 > /tmp/k8s_secret/api_key.txt; \
+	echo -n $2 > /tmp/k8s_secret/secret_key.txt; \
+	echo -n $3 > /tmp/k8s_secret/test_mode.txt; \
+	kubectl -n dev create secret generic market-secret --from-file=/tmp/k8s_secret/api_key.txt --from-file=/tmp/k8s_secret/secret_key.txt --from-file=/tmp/k8s_secret/test_mode.txt; \
+	rm -rf /tmp/k8s_secret
+endef
+
 _mkdirs:
 	@mkdir -p $(shell pwd)/storage/database
 	@mkdir -p $(shell pwd)/k8s/deployments
@@ -33,8 +42,19 @@ _build_ymls:
 	$(call GENERATE_YML,data_collector,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID);\
 	$(call GENERATE_YML,trader,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID)
 
+_apply_secret:
+ifeq ($(shell kubectl -n dev get secret market-secret 2> /dev/null),)
+	@read -p "EXCHANGE_API_KEY: " EXCHANGE_API_KEY; \
+	read -p "EXCHANGE_SECRET_KEY: " EXCHANGE_SECRET_KEY; \
+	read -p "TEST_MODE: " TEST_MODE; \
+	$(call BUILD_SECRET,$$EXCHANGE_API_KEY,$$EXCHANGE_SECRET_KEY,$$TEST_MODE)
+endif
+	@echo
+
 _apply:
 	@kubectl apply -f $(shell pwd)/k8s/admin/namespace.yml
+	@$(MAKE) _apply_secret
+
 	@kubectl apply -f $(shell pwd)/k8s/deployments/database.yml
 	@kubectl apply -f $(shell pwd)/k8s/deployments/data_collector.yml
 	@kubectl apply -f $(shell pwd)/k8s/deployments/trader.yml

@@ -18,7 +18,7 @@ class MarketClient:
             "hedgeMode": True,
         }
     )
-    test_mode: bool = False
+    test_mode: bool = CFG.TEST_MODE
 
     def __post_init__(self):
         self.__set_test_mode()

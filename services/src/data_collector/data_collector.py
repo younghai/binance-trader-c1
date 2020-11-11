@@ -6,8 +6,7 @@ import pandas as pd
 from typing import List
 from config import CFG
 from database import database as DB
-from database import models
-from .usecase import Usecase
+from database.usecase import Usecase
 from logging import getLogger
 from common_utils import initialize_logger
 

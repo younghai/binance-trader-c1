@@ -35,3 +35,13 @@ class Sync(DB.BASE):
 
     def __init__(self, timestamp):
         self.timestamp = timestamp
+
+
+class Trade(DB.BASE):
+    __tablename__ = "trades"
+
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False, unique=True)
+
+    def __init__(self, timestamp):
+        self.timestamp = timestamp

@@ -19,6 +19,10 @@ class Config:
     def EXCHANGE_SECRET_KEY(self):
         return self.ENV["EXCHANGE_SECRET_KEY"]
 
+    @property
+    def TEST_MODE(self):
+        return self.ENV["TEST_MODE"]
+
     @cached_property
     def MODEL_PARAMS(self):
         return load_json(f"/app/dev/experiments/{self.ENV['EXP_NAME']}/params.json")[

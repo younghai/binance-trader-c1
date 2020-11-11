@@ -14,12 +14,24 @@ class Usecase:
 
     def get_last_sync_on(self):
         timestamp = (
-            DB.SESSION.query(models.Sync)
+            self.sess.query(models.Sync)
             .order_by(models.Sync.timestamp.desc())
             .first()
             .timestamp
         )
         return pd.Timestamp(timestamp).tz_convert("UTC")
+
+    def get_last_trade_on(self):
+        queried = (
+            self.sess.query(models.Trade)
+            .order_by(models.Trade.timestamp.desc())
+            .first()
+        )
+
+        if queried is None:
+            return None
+
+        return pd.Timestamp(queried.timestamp).tz_convert("UTC")
 
     def insert_pricings(self, inserts: List[Dict], n_buffer: int = 500):
         tmpl = """
@@ -93,6 +105,11 @@ class Usecase:
                 params.update(item[1])
 
             self.sess.execute(query, params)
+
+        self.sess.commit()
+
+    def insert_trade(self, insert: Dict):
+        self.sess.add(models.Trade(timestamp=insert["timestamp"]))
 
         self.sess.commit()
 
@@ -184,11 +201,13 @@ class Usecase:
             self.insert_syncs(inserts=to_insert, n_buffer=n_buffer)
 
     def delete_old_records(self, table: str, limit: int):
-        assert table in ("pricings", "syncs")
+        assert table in ("pricings", "syncs", "trades")
         if table == "pricings":
             table_class = models.Pricing
         elif table == "syncs":
             table_class = models.Sync
+        elif table == "trades":
+            table_class = models.Trade
         else:
             raise NotImplementedError
 

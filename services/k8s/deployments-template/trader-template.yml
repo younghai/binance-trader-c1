@@ -37,6 +37,21 @@ spec:
               value: {{REPORT_BASE_CURRENCY}}
             - name: REPORT_ID
               value: {{REPORT_ID}}
+            - name: EXCHANGE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: market-secret
+                  key: api_key
+            - name: EXCHANGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: market-secret
+                  key: secret_key
+            - name: TEST_MODE
+              valueFrom:
+                secretKeyRef:
+                  name: market-secret
+                  key: test_mode
           volumeMounts:
             - name: svc-codes
               mountPath: "/app/src"
