@@ -22,10 +22,10 @@ endef
 
 define BUILD_SECRET
 	mkdir -p /tmp/k8s_secret; \
-	echo -n $1 > /tmp/k8s_secret/api_key.txt; \
-	echo -n $2 > /tmp/k8s_secret/secret_key.txt; \
-	echo -n $3 > /tmp/k8s_secret/test_mode.txt; \
-	kubectl -n dev create secret generic market-secret --from-file=/tmp/k8s_secret/api_key.txt --from-file=/tmp/k8s_secret/secret_key.txt --from-file=/tmp/k8s_secret/test_mode.txt; \
+	printf $1 > /tmp/k8s_secret/api_key; \
+	printf $2 > /tmp/k8s_secret/secret_key; \
+	printf $3 > /tmp/k8s_secret/test_mode; \
+	kubectl -n dev create secret generic market-secret --from-file=/tmp/k8s_secret/api_key --from-file=/tmp/k8s_secret/secret_key --from-file=/tmp/k8s_secret/test_mode; \
 	rm -rf /tmp/k8s_secret
 endef
 

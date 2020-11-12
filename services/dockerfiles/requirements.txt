@@ -1,3 +1,4 @@
+pandarallel
 fire
 black
 joblib
@@ -7,6 +8,7 @@ pandas
 matplotlib
 fastparquet
 pyarrow
+sklearn
 tabulate
 sqlalchemy
 psycopg2-binary

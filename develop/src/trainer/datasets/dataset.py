@@ -4,7 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from common_utils import load_text
+from common_utils_dev import load_text
 import gc
 
 

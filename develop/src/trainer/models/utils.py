@@ -6,19 +6,26 @@ import torch.nn as nn
 
 def save_model(model, dir, epoch):
     os.makedirs(dir, exist_ok=True)
-    torch.save(model.state_dict(), os.path.join(dir, f"checkpoint-{epoch}"))
+    torch.save(model.state_dict(), os.path.join(dir, f"checkpoint-{epoch}.ckpt"))
 
     print(f"[+] Model is saved. Epoch: {epoch}")
 
 
-def load_model(model, dir, load_epoch=None, strict=True):
+def load_model(model, dir, load_epoch=None, strict=True, device="cuda"):
+    params_to_load = {}
+    if device == "cpu":
+        params_to_load["map_location"] = torch.device("cpu")
+
     if not os.path.isdir(dir):
         print("[!] Load is failed")
         return -1
 
-    check_points = glob(os.path.join(dir, "checkpoint-*"))
+    check_points = glob(os.path.join(dir, "checkpoint-*.ckpt"))
     check_points = sorted(
-        check_points, key=lambda x: int(x.split("/")[-1].replace("checkpoint-", ""))
+        check_points,
+        key=lambda x: int(
+            x.split("/")[-1].replace("checkpoint-", "").replace(".ckpt", "")
+        ),
     )
 
     # skip if there are no checkpoints
@@ -32,15 +39,20 @@ def load_model(model, dir, load_epoch=None, strict=True):
     if load_epoch is not None:
 
         model.load_state_dict(
-            torch.load(os.path.join(dir, f"checkpoint-{load_epoch}")), strict=strict
+            torch.load(
+                os.path.join(dir, f"checkpoint-{load_epoch}.ckpt"), **params_to_load
+            ),
+            strict=strict,
         )
         print("[+] Model is loaded")
         print(f"[+] Epoch: {load_epoch}")
 
         return load_epoch
 
-    model.load_state_dict(torch.load(check_point), strict=strict)
-    last_epoch = int(check_point.split("/")[-1].replace("checkpoint-", ""))
+    model.load_state_dict(torch.load(check_point, **params_to_load), strict=strict)
+    last_epoch = int(
+        check_point.split("/")[-1].replace("checkpoint-", "").replace(".ckpt", "")
+    )
 
     print("[+] Model is loaded")
     print(f"[+] Epoch: {last_epoch}")

@@ -8,7 +8,7 @@ from config import CFG
 from database import database as DB
 from database.usecase import Usecase
 from logging import getLogger
-from common_utils import initialize_logger
+from common_utils_svc import initialize_logger
 
 
 logger = getLogger("data_collector")
@@ -97,11 +97,13 @@ class DataCollector:
             pricing = self.binance_cli.fetch_ohlcv(
                 symbol=symbol, timeframe="1m", limit=1000
             )
+
+            ext_limit = (limit + 1) - 1000
             pricing += self.binance_cli.fetch_ohlcv(
                 symbol=symbol,
                 timeframe="1m",
-                limit=(limit + 1) - 1000,
-                since=(pricing[0][0] - (60 * 1000 * 1000)),
+                limit=ext_limit,
+                since=(pricing[0][0] - (60 * ext_limit * 1000)),
             )
         else:
             pricing = self.binance_cli.fetch_ohlcv(
@@ -119,7 +121,7 @@ class DataCollector:
         return pricing.sort_index()[:-1]
 
     def _get_minutes_to_sync(self, now: pd.Timestamp):
-        # Give 2 second waiting term
+        # Give 1 second waiting term
         if now.second >= 1:
             last_sync_on = self.usecase.get_last_sync_on()
             minutes_delta = int((now.floor("T") - last_sync_on).total_seconds() // 60)
@@ -133,14 +135,17 @@ class DataCollector:
         """
         logger.info(f"[+] Start: Demon of data_collector")
         while True:
-            now = pd.Timestamp.utcnow()
-            minutes_to_sync = self._get_minutes_to_sync(now=now)
+            try:
+                now = pd.Timestamp.utcnow()
+                minutes_to_sync = self._get_minutes_to_sync(now=now)
 
-            if minutes_to_sync != 0:
-                minutes_to_sync = min(max(minutes_to_sync, 10), 1500)
+                if minutes_to_sync != 0:
+                    minutes_to_sync = min(max(minutes_to_sync, 10), 1500)
 
-                self._sync_live_pricing(limit=minutes_to_sync)
-                logger.info(f'[+] Synced: {now.floor("T")}')
+                    self._sync_live_pricing(limit=minutes_to_sync)
+                    logger.info(f'[+] Synced: {now.floor("T")}')
+            except:
+                logger.info(f"[!] Synced Failed")
 
             time.sleep(1)
 

@@ -5,7 +5,7 @@ from tqdm import tqdm
 from IPython.display import display_markdown, display
 import gc
 import json
-from common_utils import to_parquet
+from common_utils_dev import to_parquet
 
 
 CONFIG = {

@@ -1,6 +1,6 @@
 import os
 import kaggle
-from common_utils import to_abs_path, make_dirs
+from common_utils_dev import to_abs_path, make_dirs
 
 
 CONFIG = {

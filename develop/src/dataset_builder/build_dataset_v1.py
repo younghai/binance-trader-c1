@@ -1,4 +1,5 @@
 import os
+import gc
 import json
 from glob import glob
 import pandas as pd
@@ -8,11 +9,8 @@ from functools import partial
 from itertools import combinations
 from sklearn import preprocessing
 import joblib
-from common_utils import make_dirs, to_parquet, to_abs_path, get_filename_by_path
+from common_utils_dev import make_dirs, to_parquet, to_abs_path, get_filename_by_path
 from pandarallel import pandarallel
-
-
-pandarallel.initialize()
 
 
 CONFIG = {
@@ -334,7 +332,23 @@ def store_artifacts(
     test_data_store_dir = os.path.join(data_store_dir, "test")
     make_dirs([train_data_store_dir, test_data_store_dir])
 
-    # Store
+    # Store params
+    joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))
+    bins.to_csv(os.path.join(data_store_dir, "bins.csv"))
+
+    with open(os.path.join(data_store_dir, "tradable_coins.txt"), "w") as f:
+        f.write("\n".join(pricing.columns.tolist()))
+
+    with open(os.path.join(data_store_dir, "params.json"), "w") as f:
+        json.dump(params, f)
+
+    del scaler
+    del bins
+    del params
+    gc.collect()
+    print(f"[+] Metadata is stored")
+
+    # Store dataset
     boundary_index = int(len(features.index) * train_ratio)
 
     for file_name, data in [
@@ -353,16 +367,7 @@ def store_artifacts(
             path=os.path.join(test_data_store_dir, file_name),
         )
 
-    joblib.dump(scaler, os.path.join(data_store_dir, "scaler.pkl"))
-    bins.to_csv(os.path.join(data_store_dir, "bins.csv"))
-
-    with open(os.path.join(data_store_dir, "tradable_coins.txt"), "w") as f:
-        f.write("\n".join(pricing.columns.tolist()))
-
-    with open(os.path.join(data_store_dir, "params.json"), "w") as f:
-        json.dump(params, f)
-
-    print(f"[+] Artifacts are stored")
+    print(f"[+] Dataset is stored")
 
 
 def build_dataset_v1(
@@ -375,6 +380,8 @@ def build_dataset_v1(
 ):
     assert scaler_type in ("RobustScaler", "StandardScaler")
 
+    pandarallel.initialize()
+
     # Make dirs
     make_dirs([data_store_dir])
 
@@ -383,15 +390,23 @@ def build_dataset_v1(
     assert len(file_names) != 0
 
     # Build features
-    features = build_features(file_names=file_names, scaler_target=True)
-    features_wo_scale = build_features(file_names=file_names, scaler_target=False)
-    scaler = build_scaler(features=features, scaler_type=scaler_type)
-    features = preprocess_features(features=features, scaler=scaler)
+    scaler_target_features = build_features(file_names=file_names, scaler_target=True)
+    non_scaler_target_features = build_features(
+        file_names=file_names, scaler_target=False
+    )
+
+    scaler = build_scaler(features=scaler_target_features, scaler_type=scaler_type)
+    scaler_target_features = preprocess_features(
+        features=scaler_target_features, scaler=scaler
+    )
 
     # Concat features
-    common_index = features.index & features_wo_scale.index
+    common_index = scaler_target_features.index & non_scaler_target_features.index
     features = pd.concat(
-        [features.reindex(common_index), features_wo_scale.reindex(common_index)],
+        [
+            scaler_target_features.reindex(common_index),
+            non_scaler_target_features.reindex(common_index),
+        ],
         axis=1,
         sort=True,
     ).sort_index()
@@ -424,7 +439,13 @@ def build_dataset_v1(
         "n_bins": n_bins,
         "train_ratio": train_ratio,
         "scaler_type": scaler_type,
+        "scaler_target_feature_columns": scaler_target_features.columns.tolist(),
+        "features_columns": features.columns.tolist(),
     }
+
+    del scaler_target_features
+    del non_scaler_target_features
+    gc.collect()
 
     # Store Artifacts
     store_artifacts(

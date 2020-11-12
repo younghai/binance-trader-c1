@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from dataclasses import dataclass
 from .utils import nan_to_zero
 from tqdm import tqdm
@@ -9,15 +10,16 @@ import json
 from config import CFG
 from trainer.models import PredictorV1
 from database.usecase import Usecase
-from trader.market_client import MarketClient
+from exchange.custom_client import CustomClient
+from dataset_builder.build_dataset_v1 import _build_feature_by_rawdata
 
 
 @dataclass
 class TraderV1:
     usecase = Usecase()
-    market_cli = MarketClient()
 
     def __post_init__(self):
+        self.custom_cli = CustomClient()
         self._set_params()
         self._build_model()
 
@@ -44,11 +46,62 @@ class TraderV1:
 
     def _build_model(self):
         self.model = PredictorV1(
+            exp_dir=CFG.EXP_DIR,
             m_config=CFG.MODEL_PARAMS,
             d_config=CFG.DATA_PARAMS,
             device="cpu",
             mode="predict",
         )
+
+    def _is_executable(self, last_sync_on: pd.Timestamp, now: pd.Timestamp):
+        sync_min_delta = int((now.floor("T") - last_sync_on).total_seconds() // 60)
+
+        if sync_min_delta == 1:
+            last_trade_on = self.usecase.get_last_trade_on()
+            if last_trade_on is None:
+                return True
+            else:
+                if int((now.floor("T") - last_trade_on).total_seconds() // 60) >= 1:
+                    return True
+
+        return False
+
+    def build_features(self, pricing):
+        tradable_coins = sorted(pricing.index.levels[1].unique())
+
+        scaler_target_features = {}
+        non_scaler_target_features = {}
+        for tradable_coin in tradable_coins:
+            rawdata = pricing.xs(tradable_coin, axis=0, level=1)
+
+            scaler_target_features[tradable_coin] = _build_feature_by_rawdata(
+                rawdata=rawdata, scaler_target=True
+            )
+            non_scaler_target_features[tradable_coin] = _build_feature_by_rawdata(
+                rawdata=rawdata, scaler_target=False
+            )
+
+        scaler_target_features = pd.concat(scaler_target_features, axis=1).sort_index()
+        non_scaler_target_features = pd.concat(
+            non_scaler_target_features, axis=1
+        ).sort_index()
+
+        # TODO:
+
+    def run(self):
+        now = pd.Timestamp.utcnow()
+        last_sync_on = self.usecase.get_last_sync_on()
+
+        import pdb
+
+        pdb.set_trace()
+        if self._is_executable(last_sync_on=last_sync_on, now=now) is True:
+            query_start_on = last_sync_on - pd.Timedelta(minutes=1469)
+            query_end_on = last_sync_on
+
+            pricing = self.usecase.get_pricing(
+                start_on=query_start_on, end_on=query_end_on
+            )
 
     # def run(self, display=True):
     #     self.build()

@@ -10,7 +10,7 @@ from abc import abstractmethod
 
 import torch
 import torch.nn as nn
-from common_utils import load_text, to_abs_path, get_parent_dir
+from common_utils_dev import load_text, to_abs_path, get_parent_dir
 from .utils import save_model, load_model, weights_init
 from .criterions import CRITERIONS
 from ..datasets.dataset import Dataset
@@ -121,7 +121,8 @@ class BasicPredictor:
             _, self.test_data_loader = self._build_data_loaders(mode=mode)
 
         # Store params
-        self._store_params()
+        if mode == "train":
+            self._store_params()
 
     def _store_params(self):
         params = {
@@ -176,12 +177,13 @@ class BasicPredictor:
         data_config = _mutate_config_path(data_config=data_config, exp_dir=self.exp_dir)
 
         # Mutate model_params' n_assets
-        n_assets = len(
-            self._list_tradable_assets(
-                drop_feature_assets=data_config["drop_feature_assets"]
+        if "n_assets" not in model_config["model_params"]:
+            n_assets = len(
+                self._list_tradable_assets(
+                    drop_feature_assets=data_config["drop_feature_assets"]
+                )
             )
-        )
-        model_config["model_params"]["n_assets"] = n_assets
+            model_config["model_params"]["n_assets"] = n_assets
 
         return data_config, model_config
 
@@ -237,6 +239,7 @@ class BasicPredictor:
             model=model,
             dir=self.data_config["checkpoint_dir"],
             strict=self.model_config["load_strict"],
+            device=self.device,
         )
 
     def _save_model(self, model, epoch):

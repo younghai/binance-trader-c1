@@ -12,6 +12,33 @@ class Usecase:
     def __post_init__(self):
         DB.wait_connection()
 
+    def get_pricing(self, start_on: pd.Timestamp, end_on: pd.Timestamp):
+        pricing = self.sess.execute(
+            f"""
+            select
+                timestamp,
+                asset,
+                open,
+                high,
+                low,
+                close,
+                volume
+            from pricings
+            where
+                timestamp >= '{start_on.isoformat()}'::timestamp and
+                timestamp <= '{end_on.isoformat()}'::timestamp;
+            """
+        ).fetchall()
+
+        pricing = pd.DataFrame(
+            pricing,
+            columns=["timestamp", "asset", "open", "high", "low", "close", "volume"],
+        )
+        pricing["timestamp"] = pd.DatetimeIndex(pricing["timestamp"]).tz_convert("UTC")
+        pricing = pricing.set_index(["timestamp", "asset"]).sort_index()
+
+        return pricing
+
     def get_last_sync_on(self):
         timestamp = (
             self.sess.query(models.Sync)

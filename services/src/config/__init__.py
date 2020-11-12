@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from dataclasses import dataclass
-from common_utils import load_json
+from common_utils_svc import load_json
 from werkzeug.utils import cached_property
 
 
@@ -19,9 +19,19 @@ class Config:
     def EXCHANGE_SECRET_KEY(self):
         return self.ENV["EXCHANGE_SECRET_KEY"]
 
-    @property
+    @cached_property
     def TEST_MODE(self):
-        return self.ENV["TEST_MODE"]
+        test_mode = self.ENV["TEST_MODE"]
+        if test_mode in ("true", "True"):
+            test_mode = True
+        if test_mode in ("false", "False"):
+            test_mode = False
+
+        return test_mode
+
+    @property
+    def EXP_DIR(self):
+        return f"/app/dev/experiments/{self.ENV['EXP_NAME']}"
 
     @cached_property
     def MODEL_PARAMS(self):

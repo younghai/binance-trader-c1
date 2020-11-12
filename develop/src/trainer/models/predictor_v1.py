@@ -3,9 +3,10 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import List
 from tqdm import tqdm
 from .basic_predictor import BasicPredictor
-from common_utils import to_parquet, to_abs_path
+from common_utils_dev import to_parquet, to_abs_path
 
 COMMON_CONFIG = {
     "data_dir": to_abs_path(__file__, "../../../storage/dataset/dataset_60m_v1/train"),
@@ -217,7 +218,7 @@ class PredictorV1(BasicPredictor):
                 path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
             )
 
-    def predict(self, X, id):
+    def predict(self, X: torch.Tensor, id: List):
         assert self.mode in ("predict")
         self.model.eval()
 

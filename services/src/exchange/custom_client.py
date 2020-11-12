@@ -8,7 +8,7 @@ API_REQUEST_DELAY = 0.1  # sec
 
 
 @dataclass
-class MarketClient:
+class CustomClient:
     binance_cli: ccxt.binance = ccxt.binance(
         {
             "apiKey": CFG.EXCHANGE_API_KEY,
@@ -45,15 +45,21 @@ class MarketClient:
             self.binance_cli.fapiPrivatePostPositionSideDual(
                 {"dualSidePosition": "true"}
             )
-        except ccxt.BaseError as f:
+        except ccxt.ExchangeError as f:
             pass
         except:
             raise RuntimeError("[!] Failed to set dual position mode")
 
     def __set_leverage(self):
         for symbol in self.tradable_coins:
+            leverage = 1
+
+            if self.test_mode is True:
+                if symbol in ("XMR/USDT"):
+                    leverage = 2
+
             self.binance_cli.fapiPrivate_post_leverage(
-                {"symbol": symbol.replace("/", ""), "leverage": 1,}
+                {"symbol": symbol.replace("/", ""), "leverage": leverage,}
             )
             time.sleep(API_REQUEST_DELAY)
 
