@@ -29,18 +29,24 @@ class Config:
 
         return test_mode
 
+    @cached_property
+    def DATASET_PARAMS(self):
+        return load_json(
+            f"/app/dev/experiments/{self.ENV['EXP_NAME']}/dataset_params.json"
+        )
+
     @property
     def EXP_DIR(self):
         return f"/app/dev/experiments/{self.ENV['EXP_NAME']}"
 
     @cached_property
-    def MODEL_PARAMS(self):
+    def EXP_MODEL_PARAMS(self):
         return load_json(f"/app/dev/experiments/{self.ENV['EXP_NAME']}/params.json")[
             "model_config"
         ]
 
     @cached_property
-    def DATA_PARAMS(self):
+    def EXP_DATA_PARAMS(self):
         data_params = load_json(
             f"/app/dev/experiments/{self.ENV['EXP_NAME']}/params.json"
         )["data_config"]

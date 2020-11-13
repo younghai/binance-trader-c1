@@ -11,7 +11,11 @@ from config import CFG
 from trainer.models import PredictorV1
 from database.usecase import Usecase
 from exchange.custom_client import CustomClient
-from dataset_builder.build_dataset_v1 import _build_feature_by_rawdata
+from dataset_builder.build_dataset_v1 import (
+    _build_feature_by_rawdata,
+    preprocess_features,
+)
+import joblib
 
 
 @dataclass
@@ -22,6 +26,7 @@ class TraderV1:
         self.custom_cli = CustomClient()
         self._set_params()
         self._build_model()
+        self._build_scaler()
 
     def _set_params(self):
         self.base_currency = CFG.REPORT_PARAMS["base_currency"]
@@ -47,11 +52,14 @@ class TraderV1:
     def _build_model(self):
         self.model = PredictorV1(
             exp_dir=CFG.EXP_DIR,
-            m_config=CFG.MODEL_PARAMS,
-            d_config=CFG.DATA_PARAMS,
+            m_config=CFG.EXP_MODEL_PARAMS,
+            d_config=CFG.EXP_DATA_PARAMS,
             device="cpu",
             mode="predict",
         )
+
+    def _build_scaler(self):
+        self.scaler = joblib.load(os.path.join(CFG.EXP_DIR, "scaler.pkl"))
 
     def _is_executable(self, last_sync_on: pd.Timestamp, now: pd.Timestamp):
         sync_min_delta = int((now.floor("T") - last_sync_on).total_seconds() // 60)
@@ -81,10 +89,31 @@ class TraderV1:
                 rawdata=rawdata, scaler_target=False
             )
 
-        scaler_target_features = pd.concat(scaler_target_features, axis=1).sort_index()
+        scaler_target_features = pd.concat(scaler_target_features, axis=1).sort_index()[
+            CFG.DATASET_PARAMS["scaler_target_feature_columns"]
+        ]
         non_scaler_target_features = pd.concat(
             non_scaler_target_features, axis=1
         ).sort_index()
+
+        scaler_target_features = preprocess_features(
+            features=scaler_target_features, scaler=self.scaler
+        )
+
+        # Concat features
+        common_index = scaler_target_features.index & non_scaler_target_features.index
+        features = pd.concat(
+            [
+                scaler_target_features.reindex(common_index),
+                non_scaler_target_features.reindex(common_index),
+            ],
+            axis=1,
+            sort=True,
+        ).sort_index()[CFG.DATASET_PARAMS["features_columns"]]
+
+        del scaler_target_features
+        del non_scaler_target_features
+        gc.collect()
 
         # TODO:
 

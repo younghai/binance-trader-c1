@@ -427,12 +427,14 @@ def build_dataset_v1(
         file_names=file_names, lookahead_window=lookahead_window, n_bins=n_bins
     )
 
+    gc.collect()
+
     # Masking with common index
-    common_index = features.index & qa_labels.index & qb_labels.index
-    features = features.reindex(common_index).sort_index()
-    qa_labels = qa_labels.reindex(common_index).sort_index()
-    qb_labels = qb_labels.reindex(common_index).sort_index()
-    pricing = pricing.reindex(common_index).sort_index()
+    common_index = (features.index & qa_labels.index & qb_labels.index).sort_index()
+    features = features.reindex(common_index)
+    qa_labels = qa_labels.reindex(common_index)
+    qb_labels = qb_labels.reindex(common_index)
+    pricing = pricing.reindex(common_index)
 
     params = {
         "lookahead_window": lookahead_window,

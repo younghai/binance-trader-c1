@@ -22,6 +22,7 @@ class Dataset(_Dataset):
         transforms: Dict[str, Callable],
         base_feature_assets: List[str],
         drop_feature_assets: List[str],
+        asset_to_id: Dict[str, int],
         lookback_window: int = 60,
         winsorize_threshold: Optional[int] = None,
     ):
@@ -68,23 +69,8 @@ class Dataset(_Dataset):
         self.n_data = len(self.index)
         self.lookback_window = lookback_window
         self.winsorize_threshold = winsorize_threshold
+        self.asset_to_id = asset_to_id
 
-        tradable_assets = load_text(
-            os.path.join(
-                data_dir.replace("/test", "").replace("/train", ""),
-                "tradable_coins.txt",
-            )
-        )
-        tradable_assets = [
-            tradable_asset
-            for tradable_asset in tradable_assets
-            if tradable_asset not in drop_feature_assets
-        ]
-        self.asset_to_id = {
-            tradable_asset: idx for idx, tradable_asset in enumerate(tradable_assets)
-        }
-
-        del tradable_assets
         gc.collect()
         print("[+] built dataset")
 

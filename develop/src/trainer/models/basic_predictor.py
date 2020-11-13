@@ -106,6 +106,8 @@ class BasicPredictor:
             default_d_config=default_d_config,
             default_m_config=default_m_config,
         )
+        self.asset_to_id = self._build_asset_to_id()
+
         self.model = self._build_model()
 
         self.iterable_train_data_loader = None
@@ -130,14 +132,29 @@ class BasicPredictor:
             "test_data_dir": self.test_data_dir,
             "model_config": self.model_config,
             "data_config": self.data_config,
+            "asset_to_id": self.asset_to_id,
         }
         with open(os.path.join(self.exp_dir, f"params.json"), "w") as f:
             json.dump(params, f)
 
-        shutil.copy(
-            os.path.join(get_parent_dir(self.data_dir), "bins.csv"),
-            os.path.join(self.exp_dir, "bins.csv"),
-        )
+        # Copy files from dataset
+        for base_file, target_file in [
+            (
+                os.path.join(get_parent_dir(self.data_dir), "bins.csv"),
+                os.path.join(self.exp_dir, "bins.csv"),
+            ),
+            (
+                os.path.join(get_parent_dir(self.data_dir), "params.json"),
+                os.path.join(self.exp_dir, "dataset_params.json"),
+            ),
+            (
+                os.path.join(get_parent_dir(self.data_dir), "scaler.pkl"),
+                os.path.join(self.exp_dir, "scaler.pkl"),
+            ),
+        ]:
+            shutil.copy(
+                base_file, target_file,
+            )
 
         print(f"[+] Params are stored")
 
@@ -187,6 +204,15 @@ class BasicPredictor:
 
         return data_config, model_config
 
+    def _build_asset_to_id(self):
+        tradable_assets = self._list_tradable_assets(
+            drop_feature_assets=self.data_config["drop_feature_assets"]
+        )
+        asset_to_id = {
+            tradable_asset: idx for idx, tradable_asset in enumerate(tradable_assets)
+        }
+        return asset_to_id
+
     def _build_transfroms(self):
         return {}
 
@@ -201,6 +227,7 @@ class BasicPredictor:
             "winsorize_threshold": self.data_config["winsorize_threshold"],
             "base_feature_assets": self.data_config["base_feature_assets"],
             "drop_feature_assets": self.data_config["drop_feature_assets"],
+            "asset_to_id": self.asset_to_id,
         }
 
         base_data_loader_params = {
