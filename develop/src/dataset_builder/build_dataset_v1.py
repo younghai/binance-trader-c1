@@ -427,10 +427,15 @@ def build_dataset_v1(
         file_names=file_names, lookahead_window=lookahead_window, n_bins=n_bins
     )
 
+    scaler_target_feature_columns = scaler_target_features.columns.tolist()
+
+    # Reduce memory usage
+    del scaler_target_features
+    del non_scaler_target_features
     gc.collect()
 
     # Masking with common index
-    common_index = (features.index & qa_labels.index & qb_labels.index).sort_index()
+    common_index = (features.index & qa_labels.index & qb_labels.index).sort_values()
     features = features.reindex(common_index)
     qa_labels = qa_labels.reindex(common_index)
     qb_labels = qb_labels.reindex(common_index)
@@ -441,13 +446,9 @@ def build_dataset_v1(
         "n_bins": n_bins,
         "train_ratio": train_ratio,
         "scaler_type": scaler_type,
-        "scaler_target_feature_columns": scaler_target_features.columns.tolist(),
+        "scaler_target_feature_columns": scaler_target_feature_columns,
         "features_columns": features.columns.tolist(),
     }
-
-    del scaler_target_features
-    del non_scaler_target_features
-    gc.collect()
 
     # Store Artifacts
     store_artifacts(

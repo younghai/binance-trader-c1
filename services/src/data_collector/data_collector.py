@@ -89,6 +89,7 @@ class DataCollector:
             table="pricings", limit=1500 * len(self.target_coins)
         )
         self.usecase.delete_old_records(table="syncs", limit=1500)
+        self.usecase.delete_old_records(table="trades", limit=1500)
 
     def _list_historical_pricing(self, symbol, limit=1500):
         assert limit < 2000
