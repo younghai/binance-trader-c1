@@ -1,9 +1,10 @@
 import os
 import pandas as pd
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import List
+from typing import Union, Optional, List, Dict
 from tqdm import tqdm
 from .basic_predictor import BasicPredictor
 from common_utils_dev import to_parquet, to_abs_path
@@ -216,20 +217,51 @@ class PredictorV1(BasicPredictor):
                 path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
             )
 
-    def predict(self, X: torch.Tensor, id: List):
+    def predict(
+        self,
+        X: Union[np.ndarray, torch.Tensor],
+        id: Union[List, torch.Tensor],
+        id_to_asset: Optional[Dict] = None,
+    ):
         assert self.mode in ("predict")
         self.model.eval()
 
+        if not isinstance(X, torch.Tensor):
+            X = torch.Tensor(X)
+        if not isinstance(id, torch.Tensor):
+            id = torch.Tensor(id)
+
         preds_qay, preds_qby = self.model(
-            x=X.to(self.device), id=torch.tensor(id).to(self.device)
+            x=X.to(self.device), id=id.to(self.device).long()
         )
 
-        return {
-            "qay_prediction": preds_qay.argmax(dim=-1).view(-1).cpu().numpy(),
-            "qay_probability": F.softmax(preds_qay, dim=-1).cpu().numpy(),
-            "qby_prediction": preds_qby.argmax(dim=-1).view(-1).cpu().numpy(),
-            "qby_probability": F.softmax(preds_qby, dim=-1).cpu().numpy(),
+        index = id.int().tolist()
+        pred_dict = {
+            "qay_prediction": pd.Series(
+                preds_qay.argmax(dim=-1).view(-1).cpu().detach().numpy(), index=index
+            ),
+            "qay_probability": pd.DataFrame(
+                F.softmax(preds_qay, dim=-1).cpu().detach().numpy(), index=index
+            ),
+            "qby_prediction": pd.Series(
+                preds_qby.argmax(dim=-1).view(-1).cpu().detach().numpy(), index=index
+            ),
+            "qby_probability": pd.DataFrame(
+                F.softmax(preds_qby, dim=-1).cpu().detach().numpy(), index=index
+            ),
         }
+
+        # Post-process
+        if id_to_asset is not None:
+            for key in pred_dict.keys():
+                pred_dict[key].index = pred_dict[key].index.map(
+                    lambda x: id_to_asset[x]
+                )
+
+        for key in ["qay_probability", "qby_probability"]:
+            pred_dict[key] = pred_dict[key].stack()
+
+        return pred_dict
 
 
 if __name__ == "__main__":

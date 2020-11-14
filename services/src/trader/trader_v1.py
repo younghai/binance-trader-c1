@@ -1,5 +1,8 @@
 import os
 import pandas as pd
+import numpy as np
+from typing import List
+from collections import OrderedDict
 from dataclasses import dataclass
 from .utils import nan_to_zero
 from tqdm import tqdm
@@ -24,11 +27,14 @@ class TraderV1:
 
     def __post_init__(self):
         self.custom_cli = CustomClient()
+        self.target_coins = self.custom_cli.target_coins
+
         self._set_params()
         self._build_model()
         self._build_scaler()
 
     def _set_params(self):
+        # Set params which has dependency on trader logic
         self.base_currency = CFG.REPORT_PARAMS["base_currency"]
         self.position_side = CFG.REPORT_PARAMS["position_side"]
         self.entry_ratio = CFG.REPORT_PARAMS["entry_ratio"]
@@ -50,14 +56,31 @@ class TraderV1:
         self.bins = CFG.BINS
         self.n_bins = CFG.DATASET_PARAMS["n_bins"]
 
-        self.scaler_target_feature_columns = [
+        # Set data builder params
+        self.data_builder_params = {}
+        self.data_builder_params["scaler_target_feature_columns"] = [
             (column[0].replace("-", "/"), column[1])
             for column in CFG.DATASET_PARAMS["scaler_target_feature_columns"]
         ]
-        self.features_columns = [
+        self.data_builder_params["features_columns"] = [
             (column[0].replace("-", "/"), column[1])
             for column in CFG.DATASET_PARAMS["features_columns"]
         ]
+        self.data_builder_params["base_feature_assets"] = [
+            base_feature_asset.replace("-", "/")
+            for base_feature_asset in CFG.EXP_DATA_PARAMS["base_feature_assets"]
+        ]
+        self.data_builder_params["winsorize_threshold"] = CFG.EXP_DATA_PARAMS[
+            "winsorize_threshold"
+        ]
+        self.data_builder_params["asset_to_id"] = {
+            key.replace("-", "/"): value
+            for key, value in CFG.EXP_PARAMS["asset_to_id"].items()
+        }
+        self.data_builder_params["id_to_asset"] = {
+            value: key.replace("-", "/")
+            for key, value in CFG.EXP_PARAMS["asset_to_id"].items()
+        }
 
     def _build_model(self):
         self.model = PredictorV1(
@@ -71,25 +94,12 @@ class TraderV1:
     def _build_scaler(self):
         self.scaler = joblib.load(os.path.join(CFG.EXP_DIR, "scaler.pkl"))
 
-    def _is_executable(self, last_sync_on: pd.Timestamp, now: pd.Timestamp):
-        sync_min_delta = int((now - last_sync_on).total_seconds() // 60)
-
-        if sync_min_delta == 1:
-            last_trade_on = self.usecase.get_last_trade_on()
-            if last_trade_on is None:
-                return True
-            else:
-                if int((now - last_trade_on).total_seconds() // 60) >= 1:
-                    return True
-
-        return False
-
     def _build_features(self, pricing):
-        tradable_coins = sorted(pricing.index.levels[1].unique())
+        target_coins = sorted(pricing.index.levels[1].unique())
 
         scaler_target_features = {}
         non_scaler_target_features = {}
-        for tradable_coin in tradable_coins:
+        for tradable_coin in target_coins:
             rawdata = pricing.xs(tradable_coin, axis=0, level=1)
 
             scaler_target_features[tradable_coin] = _build_feature_by_rawdata(
@@ -100,7 +110,7 @@ class TraderV1:
             )
 
         scaler_target_features = pd.concat(scaler_target_features, axis=1).sort_index()[
-            self.scaler_target_feature_columns
+            self.data_builder_params["scaler_target_feature_columns"]
         ]
         non_scaler_target_features = pd.concat(
             non_scaler_target_features, axis=1
@@ -119,7 +129,7 @@ class TraderV1:
             ],
             axis=1,
             sort=True,
-        ).sort_index()[self.features_columns]
+        ).sort_index()[self.data_builder_params["features_columns"]]
 
         del scaler_target_features
         del non_scaler_target_features
@@ -127,10 +137,33 @@ class TraderV1:
 
         return features
 
-    def _build_data(self, features):
-        ...
+    def _build_inputs(self, features):
+        base_features = features[self.data_builder_params["base_feature_assets"]]
+        features = features[self.target_coins]
 
-        return data, id_list
+        inputs = []
+        for target_coin in self.target_coins:
+            to_input = pd.concat([base_features, features[target_coin]], axis=1).astype(
+                "float32"
+            )
+
+            to_input = np.swapaxes(to_input.values, 0, 1)
+
+            if self.data_builder_params["winsorize_threshold"] is not None:
+                to_input = to_input.clip(
+                    -self.data_builder_params["winsorize_threshold"],
+                    self.data_builder_params["winsorize_threshold"],
+                )
+
+            inputs.append(to_input)
+
+        inputs = np.stack(inputs, axis=0)
+        ids = [
+            self.data_builder_params["asset_to_id"][target_coin]
+            for target_coin in self.target_coins
+        ]
+
+        return inputs, ids
 
     def build_prediction_dict(self, last_sync_on):
         query_start_on = last_sync_on - pd.Timedelta(minutes=1469)
@@ -138,22 +171,15 @@ class TraderV1:
         pricing = self.usecase.get_pricing(start_on=query_start_on, end_on=query_end_on)
 
         features = self._build_features(pricing=pricing)
-        import ipdb
+        inputs, ids = self._build_inputs(features=features)
 
-        ipdb.set_trace()
+        pred_dict = self.model.predict(
+            X=inputs, id=ids, id_to_asset=self.data_builder_params["id_to_asset"]
+        )
 
-        data, id_list = self.build_data(features=features)
+        return pred_dict
 
-        return self.model.predict(X=data, id=id_list)
-
-    def run(self):
-        # Use timestamp without second info
-        now = pd.Timestamp.utcnow().floor("T")
-        last_sync_on = self.usecase.get_last_sync_on()
-
-        # if self._is_executable(last_sync_on=last_sync_on, now=now) is True:
-        pred_dict = self.build_prediction_dict(last_sync_on=last_sync_on)
-
+    def build_positive_and_negative_assets(self, pred_dict):
         if self.sum_probs_above_threshold is True:
             positive_qay_probability = pred_dict["qay_probability"][
                 pred_dict["qay_probability"].index.get_level_values(1)
@@ -186,13 +212,13 @@ class TraderV1:
             )
 
         # Set assets which has signals
-        positive_assets = self.tradable_coins[
+        positive_assets = self.target_coins[
             (pred_dict["qay_prediction"] >= self.entry_qay_threshold)
             & (pred_dict["qby_prediction"] >= self.entry_qby_threshold)
             & (positive_qay_probability >= self.entry_qay_prob_threshold)
             & (positive_qby_probability >= self.entry_qby_prob_threshold)
         ]
-        negative_assets = self.tradable_coins[
+        negative_assets = self.target_coins[
             (
                 pred_dict["qay_prediction"]
                 <= (self.n_bins - 1) - self.entry_qay_threshold
@@ -205,132 +231,68 @@ class TraderV1:
             & (negative_qby_probability >= self.entry_qby_prob_threshold)
         ]
 
+        return positive_assets, negative_assets
+
+    def is_executable(self, last_sync_on: pd.Timestamp, now: pd.Timestamp):
+        sync_min_delta = int((now - last_sync_on).total_seconds() // 60)
+
+        if sync_min_delta == 1:
+            last_trade_on = self.usecase.get_last_trade_on()
+            if last_trade_on is None:
+                return True
+            else:
+                if int((now - last_trade_on).total_seconds() // 60) >= 1:
+                    return True
+
+        return False
+
+    def run(self):
+        # Use timestamp without second info
+        now = pd.Timestamp.utcnow().floor("T")
+        last_sync_on = self.usecase.get_last_sync_on()
+
+        # if self.is_executable(last_sync_on=last_sync_on, now=now) is True:
+        pred_dict = self.build_prediction_dict(last_sync_on=last_sync_on)
+        positive_assets, negative_assets = self.build_positive_and_negative_assets(
+            pred_dict=pred_dict
+        )
+
+        ##### TODO:
+        # Exit
+        self.handle_exit(
+            positive_assets=positive_assets,
+            negative_assets=negative_assets,
+            pricing=pricing,
+            now=now,
+        )
+
+        # Compute how much use cache
+        if self.compound_interest is False:
+            cache_to_order = self.entry_ratio
+        else:
+            if self.order_criterion == "cache":
+                if self.cache > 0:
+                    cache_to_order = nan_to_zero(value=(self.cache * self.entry_ratio))
+                else:
+                    cache_to_order = 0
+
+            elif self.order_criterion == "capital":
+                # Entry with capital base
+                cache_to_order = nan_to_zero(
+                    value=(
+                        self.compute_capital(pricing=pricing, now=now)
+                        * self.entry_ratio
+                    )
+                )
+
+        # Entry
+        self.handle_entry(
+            cache_to_order=cache_to_order,
+            positive_assets=positive_assets,
+            negative_assets=negative_assets,
+            pricing=pricing,
+            now=now,
+        )
+
         ...
         self.usecase.insert_trade({"timestamp": now})
-
-    # def run(self, display=True):
-    #     self.build()
-    #     self.initialize()
-
-    #     for now in tqdm(self.index):
-    #         # Step1: Prepare pricing and signal
-    #         pricing = self.historical_data_dict["pricing"].loc[now]
-    #         qay_prediction = self.historical_data_dict["qay_predictions"].loc[now]
-    #         qby_prediction = self.historical_data_dict["qby_predictions"].loc[now]
-    #         qay_probabilities = self.historical_data_dict["qay_probabilities"].loc[now]
-    #         qby_probabilities = self.historical_data_dict["qby_probabilities"].loc[now]
-
-    #         if self.sum_probs_above_threshold is True:
-    #             positive_qay_probability = qay_probabilities[
-    #                 qay_probabilities.index.get_level_values(1)
-    #                 >= self.entry_qay_threshold
-    #             ].sum(axis=0, level=0)
-    #             positive_qby_probability = qby_probabilities[
-    #                 qby_probabilities.index.get_level_values(1)
-    #                 >= self.entry_qby_threshold
-    #             ].sum(axis=0, level=0)
-    #             negative_qay_probability = qay_probabilities[
-    #                 qay_probabilities.index.get_level_values(1)
-    #                 <= (self.n_bins - 1) - self.entry_qay_threshold
-    #             ].sum(axis=0, level=0)
-    #             negative_qby_probability = qby_probabilities[
-    #                 qby_probabilities.index.get_level_values(1)
-    #                 <= (self.n_bins - 1) - self.entry_qby_threshold
-    #             ].sum(axis=0, level=0)
-    #         else:
-    #             positive_qay_probability = qay_probabilities.xs(
-    #                 self.entry_qay_threshold, axis=0, level=1
-    #             )
-    #             positive_qby_probability = qby_probabilities.xs(
-    #                 self.entry_qby_threshold, axis=0, level=1
-    #             )
-    #             negative_qay_probability = qay_probabilities.xs(
-    #                 (self.n_bins - 1) - self.entry_qay_threshold, axis=0, level=1
-    #             )
-    #             negative_qby_probability = qby_probabilities.xs(
-    #                 (self.n_bins - 1) - self.entry_qby_threshold, axis=0, level=1
-    #             )
-
-    #         # Set assets which has signals
-    #         positive_assets = self.tradable_coins[
-    #             (qay_prediction >= self.entry_qay_threshold)
-    #             & (qby_prediction >= self.entry_qby_threshold)
-    #             & (positive_qay_probability >= self.entry_qay_prob_threshold)
-    #             & (positive_qby_probability >= self.entry_qby_prob_threshold)
-    #         ]
-    #         negative_assets = self.tradable_coins[
-    #             (qay_prediction <= (self.n_bins - 1) - self.entry_qay_threshold)
-    #             & (qby_prediction <= (self.n_bins - 1) - self.entry_qby_threshold)
-    #             & (negative_qay_probability >= self.entry_qay_prob_threshold)
-    #             & (negative_qby_probability >= self.entry_qby_prob_threshold)
-    #         ]
-
-    #         # Exit
-    #         self.handle_exit(
-    #             positive_assets=positive_assets,
-    #             negative_assets=negative_assets,
-    #             pricing=pricing,
-    #             now=now,
-    #         )
-
-    #         # Compute how much use cache
-    #         if self.compound_interest is False:
-    #             cache_to_order = self.entry_ratio
-    #         else:
-    #             if self.order_criterion == "cache":
-    #                 if self.cache > 0:
-    #                     cache_to_order = nan_to_zero(
-    #                         value=(self.cache * self.entry_ratio)
-    #                     )
-    #                 else:
-    #                     cache_to_order = 0
-
-    #             elif self.order_criterion == "capital":
-    #                 # Entry with capital base
-    #                 cache_to_order = nan_to_zero(
-    #                     value=(
-    #                         self.compute_capital(pricing=pricing, now=now)
-    #                         * self.entry_ratio
-    #                     )
-    #                 )
-
-    #         # Entry
-    #         self.handle_entry(
-    #             cache_to_order=cache_to_order,
-    #             positive_assets=positive_assets,
-    #             negative_assets=negative_assets,
-    #             pricing=pricing,
-    #             now=now,
-    #         )
-
-    #         # To report
-    #         self.report(value=self.cache, target="historical_caches", now=now)
-    #         self.report(
-    #             value=self.compute_capital(pricing=pricing, now=now),
-    #             target="historical_capitals",
-    #             now=now,
-    #         )
-    #         self.report(value=self.positions, target="historical_positions", now=now)
-
-    #     report = self.generate_report()
-    #     self.store_report(report=report)
-
-    #     if display is True:
-    #         display_markdown("#### QAY Predictions", raw=True)
-    #         self.display_accuracy(
-    #             predictions=self.historical_data_dict["qay_predictions"],
-    #             labels=self.historical_data_dict["qay_labels"],
-    #         )
-
-    #         display_markdown("#### QBY Predictions", raw=True)
-    #         self.display_accuracy(
-    #             predictions=self.historical_data_dict["qby_predictions"],
-    #             labels=self.historical_data_dict["qby_labels"],
-    #         )
-
-    #         self.display_metrics()
-    #         self.display_report(report=report)
-
-    #     # Remove historical data dict to reduce memory usage
-    #     del self.historical_data_dict
-    #     gc.collect()

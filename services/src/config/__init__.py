@@ -40,16 +40,16 @@ class Config:
         return f"/app/dev/experiments/{self.ENV['EXP_NAME']}"
 
     @cached_property
+    def EXP_PARAMS(self):
+        return load_json(f"/app/dev/experiments/{self.ENV['EXP_NAME']}/params.json")
+
+    @cached_property
     def EXP_MODEL_PARAMS(self):
-        return load_json(f"/app/dev/experiments/{self.ENV['EXP_NAME']}/params.json")[
-            "model_config"
-        ]
+        return self.EXP_PARAMS["model_config"]
 
     @cached_property
     def EXP_DATA_PARAMS(self):
-        data_params = load_json(
-            f"/app/dev/experiments/{self.ENV['EXP_NAME']}/params.json"
-        )["data_config"]
+        data_params = self.EXP_PARAMS["data_config"]
         data_params.pop("checkpoint_dir")
         data_params.pop("generate_output_dir")
 

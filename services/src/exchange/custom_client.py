@@ -22,7 +22,7 @@ class CustomClient:
 
     def __post_init__(self):
         self.__set_test_mode()
-        self.__set_tradable_coins()
+        self.__set_target_coins()
         self.__set_dual_position_mode()
         self.__set_leverage()
 
@@ -30,9 +30,9 @@ class CustomClient:
         if self.test_mode is True:
             self.binance_cli.set_sandbox_mode(True)
 
-    def __set_tradable_coins(self):
+    def __set_target_coins(self):
         list_coins_on_binance = sorted(self.binance_cli.fetch_tickers().keys())
-        self.tradable_coins = sorted(
+        self.target_coins = sorted(
             [
                 tradable_coin
                 for tradable_coin in CFG.TRADABLE_COINS
@@ -51,7 +51,7 @@ class CustomClient:
             raise RuntimeError("[!] Failed to set dual position mode")
 
     def __set_leverage(self):
-        for symbol in self.tradable_coins:
+        for symbol in self.target_coins:
             leverage = 1
 
             if self.test_mode is True:

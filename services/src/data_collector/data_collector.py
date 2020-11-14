@@ -21,7 +21,6 @@ class DataCollector:
     binance_cli: ccxt.binance = ccxt.binance(
         {"enableRateLimit": True, "options": {"defaultType": "future"}}
     )
-    target_coins: List[str] = tuple(CFG.TRADABLE_COINS)
 
     def __post_init__(self):
         DB.init()
@@ -34,7 +33,7 @@ class DataCollector:
         self.target_coins = sorted(
             [
                 target_coin
-                for target_coin in self.target_coins
+                for target_coin in tuple(CFG.TRADABLE_COINS)
                 if target_coin in list_coins_on_binance
             ]
         )
