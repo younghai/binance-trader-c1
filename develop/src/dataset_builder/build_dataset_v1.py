@@ -15,7 +15,7 @@ from pandarallel import pandarallel
 
 CONFIG = {
     "rawdata_dir": to_abs_path(__file__, "../../storage/dataset/rawdata/cleaned/"),
-    "data_store_dir": to_abs_path(__file__, "../../storage/dataset/dataset_60m_v1/"),
+    "data_store_dir": to_abs_path(__file__, "../../storage/dataset/v001/"),
     "lookahead_window": 60,
     "n_bins": 10,
     "train_ratio": 0.8,

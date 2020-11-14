@@ -17,7 +17,7 @@ from tabulate import tabulate
 
 @dataclass
 class ReviewerV1:
-    dataset_dir: str = to_abs_path(__file__, "../../storage/dataset/dataset_60m_v1/")
+    dataset_dir: str = to_abs_path(__file__, "../../storage/dataset/v001/")
     exp_dir: str = to_abs_path(__file__, "../../storage/experiments/v001/")
     reviewer_prefix: str = "v001"
     grid_params: Union[str, Dict[str, List]] = "V1_SET1"

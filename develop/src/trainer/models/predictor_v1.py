@@ -9,18 +9,16 @@ from .basic_predictor import BasicPredictor
 from common_utils_dev import to_parquet, to_abs_path
 
 COMMON_CONFIG = {
-    "data_dir": to_abs_path(__file__, "../../../storage/dataset/dataset_60m_v1/train"),
+    "data_dir": to_abs_path(__file__, "../../../storage/dataset/v001/train"),
     "exp_dir": to_abs_path(__file__, "../../../storage/experiments/v001"),
-    "test_data_dir": to_abs_path(
-        __file__, "../../../storage/dataset/dataset_60m_v1/test"
-    ),
+    "test_data_dir": to_abs_path(__file__, "../../../storage/dataset/v001/test"),
 }
 
 DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
     "winsorize_threshold": None,
-    "base_feature_assets": ["BTC-USDT", "ETH-BTC"],
+    "base_feature_assets": ["BTC-USDT", "ETH-USDT"],
     "drop_feature_assets": [],
 }
 
@@ -30,7 +28,7 @@ MODEL_CONFIG = {
     "lr": 0.001,
     "beta1": 0.5,
     "beta2": 0.99,
-    "epochs": 10,
+    "epochs": 5,
     "print_epoch": 1,
     "print_iter": 25,
     "save_epoch": 1,

@@ -18,11 +18,9 @@ from torch.utils.data import DataLoader
 from trainer.models import backbones
 
 COMMON_CONFIG = {
-    "data_dir": to_abs_path(__file__, "../../../storage/dataset/dataset_60m_v1/train"),
+    "data_dir": to_abs_path(__file__, "../../../storage/dataset/v001/train"),
     "exp_dir": to_abs_path(__file__, "../../../storage/experiments/v001"),
-    "test_data_dir": to_abs_path(
-        __file__, "../../../storage/dataset/dataset_60m_v1/test"
-    ),
+    "test_data_dir": to_abs_path(__file__, "../../../storage/dataset/v001/test"),
 }
 
 
@@ -30,7 +28,7 @@ DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
     "winsorize_threshold": None,
-    "base_feature_assets": ["BTC-USDT", "ETH-BTC"],
+    "base_feature_assets": ["BTC-USDT", "ETH-USDT"],
     "drop_feature_assets": [],
 }
 
@@ -40,7 +38,7 @@ MODEL_CONFIG = {
     "lr": 0.001,
     "beta1": 0.5,
     "beta2": 0.99,
-    "epochs": 10,
+    "epochs": 5,
     "print_epoch": 1,
     "print_iter": 25,
     "save_epoch": 1,
@@ -106,12 +104,14 @@ class BasicPredictor:
             default_d_config=default_d_config,
             default_m_config=default_m_config,
         )
-        self.asset_to_id = self._build_asset_to_id()
 
         self.model = self._build_model()
 
         self.iterable_train_data_loader = None
         self.iterable_test_data_loader = None
+
+        if mode in ("train", "test"):
+            self.asset_to_id = self._build_asset_to_id()
 
         if mode == "train":
             self.train_data_loader, self.test_data_loader = self._build_data_loaders(
