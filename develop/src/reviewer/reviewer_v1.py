@@ -99,7 +99,11 @@ class ReviewerV1:
         )
 
     def display_params(self, index, in_shell=False):
-        params = pd.Series(self._load_artifact(artifact_type="params", index=index))
+        params = (
+            pd.Series(self._load_artifact(artifact_type="params", index=index))
+            .rename("params")
+            .to_frame()
+        )
 
         if in_shell is True:
             print(tabulate(params, headers="keys", tablefmt="psql"))

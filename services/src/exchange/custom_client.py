@@ -6,7 +6,7 @@ from config import CFG
 from datetime import datetime
 from .utils import Position
 
-API_REQUEST_DELAY = 0.1  # sec
+API_REQUEST_DELAY = 0.2  # sec
 
 
 @dataclass
@@ -113,11 +113,11 @@ class CustomClient:
             balance = self.get_balance()
 
         positions = pd.DataFrame(balance.xs("positions")["info"])
+        positions["symbol"] = self.revision_symbols(positions["symbol"])
 
         if symbol is not None:
             positions = positions[positions["symbol"] == symbol]
 
-        positions["symbol"] = self.revision_symbols(positions["symbol"])
         return positions
 
     def get_position_objects(self):
@@ -193,19 +193,25 @@ class CustomClient:
     def get_orders(self, symbol, limit=50):
         orders = self.binance_cli.fetch_orders(symbol=symbol, limit=limit)
         orders = pd.DataFrame(reversed([order["info"] for order in orders]))
-        orders["symbol"] = self.revision_symbols(orders["symbol"])
+
+        if len(orders) != 0:
+            orders["symbol"] = self.revision_symbols(orders["symbol"])
         return orders
 
     def get_open_orders(self, symbol):
         orders = self.binance_cli.fetch_open_orders(symbol=symbol)
         orders = pd.DataFrame(reversed([order["info"] for order in orders]))
-        orders["symbol"] = self.revision_symbols(orders["symbol"])
+
+        if len(orders) != 0:
+            orders["symbol"] = self.revision_symbols(orders["symbol"])
         return orders
 
     def get_closed_orders(self, symbol):
         orders = self.binance_cli.fetch_closed_orders(symbol=symbol)
         orders = pd.DataFrame(reversed([order["info"] for order in orders]))
-        orders["symbol"] = self.revision_symbols(orders["symbol"])
+
+        if len(orders) != 0:
+            orders["symbol"] = self.revision_symbols(orders["symbol"])
         return orders
 
     def cancel_orders(self, symbol):

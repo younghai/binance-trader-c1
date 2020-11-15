@@ -63,11 +63,13 @@ class Config:
 
     @cached_property
     def BINS(self):
-        return pd.read_csv(
+        bins = pd.read_csv(
             f"/app/dev/experiments/{self.ENV['EXP_NAME']}/bins.csv",
             header=0,
             index_col=0,
         )
+        bins.columns = bins.columns.map(lambda x: x.replace("-", "/"))
+        return bins
 
     @cached_property
     def TRADABLE_COINS(self):
