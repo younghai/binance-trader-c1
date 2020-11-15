@@ -3,6 +3,7 @@ import ccxt
 import pandas as pd
 import time
 from config import CFG
+from datetime import datetime
 
 API_REQUEST_DELAY = 0.1  # sec
 
@@ -25,6 +26,7 @@ class CustomClient:
         self.__set_target_coins()
         self.__set_dual_position_mode()
         self.__set_leverage()
+        self.__set_ammount_constraints()
 
     def __set_test_mode(self):
         if self.test_mode is True:
@@ -63,11 +65,44 @@ class CustomClient:
             )
             time.sleep(API_REQUEST_DELAY)
 
+    def __set_ammount_constraints(self):
+        self.ammount_constraints = (
+            pd.DataFrame(self.binance_cli.load_markets())
+            .xs("limits")
+            .apply(lambda x: x["amount"]["min"])
+            .to_dict()
+        )
+
+    def revision_symbols(symbols):
+        if "/" in symbols:
+            return symbols
+
+        return [
+            symbol.replace(CFG.BASE_CURRENCY, "/" + CFG.BASE_CURRENCY)
+            for symbol in symbols
+        ]
+
     def get_tickers(self):
         return pd.DataFrame(self.binance_cli.fetch_tickers())
 
     def get_balance(self):
-        return pd.DataFrame(self.binance_cli.fetch_balance())
+        for _ in range(20):
+            balance = pd.DataFrame(self.binance_cli.fetch_balance())
+            if "USDT" in balance:
+                return balance
+
+            time.sleep(0.1)
+
+    def get_last_trade_on(self, symbol):
+        orders = self.get_closed_orders(symbol=symbol)
+        orders = orders[orders["status"] == "FILLED"]
+
+        trade_on = orders.iloc[0]["time"]
+        return (
+            pd.Timestamp(datetime.utcfromtimestamp(trade_on / 1000))
+            .floor("T")
+            .tz_localize("UTC")
+        )
 
     def get_positions(self, balance=None, symbol=None):
         if balance is None:
@@ -76,8 +111,9 @@ class CustomClient:
         positions = pd.DataFrame(balance.xs("positions")["info"])
 
         if symbol is not None:
-            positions = positions[positions["symbol"] == symbol.replace("/", "")]
+            positions = positions[positions["symbol"] == symbol]
 
+        positions["symbol"] = self.revision_symbols(positions["symbol"])
         return positions
 
     def get_available_cache(self, balance=None):
@@ -101,14 +137,16 @@ class CustomClient:
         if position == "SHORT":
             side = "sell"
 
-        return self.binance_cli.create_order(
-            symbol=symbol.replace("/", ""),
+        order = self.binance_cli.create_order(
+            symbol=symbol,
             type=order_type,
             side=side,
             amount=amount,
             price=price,
             params={"positionSide": position},
-        )
+        )["info"]
+        order["symbol"] = self.revision_symbols([order["symbol"]])[-1]
+        return order
 
     def exit_order(self, symbol, order_type, position, amount, price=None):
         position = position.upper()
@@ -119,27 +157,33 @@ class CustomClient:
         if position == "SHORT":
             side = "buy"
 
-        return self.binance_cli.create_order(
-            symbol=symbol.replace("/", ""),
+        order = self.binance_cli.create_order(
+            symbol=symbol,
             type=order_type,
             side=side,
             amount=amount,
             price=price,
             params={"positionSide": position},
-        )
+        )["info"]
+        order["symbol"] = self.revision_symbols([order["symbol"]])[-1]
+        return order
 
     def get_orders(self, symbol, limit=50):
-        orders = self.binance_cli.fetch_orders(
-            symbol=symbol.replace("/", ""), limit=limit
-        )
+        orders = self.binance_cli.fetch_orders(symbol=symbol, limit=limit)
         orders = pd.DataFrame(reversed([order["info"] for order in orders]))
-
+        orders["symbol"] = self.revision_symbols(orders["symbol"])
         return orders
 
     def get_open_orders(self, symbol):
-        orders = self.binance_cli.fetch_open_orders(symbol=symbol.replace("/", ""))
+        orders = self.binance_cli.fetch_open_orders(symbol=symbol)
         orders = pd.DataFrame(reversed([order["info"] for order in orders]))
+        orders["symbol"] = self.revision_symbols(orders["symbol"])
+        return orders
 
+    def get_closed_orders(self, symbol):
+        orders = self.binance_cli.fetch_closed_orders(symbol=symbol)
+        orders = pd.DataFrame(reversed([order["info"] for order in orders]))
+        orders["symbol"] = self.revision_symbols(orders["symbol"])
         return orders
 
     def cancel_orders(self, symbol):
@@ -147,6 +191,6 @@ class CustomClient:
 
         if len(orders) >= 1:
             for id in orders["orderId"]:
-                self.binance_cli.cancel_order(id, symbol=symbol.replace("/", ""))
+                self.binance_cli.cancel_order(id, symbol=symbol)
                 print(f"[!]Cancelled: symbol: {symbol}, id: {id}")
                 time.sleep(API_REQUEST_DELAY)

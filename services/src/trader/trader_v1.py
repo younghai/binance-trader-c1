@@ -1,10 +1,11 @@
 import os
+import time
 import pandas as pd
 import numpy as np
 from typing import List
 from collections import OrderedDict
 from dataclasses import dataclass
-from .utils import nan_to_zero
+from .utils import nan_to_zero, Position
 from tqdm import tqdm
 from IPython.display import display_markdown, display
 import gc
@@ -13,7 +14,7 @@ import json
 from config import CFG
 from trainer.models import PredictorV1
 from database.usecase import Usecase
-from exchange.custom_client import CustomClient
+from exchange.custom_client import CustomClient, API_REQUEST_DELAY
 from dataset_builder.build_dataset_v1 import (
     _build_feature_by_rawdata,
     preprocess_features,
@@ -46,6 +47,9 @@ class TraderV1:
         self.achieve_ratio = CFG.REPORT_PARAMS["achieve_ratio"]
         self.achieved_with_commission = CFG.REPORT_PARAMS["achieved_with_commission"]
         self.max_n_updated = CFG.REPORT_PARAMS["max_n_updated"]
+        # Currently we accept only 0
+        assert self.max_n_updated in (0)
+
         self.exit_q_threshold = CFG.REPORT_PARAMS["exit_q_threshold"]
         self.entry_qay_threshold = CFG.REPORT_PARAMS["entry_qay_threshold"]
         self.entry_qby_threshold = CFG.REPORT_PARAMS["entry_qby_threshold"]
@@ -246,6 +250,72 @@ class TraderV1:
 
         return False
 
+    def _get_positions(self):
+        posis = self.custom_cli.get_positions()
+        posis = posis[posis["positionAmt"].astype(float) != 0.0]
+        assert posis["symbol"].is_unique
+
+        positions = []
+        for posi in posis.to_dict(orient="records"):
+            position = Position(
+                asset=posi["symbol"],
+                side=posi["positionSide"].lower(),
+                qty=float(posi["positionAmt"]),
+                entry_price=float(posi["entryPrice"]),
+                entry_at=self.custom_cli.get_last_trade_on(symbol=posi["symbol"]),
+            )
+            positions.append(position)
+
+        return positions
+
+    def handle_exit(self, positive_assets, negative_assets, now):
+        for position in self._get_positions():
+            passed_minutes = (
+                now - pd.Timestamp(position.entry_at)
+            ).total_seconds() // 60
+
+            # Handle min_holding_minutes
+            if passed_minutes <= self.min_holding_minutes:
+                continue
+
+            # Handle max_holding_minutes
+            if passed_minutes >= self.max_holding_minutes:
+                self.custom_cli.cancel_orders(symbol=position.asset)
+                time.sleep(API_REQUEST_DELAY)
+
+                self.custom_cli.exit_order(
+                    symbol=position.asset,
+                    order_type="market",
+                    position=position.side,
+                    amount=position.qty,
+                )
+                continue
+
+            # Handle exit signal
+            if (position.side == "long") and (position.asset in negative_assets):
+                self.custom_cli.cancel_orders(symbol=position.asset)
+                time.sleep(API_REQUEST_DELAY)
+
+                self.custom_cli.exit_order(
+                    symbol=position.asset,
+                    order_type="market",
+                    position=position.side,
+                    amount=position.qty,
+                )
+                continue
+
+            if (position.side == "short") and (position.asset in positive_assets):
+                self.custom_cli.cancel_orders(symbol=position.asset)
+                time.sleep(API_REQUEST_DELAY)
+
+                self.custom_cli.exit_order(
+                    symbol=position.asset,
+                    order_type="market",
+                    position=position.side,
+                    amount=position.qty,
+                )
+                continue
+
     def run(self):
         # Use timestamp without second info
         now = pd.Timestamp.utcnow().floor("T")
@@ -257,16 +327,15 @@ class TraderV1:
             pred_dict=pred_dict
         )
 
-        ##### TODO:
         # Exit
         self.handle_exit(
-            positive_assets=positive_assets,
-            negative_assets=negative_assets,
-            pricing=pricing,
-            now=now,
+            positive_assets=positive_assets, negative_assets=negative_assets, now=now,
         )
 
+        ##### TODO:
         # Compute how much use cache
+        self.cache = self.custom_cli.get_available_cache()
+        self.capital = ...
         if self.compound_interest is False:
             cache_to_order = self.entry_ratio
         else:
