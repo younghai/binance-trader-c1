@@ -133,7 +133,7 @@ class DataCollector:
     def run(self):
         """Definitioin of demon to live sync
         """
-        logger.info("[+] Start: Demon of data_collector")
+        logger.info("[+] Start: demon of data_collector")
         while True:
             try:
                 now = pd.Timestamp.utcnow()

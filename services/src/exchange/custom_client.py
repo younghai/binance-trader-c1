@@ -159,14 +159,21 @@ class CustomClient:
         if position == "SHORT":
             side = "sell"
 
-        order = self.binance_cli.create_order(
-            symbol=symbol,
-            type=order_type,
-            side=side,
-            amount=amount,
-            price=price,
-            params={"positionSide": position},
-        )["info"]
+        try:
+            order = self.binance_cli.create_order(
+                symbol=symbol,
+                type=order_type,
+                side=side,
+                amount=amount,
+                price=price,
+                params={"positionSide": position},
+            )["info"]
+        except ccxt.errors.ExchangeError as e:
+            if CFG.TEST_MODE is True:
+                return None
+
+            raise ccxt.errors.ExchangeError(e)
+
         order["symbol"] = self.revision_symbols([order["symbol"]])[-1]
         return order
 

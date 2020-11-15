@@ -95,6 +95,7 @@ class TraderV1:
         if CFG.TEST_MODE is True:
             assert self.custom_cli.test_mode is True
 
+            self.entry_ratio = 0.0001
             self.exit_q_threshold = 8
             self.entry_qay_threshold = 8
             self.entry_qby_threshold = 8
@@ -436,12 +437,15 @@ class TraderV1:
 
         executable_order = self.check_if_executable_order(position=position)
         if executable_order is True:
-            self.custom_cli.entry_order(
+            ordered = self.custom_cli.entry_order(
                 symbol=position.asset,
                 order_type="market",
                 position=position.side,
                 amount=position.qty,
             )
+            if ordered is None:
+                return
+
             time.sleep(API_REQUEST_DELAY)
 
             positions = self.custom_cli.get_positions(symbol=position.asset)
@@ -491,7 +495,7 @@ class TraderV1:
                 )
 
     def run(self):
-        logger.info(f"[+] Start: Demon of trader")
+        logger.info(f"[+] Start: demon of trader")
         last_handle_exit_on = None
 
         while True:
@@ -507,7 +511,6 @@ class TraderV1:
                         positive_assets,
                         negative_assets,
                     ) = self.build_positive_and_negative_assets(pred_dict=pred_dict)
-                    logger.info(f"[+] Event: generated signals")
 
                     # Handle exit
                     positions = self.custom_cli.get_position_objects()
@@ -551,7 +554,6 @@ class TraderV1:
                         pricing=pricing,
                         now=now,
                     )
-                    logger.info(f"[+] Handled: entry")
 
                     # Record traded
                     self.usecase.insert_trade({"timestamp": now})
