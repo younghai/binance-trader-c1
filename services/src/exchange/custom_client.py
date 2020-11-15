@@ -4,6 +4,7 @@ import pandas as pd
 import time
 from config import CFG
 from datetime import datetime
+from .utils import Position
 
 API_REQUEST_DELAY = 0.1  # sec
 
@@ -85,6 +86,9 @@ class CustomClient:
     def get_tickers(self):
         return pd.DataFrame(self.binance_cli.fetch_tickers())
 
+    def get_last_pricing(self):
+        return self.get_tickers().xs("last", axis=0).to_dict()
+
     def get_balance(self):
         for _ in range(20):
             balance = pd.DataFrame(self.binance_cli.fetch_balance())
@@ -114,6 +118,24 @@ class CustomClient:
             positions = positions[positions["symbol"] == symbol]
 
         positions["symbol"] = self.revision_symbols(positions["symbol"])
+        return positions
+
+    def get_position_objects(self):
+        posis = self.get_positions()
+        posis = posis[posis["positionAmt"].astype(float) != 0.0]
+        assert posis["symbol"].is_unique
+
+        positions = []
+        for posi in posis.to_dict(orient="records"):
+            position = Position(
+                asset=posi["symbol"],
+                side=posi["positionSide"].lower(),
+                qty=float(posi["positionAmt"]),
+                entry_price=float(posi["entryPrice"]),
+                entry_at=self.get_last_trade_on(symbol=posi["symbol"]),
+            )
+            positions.append(position)
+
         return positions
 
     def get_available_cache(self, balance=None):

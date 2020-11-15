@@ -25,6 +25,9 @@ import joblib
 @dataclass
 class TraderV1:
     usecase = Usecase()
+    possible_in_debt = False
+    entry_commission = 0.0004
+    spread_commission = 0.0005
 
     def __post_init__(self):
         self.custom_cli = CustomClient()
@@ -47,8 +50,9 @@ class TraderV1:
         self.achieve_ratio = CFG.REPORT_PARAMS["achieve_ratio"]
         self.achieved_with_commission = CFG.REPORT_PARAMS["achieved_with_commission"]
         self.max_n_updated = CFG.REPORT_PARAMS["max_n_updated"]
+
         # Currently we accept only 0
-        assert self.max_n_updated in (0)
+        assert self.max_n_updated == 0
 
         self.exit_q_threshold = CFG.REPORT_PARAMS["exit_q_threshold"]
         self.entry_qay_threshold = CFG.REPORT_PARAMS["entry_qay_threshold"]
@@ -250,26 +254,36 @@ class TraderV1:
 
         return False
 
-    def _get_positions(self):
-        posis = self.custom_cli.get_positions()
-        posis = posis[posis["positionAmt"].astype(float) != 0.0]
-        assert posis["symbol"].is_unique
+    def compute_capital(self, cache, pricing):
+        # capital = cache + value of positions
+        capital = cache
 
-        positions = []
-        for posi in posis.to_dict(orient="records"):
-            position = Position(
-                asset=posi["symbol"],
-                side=posi["positionSide"].lower(),
-                qty=float(posi["positionAmt"]),
-                entry_price=float(posi["entryPrice"]),
-                entry_at=self.custom_cli.get_last_trade_on(symbol=posi["symbol"]),
-            )
-            positions.append(position)
+        for position in self.positions:
+            current_price = pricing[position.asset]
 
-        return positions
+            if position.side == "long":
+                capital += current_price * position.qty
+
+            if position.side == "short":
+                capital += position.entry_price * position.qty
+                capital += (current_price - position.entry_price) * position.qty * -1
+
+        return capital
+
+    def exit_order(self, position):
+        self.custom_cli.cancel_orders(symbol=position.asset)
+        time.sleep(API_REQUEST_DELAY)
+
+        self.custom_cli.exit_order(
+            symbol=position.asset,
+            order_type="market",
+            position=position.side,
+            amount=position.qty,
+        )
+        time.sleep(API_REQUEST_DELAY)
 
     def handle_exit(self, positive_assets, negative_assets, now):
-        for position in self._get_positions():
+        for position_idx, position in enumerate(self.positions):
             passed_minutes = (
                 now - pd.Timestamp(position.entry_at)
             ).total_seconds() // 60
@@ -280,41 +294,102 @@ class TraderV1:
 
             # Handle max_holding_minutes
             if passed_minutes >= self.max_holding_minutes:
-                self.custom_cli.cancel_orders(symbol=position.asset)
-                time.sleep(API_REQUEST_DELAY)
-
-                self.custom_cli.exit_order(
-                    symbol=position.asset,
-                    order_type="market",
-                    position=position.side,
-                    amount=position.qty,
-                )
+                self.exit_order(position=position)
+                self.positions[position_idx].is_exited = True
                 continue
 
             # Handle exit signal
             if (position.side == "long") and (position.asset in negative_assets):
-                self.custom_cli.cancel_orders(symbol=position.asset)
-                time.sleep(API_REQUEST_DELAY)
-
-                self.custom_cli.exit_order(
-                    symbol=position.asset,
-                    order_type="market",
-                    position=position.side,
-                    amount=position.qty,
-                )
+                self.exit_order(position=position)
+                self.positions[position_idx].is_exited = True
                 continue
 
             if (position.side == "short") and (position.asset in positive_assets):
-                self.custom_cli.cancel_orders(symbol=position.asset)
-                time.sleep(API_REQUEST_DELAY)
-
-                self.custom_cli.exit_order(
-                    symbol=position.asset,
-                    order_type="market",
-                    position=position.side,
-                    amount=position.qty,
-                )
+                self.exit_order(position=position)
+                self.positions[position_idx].is_exited = True
                 continue
+
+        # Delete exited self.positions
+        self.positions = [
+            position for position in self.positions if position.is_exited is not True
+        ]
+
+    def check_if_opposite_position_exists(self, order_asset, order_side):
+        if order_side == "long":
+            opposite_side = "short"
+        if order_side == "short":
+            opposite_side = "long"
+
+        for exist_position in self.positions:
+            if (exist_position.asset == order_asset) and (
+                exist_position.side == opposite_side
+            ):
+                return True
+
+        return False
+
+    def compute_cost_to_order(self, position):
+        cache_to_order = position.entry_price * position.qty
+        commission_to_order = cache_to_order * (
+            self.entry_commission + self.spread_commission
+        )
+
+        return cache_to_order + commission_to_order
+
+    def check_if_executable_order(self, cost):
+        return bool((self.cache - cost) >= 0)
+
+    def entry_order(self, asset, side, cache_to_order, pricing, now):
+        if cache_to_order == 0:
+            return
+
+        # if opposite position exists, we dont entry
+        if (
+            self.check_if_opposite_position_exists(order_asset=asset, order_side=side)
+            is True
+        ):
+            return
+
+        entry_price = pricing[asset]
+        qty = cache_to_order / entry_price
+
+        position = Position(
+            asset=asset, side=side, qty=qty, entry_price=entry_price, entry_at=now
+        )
+
+        # Currently update_position_if_already_have is not supported.
+        # TODO :
+        cost = self.compute_cost_to_order(position=position)
+        executable_order = self.check_if_executable_order(cost=cost)
+
+        if executable_order is True:
+            # self.pay_cache(cost=cost)
+            # self.positions.append(position)
+            ...
+
+    def handle_entry(
+        self, cache_to_order, positive_assets, negative_assets, pricing, now
+    ):
+        # Entry order
+        if self.position_side in ("long", "longshort"):
+            for order_asset in positive_assets:
+                self.entry_order(
+                    asset=order_asset,
+                    side="long",
+                    cache_to_order=cache_to_order,
+                    pricing=pricing,
+                    now=now,
+                )
+
+        if self.position_side in ("short", "longshort"):
+            for order_asset in negative_assets:
+                self.entry_order(
+                    asset=order_asset,
+                    side="short",
+                    cache_to_order=cache_to_order,
+                    pricing=pricing,
+                    now=now,
+                )
 
     def run(self):
         # Use timestamp without second info
@@ -327,15 +402,18 @@ class TraderV1:
             pred_dict=pred_dict
         )
 
-        # Exit
+        # Handle exit
+        self.positions = self.custom_cli.get_position_objects()
         self.handle_exit(
             positive_assets=positive_assets, negative_assets=negative_assets, now=now,
         )
 
-        ##### TODO:
-        # Compute how much use cache
+        # Compute how much use cache to order
         self.cache = self.custom_cli.get_available_cache()
-        self.capital = ...
+
+        pricing = self.custom_cli.get_last_pricing()
+        self.capital = self.compute_capital(cache=self.cache, pricing=pricing)
+
         if self.compound_interest is False:
             cache_to_order = self.entry_ratio
         else:
@@ -347,14 +425,9 @@ class TraderV1:
 
             elif self.order_criterion == "capital":
                 # Entry with capital base
-                cache_to_order = nan_to_zero(
-                    value=(
-                        self.compute_capital(pricing=pricing, now=now)
-                        * self.entry_ratio
-                    )
-                )
+                cache_to_order = nan_to_zero(value=(self.capital * self.entry_ratio))
 
-        # Entry
+        # Handle entry
         self.handle_entry(
             cache_to_order=cache_to_order,
             positive_assets=positive_assets,
