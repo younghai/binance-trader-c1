@@ -18,7 +18,7 @@ spec:
       containers:
         - name: trader
           image: binance_trader_services:latest
-          command: ["python", "-m", "trader.trader_v1", "run"]
+          command: ["tail", "-f", "/dev/null"]
           imagePullPolicy: "Never"
           env:
             - name: POSTGRES_HOST

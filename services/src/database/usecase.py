@@ -40,13 +40,13 @@ class Usecase:
         return pricing
 
     def get_last_sync_on(self):
-        timestamp = (
-            self.sess.query(models.Sync)
-            .order_by(models.Sync.timestamp.desc())
-            .first()
-            .timestamp
+        quried = (
+            self.sess.query(models.Sync).order_by(models.Sync.timestamp.desc()).first()
         )
-        return pd.Timestamp(timestamp).tz_convert("UTC")
+        if quried is None:
+            return None
+
+        return pd.Timestamp(quried.timestamp).tz_convert("UTC")
 
     def get_last_trade_on(self):
         queried = (

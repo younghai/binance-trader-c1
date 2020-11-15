@@ -7,7 +7,6 @@ import numpy as np
 from dataclasses import dataclass
 
 from config import CFG
-from .utils import nan_to_zero, Position
 from trainer.models import PredictorV1
 from database.usecase import Usecase
 from exchange.custom_client import CustomClient, API_REQUEST_DELAY
@@ -15,6 +14,13 @@ from dataset_builder.build_dataset_v1 import (
     _build_feature_by_rawdata,
     preprocess_features,
 )
+from .utils import nan_to_zero, Position
+from logging import getLogger
+from common_utils_svc import initialize_trader_logger
+
+
+logger = getLogger("trader")
+initialize_trader_logger()
 
 
 @dataclass
@@ -25,6 +31,8 @@ class TraderV1:
 
     def __post_init__(self):
         self.custom_cli = CustomClient()
+        self.target_coins = pd.Index(self.custom_cli.target_coins)
+
         self._set_params()
         self._set_test_params()
         self._build_model()
@@ -87,9 +95,9 @@ class TraderV1:
         if CFG.TEST_MODE is True:
             assert self.custom_cli.test_mode is True
 
-            self.exit_q_threshold = 7
-            self.entry_qay_threshold = 7
-            self.entry_qby_threshold = 7
+            self.exit_q_threshold = 8
+            self.entry_qay_threshold = 8
+            self.entry_qby_threshold = 8
             self.entry_qay_prob_threshold = 0.0
             self.entry_qby_prob_threshold = 0.0
             self.sum_probs_above_threshold = True
@@ -151,10 +159,10 @@ class TraderV1:
 
     def _build_inputs(self, features):
         base_features = features[self.data_builder_params["base_feature_assets"]]
-        features = features[self.custom_cli.target_coins]
+        features = features[self.target_coins]
 
         inputs = []
-        for target_coin in self.custom_cli.target_coins:
+        for target_coin in self.target_coins:
             to_input = pd.concat([base_features, features[target_coin]], axis=1).astype(
                 "float32"
             )
@@ -172,7 +180,7 @@ class TraderV1:
         inputs = np.stack(inputs, axis=0)
         ids = [
             self.data_builder_params["asset_to_id"][target_coin]
-            for target_coin in self.custom_cli.target_coins
+            for target_coin in self.target_coins
         ]
 
         return inputs, ids
@@ -224,13 +232,14 @@ class TraderV1:
             )
 
         # Set assets which has signals
-        positive_assets = self.custom_cli.target_coins[
+        positive_mask = (
             (pred_dict["qay_prediction"] >= self.entry_qay_threshold)
             & (pred_dict["qby_prediction"] >= self.entry_qby_threshold)
             & (positive_qay_probability >= self.entry_qay_prob_threshold)
             & (positive_qby_probability >= self.entry_qby_prob_threshold)
-        ]
-        negative_assets = self.custom_cli.target_coins[
+        )
+
+        negative_mask = (
             (
                 pred_dict["qay_prediction"]
                 <= (self.n_bins - 1) - self.entry_qay_threshold
@@ -241,11 +250,17 @@ class TraderV1:
             )
             & (negative_qay_probability >= self.entry_qay_prob_threshold)
             & (negative_qby_probability >= self.entry_qby_prob_threshold)
-        ]
+        )
+
+        positive_assets = self.target_coins[positive_mask].tolist()
+        negative_assets = self.target_coins[negative_mask].tolist()
 
         return positive_assets, negative_assets
 
     def is_executable(self, last_sync_on: pd.Timestamp, now: pd.Timestamp):
+        if last_sync_on is None:
+            return False
+
         sync_min_delta = int((now - last_sync_on).total_seconds() // 60)
 
         if sync_min_delta == 1:
@@ -301,17 +316,20 @@ class TraderV1:
             if passed_minutes >= self.max_holding_minutes:
                 self.exit_order(position=position)
                 positions[position_idx].is_exited = True
+                logger.info(f"[+] Exit: {str(position)}")
                 continue
 
             # Handle exit signal
             if (position.side == "long") and (position.asset in negative_assets):
                 self.exit_order(position=position)
                 positions[position_idx].is_exited = True
+                logger.info(f"[+] Exit: {str(position)}")
                 continue
 
             if (position.side == "short") and (position.asset in positive_assets):
                 self.exit_order(position=position)
                 positions[position_idx].is_exited = True
+                logger.info(f"[+] Exit: {str(position)}")
                 continue
 
         # Delete exited positions
@@ -444,6 +462,7 @@ class TraderV1:
                 ),
             )
             time.sleep(API_REQUEST_DELAY)
+            logger.info(f"[+] Entry: {str(position)}")
 
     def handle_entry(
         self, positions, cache_to_order, positive_assets, negative_assets, pricing, now
@@ -472,76 +491,87 @@ class TraderV1:
                 )
 
     def run(self):
+        logger.info(f"[+] Start: Demon of trader")
         last_handle_exit_on = None
 
         while True:
-            # Use timestamp without second info
-            now = pd.Timestamp.utcnow().floor("T")
-            last_sync_on = self.usecase.get_last_sync_on()
+            try:
+                # Use timestamp without second info
+                now = pd.Timestamp.utcnow().floor("T")
+                last_sync_on = self.usecase.get_last_sync_on()
 
-            if self.is_executable(last_sync_on=last_sync_on, now=now) is True:
-                pred_dict = self.build_prediction_dict(last_sync_on=last_sync_on)
-                (
-                    positive_assets,
-                    negative_assets,
-                ) = self.build_positive_and_negative_assets(pred_dict=pred_dict)
+                if self.is_executable(last_sync_on=last_sync_on, now=now) is True:
+                    logger.info(f"[+] Event: trade at {now}")
+                    pred_dict = self.build_prediction_dict(last_sync_on=last_sync_on)
+                    (
+                        positive_assets,
+                        negative_assets,
+                    ) = self.build_positive_and_negative_assets(pred_dict=pred_dict)
+                    logger.info(f"[+] Event: generated signals")
 
-                # Handle exit
-                positions = self.custom_cli.get_position_objects()
-                positions = self.handle_exit(
-                    positions=positions,
-                    positive_assets=positive_assets,
-                    negative_assets=negative_assets,
-                    now=now,
-                )
-
-                # Compute how much use cache to order
-                cache = self.custom_cli.get_available_cache()
-                pricing = self.custom_cli.get_last_pricing()
-                capital = self.compute_capital(
-                    cache=cache, pricing=pricing, positions=positions
-                )
-
-                if self.compound_interest is False:
-                    cache_to_order = self.entry_ratio
-                else:
-                    if self.order_criterion == "cache":
-                        if cache > 0:
-                            cache_to_order = nan_to_zero(
-                                value=(cache * self.entry_ratio)
-                            )
-                        else:
-                            cache_to_order = 0
-
-                    elif self.order_criterion == "capital":
-                        # Entry with capital base
-                        cache_to_order = nan_to_zero(value=(capital * self.entry_ratio))
-
-                # Handle entry
-                self.handle_entry(
-                    positions=positions,
-                    cache_to_order=cache_to_order,
-                    positive_assets=positive_assets,
-                    negative_assets=negative_assets,
-                    pricing=pricing,
-                    now=now,
-                )
-
-                # Record traded
-                self.usecase.insert_trade({"timestamp": now})
-            else:
-                if last_handle_exit_on != now:
                     # Handle exit
                     positions = self.custom_cli.get_position_objects()
                     positions = self.handle_exit(
                         positions=positions,
-                        positive_assets=[],
-                        negative_assets=[],
+                        positive_assets=positive_assets,
+                        negative_assets=negative_assets,
                         now=now,
                     )
-                    last_handle_exit_on = now
 
-                time.sleep(1)
+                    # Compute how much use cache to order
+                    cache = self.custom_cli.get_available_cache()
+                    pricing = self.custom_cli.get_last_pricing()
+                    capital = self.compute_capital(
+                        cache=cache, pricing=pricing, positions=positions
+                    )
+
+                    if self.compound_interest is False:
+                        cache_to_order = self.entry_ratio
+                    else:
+                        if self.order_criterion == "cache":
+                            if cache > 0:
+                                cache_to_order = nan_to_zero(
+                                    value=(cache * self.entry_ratio)
+                                )
+                            else:
+                                cache_to_order = 0
+
+                        elif self.order_criterion == "capital":
+                            # Entry with capital base
+                            cache_to_order = nan_to_zero(
+                                value=(capital * self.entry_ratio)
+                            )
+
+                    # Handle entry
+                    self.handle_entry(
+                        positions=positions,
+                        cache_to_order=cache_to_order,
+                        positive_assets=positive_assets,
+                        negative_assets=negative_assets,
+                        pricing=pricing,
+                        now=now,
+                    )
+                    logger.info(f"[+] Handled: entry")
+
+                    # Record traded
+                    self.usecase.insert_trade({"timestamp": now})
+                else:
+                    if last_handle_exit_on != now:
+                        # Handle exit
+                        positions = self.custom_cli.get_position_objects()
+                        positions = self.handle_exit(
+                            positions=positions,
+                            positive_assets=[],
+                            negative_assets=[],
+                            now=now,
+                        )
+
+                        last_handle_exit_on = now
+
+                    time.sleep(1)
+            except Exception as e:
+                logger.error("[+] Error: ", exc_info=True)
+                raise Exception
 
 
 if __name__ == "__main__":

@@ -74,7 +74,7 @@ class CustomClient:
             .to_dict()
         )
 
-    def revision_symbols(symbols):
+    def revision_symbols(self, symbols):
         if "/" in symbols:
             return symbols
 

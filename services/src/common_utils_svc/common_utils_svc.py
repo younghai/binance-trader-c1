@@ -38,9 +38,26 @@ def to_abs_path(file, relative_path):
     )
 
 
-def initialize_logger():
+def initialize_main_logger():
     import logging
     import sys
 
     handler = logging.StreamHandler(sys.stdout)
-    logging.basicConfig(level="INFO", handlers=[handler])
+    logging.basicConfig(
+        level="INFO", handlers=[handler], format="%(asctime)s %(message)s"
+    )
+
+
+def initialize_trader_logger():
+    from handler import SlackHandler
+    import logging
+    import sys
+
+    handler = logging.StreamHandler(sys.stdout)
+    slack_handler = SlackHandler()
+
+    logging.basicConfig(
+        level="INFO",
+        handlers=[handler, slack_handler],
+        format="%(asctime)s %(message)s",
+    )

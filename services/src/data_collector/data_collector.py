@@ -8,11 +8,11 @@ from config import CFG
 from database import database as DB
 from database.usecase import Usecase
 from logging import getLogger
-from common_utils_svc import initialize_logger
+from common_utils_svc import initialize_main_logger
 
 
 logger = getLogger("data_collector")
-initialize_logger()
+initialize_main_logger()
 
 
 @dataclass
@@ -133,7 +133,7 @@ class DataCollector:
     def run(self):
         """Definitioin of demon to live sync
         """
-        logger.info(f"[+] Start: Demon of data_collector")
+        logger.info("[+] Start: Demon of data_collector")
         while True:
             try:
                 now = pd.Timestamp.utcnow()
