@@ -26,8 +26,6 @@ class SlackHandler(logging.StreamHandler):
         else:
             text = ":sparkles: " + text
 
-        message = {
-            "text": text,
-        }
+        message = {"text": text}
 
         requests.post(self.url, json=message)

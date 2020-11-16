@@ -152,9 +152,7 @@ class BasicPredictor:
                 os.path.join(self.exp_dir, "scaler.pkl"),
             ),
         ]:
-            shutil.copy(
-                base_file, target_file,
-            )
+            shutil.copy(base_file, target_file)
 
         print(f"[+] Params are stored")
 
