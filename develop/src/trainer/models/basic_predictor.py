@@ -268,6 +268,8 @@ class BasicPredictor:
             strict=self.model_config["load_strict"],
             device=self.device,
         )
+        if self.mode in ("test", "predict"):
+            assert self.last_epoch != -1
 
     def _save_model(self, model, epoch):
         save_model(model=model, dir=self.data_config["checkpoint_dir"], epoch=epoch)
