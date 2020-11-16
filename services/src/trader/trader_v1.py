@@ -315,9 +315,12 @@ class TraderV1:
             if (position.side == "short") and (position.asset in negative_assets):
                 continue
 
-            passed_minutes = (
-                now - pd.Timestamp(position.entry_at)
-            ).total_seconds() // 60
+            position_entry_at = (
+                position.entry_at
+                if self.last_entry_on[position.asset] is None
+                else max(position.entry_at, self.last_entry_on[position.asset])
+            )
+            passed_minutes = (now - position_entry_at).total_seconds() // 60
 
             # Handle min_holding_minutes
             if passed_minutes <= self.min_holding_minutes:
@@ -443,6 +446,7 @@ class TraderV1:
             positions=positions, position=position
         )
         if already_have is True:
+            self.last_entry_at[position.asset] = now
             return
 
         executable_order = self.check_if_executable_order(position=position)
@@ -506,6 +510,7 @@ class TraderV1:
                 )
 
     def run(self):
+        self.last_entry_at = {key: None for key in self.target_coins}
         logger.info(f"[+] Start: demon of trader")
 
         while True:
