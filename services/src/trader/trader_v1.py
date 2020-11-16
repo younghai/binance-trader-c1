@@ -317,8 +317,8 @@ class TraderV1:
 
             position_entry_at = (
                 position.entry_at
-                if self.last_entry_on[position.asset] is None
-                else max(position.entry_at, self.last_entry_on[position.asset])
+                if self.last_entry_at[position.asset] is None
+                else max(position.entry_at, self.last_entry_at[position.asset])
             )
             passed_minutes = (now - position_entry_at).total_seconds() // 60
 
