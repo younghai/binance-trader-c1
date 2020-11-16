@@ -558,6 +558,13 @@ class BasicBacktester:
                     self.positions[position_idx].is_exited = True
                     continue
 
+            # Keep position if matched
+            if (position.side == "long") and (position.asset in positive_assets):
+                continue
+
+            if (position.side == "short") and (position.asset in negative_assets):
+                continue
+
             passed_minutes = (
                 pd.Timestamp(now) - pd.Timestamp(position.entry_at)
             ).total_seconds() / 60

@@ -308,6 +308,13 @@ class TraderV1:
 
     def handle_exit(self, positions, positive_assets, negative_assets, now):
         for position_idx, position in enumerate(positions):
+            # Keep position if matched
+            if (position.side == "long") and (position.asset in positive_assets):
+                continue
+
+            if (position.side == "short") and (position.asset in negative_assets):
+                continue
+
             passed_minutes = (
                 now - pd.Timestamp(position.entry_at)
             ).total_seconds() // 60
@@ -500,7 +507,6 @@ class TraderV1:
 
     def run(self):
         logger.info(f"[+] Start: demon of trader")
-        last_handle_exit_on = None
 
         while True:
             try:
@@ -566,19 +572,8 @@ class TraderV1:
                     # Record traded
                     self.usecase.insert_trade({"timestamp": now})
                 else:
-                    if last_handle_exit_on != now:
-                        # Handle exit
-                        positions = self.custom_cli.get_position_objects()
-                        positions = self.handle_exit(
-                            positions=positions,
-                            positive_assets=[],
-                            negative_assets=[],
-                            now=now,
-                        )
-
-                        last_handle_exit_on = now
-
                     time.sleep(1)
+
             except Exception as e:
                 logger.error("[+] Error: ", exc_info=True)
                 raise Exception
