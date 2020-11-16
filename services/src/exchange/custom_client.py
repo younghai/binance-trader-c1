@@ -6,7 +6,7 @@ from config import CFG
 from datetime import datetime
 from .utils import Position
 
-API_REQUEST_DELAY = 0.2  # sec
+API_REQUEST_DELAY = 0.1  # sec
 
 
 @dataclass

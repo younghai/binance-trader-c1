@@ -116,17 +116,16 @@ class TraderV1:
         self.scaler = joblib.load(os.path.join(CFG.EXP_DIR, "scaler.pkl"))
 
     def _build_features(self, pricing):
-        target_coins = sorted(pricing.index.levels[1].unique())
 
         scaler_target_features = {}
         non_scaler_target_features = {}
-        for tradable_coin in target_coins:
-            rawdata = pricing.xs(tradable_coin, axis=0, level=1)
+        for target_coin in self.target_coins:
+            rawdata = pricing.xs(target_coin, axis=0, level=1)
 
-            scaler_target_features[tradable_coin] = _build_feature_by_rawdata(
+            scaler_target_features[target_coin] = _build_feature_by_rawdata(
                 rawdata=rawdata, scaler_target=True
             )
-            non_scaler_target_features[tradable_coin] = _build_feature_by_rawdata(
+            non_scaler_target_features[target_coin] = _build_feature_by_rawdata(
                 rawdata=rawdata, scaler_target=False
             )
 
