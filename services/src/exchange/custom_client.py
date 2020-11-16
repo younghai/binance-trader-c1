@@ -16,7 +16,7 @@ class CustomClient:
             "apiKey": CFG.EXCHANGE_API_KEY,
             "secret": CFG.EXCHANGE_SECRET_KEY,
             "enableRateLimit": True,
-            "options": {"defaultType": "future",},
+            "options": {"defaultType": "future"},
             "hedgeMode": True,
         }
     )
@@ -62,7 +62,7 @@ class CustomClient:
                     leverage = 2
 
             self.binance_cli.fapiPrivate_post_leverage(
-                {"symbol": symbol.replace("/", ""), "leverage": leverage,}
+                {"symbol": symbol.replace("/", ""), "leverage": leverage}
             )
             time.sleep(API_REQUEST_DELAY)
 

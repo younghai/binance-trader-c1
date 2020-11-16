@@ -535,7 +535,7 @@ class TraderV1:
                     capital = self.compute_capital(
                         cache=cache, pricing=pricing, positions=positions
                     )
-                    logger.info(f"[+] Info: capital is {capital:.2f} USD")
+                    logger.info(f"[+] Capital: {capital:.2f} USD")
 
                     if self.compound_interest is False:
                         cache_to_order = self.entry_ratio
