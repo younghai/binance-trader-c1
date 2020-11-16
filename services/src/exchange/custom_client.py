@@ -118,10 +118,14 @@ class CustomClient:
         if symbol is not None:
             positions = positions[positions["symbol"] == symbol]
 
+        positions["positionAmt"] = (
+            positions["positionAmt"].astype(float).map(lambda x: x if x >= 0 else -x)
+        )
+
         return positions
 
-    def get_position_objects(self):
-        posis = self.get_positions()
+    def get_position_objects(self, symbol=None, with_entry_at=True):
+        posis = self.get_positions(symbol=symbol)
         posis = posis[posis["positionAmt"].astype(float) != 0.0]
         assert posis["symbol"].is_unique
 
@@ -132,7 +136,9 @@ class CustomClient:
                 side=posi["positionSide"].lower(),
                 qty=float(posi["positionAmt"]),
                 entry_price=float(posi["entryPrice"]),
-                entry_at=self.get_last_trade_on(symbol=posi["symbol"]),
+                entry_at=self.get_last_trade_on(symbol=posi["symbol"])
+                if with_entry_at is True
+                else None,
             )
             positions.append(position)
 
@@ -186,14 +192,21 @@ class CustomClient:
         if position == "SHORT":
             side = "buy"
 
-        order = self.binance_cli.create_order(
-            symbol=symbol,
-            type=order_type,
-            side=side,
-            amount=amount,
-            price=price,
-            params={"positionSide": position},
-        )["info"]
+        try:
+            order = self.binance_cli.create_order(
+                symbol=symbol,
+                type=order_type,
+                side=side,
+                amount=amount,
+                price=price,
+                params={"positionSide": position},
+            )["info"]
+        except ccxt.errors.ExchangeError as e:
+            if CFG.TEST_MODE is True:
+                return None
+
+            raise ccxt.errors.ExchangeError(e)
+
         order["symbol"] = self.revision_symbols([order["symbol"]])[-1]
         return order
 

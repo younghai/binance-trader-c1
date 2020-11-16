@@ -3,7 +3,9 @@ import requests
 from config import CFG
 
 
-URL = "Not defined yet"
+URL = (
+    "https://hooks.slack.com/services/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"
+)
 TEST_URL = (
     "https://hooks.slack.com/services/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"
 )

@@ -71,7 +71,7 @@ class ReviewerV1:
 
         return artifact
 
-    def _load_artifacts(self, artifact_type):
+    def _load_artifacts(self, artifact_type, with_index=False):
         assert artifact_type in ("metrics", "report")
 
         file_paths = glob(
@@ -90,13 +90,30 @@ class ReviewerV1:
         )
 
         artifacts = [pd.read_parquet(file_path) for file_path in file_paths]
+        index = pd.Index(
+            [
+                int(
+                    file_path.split(f"{artifact_type}_{self.reviewer_prefix}_")[
+                        -1
+                    ].split(f"_{self.grid_params['base_currency']}.parquet.zstd")[0]
+                )
+                for file_path in file_paths
+            ]
+        )
+
+        if with_index is True:
+            return artifacts, index
 
         return artifacts
 
     def _build_metrics(self):
-        return pd.concat(self._load_artifacts(artifact_type="metrics")).reset_index(
-            drop=True
+        artifacts, index = self._load_artifacts(
+            artifact_type="metrics", with_index=True
         )
+        metrics = pd.concat(artifacts)
+        metrics.index = index
+
+        return metrics
 
     def display_params(self, index, in_shell=False):
         params = (

@@ -294,12 +294,16 @@ class TraderV1:
         self.custom_cli.cancel_orders(symbol=position.asset)
         time.sleep(API_REQUEST_DELAY)
 
-        self.custom_cli.exit_order(
+        ordered = self.custom_cli.exit_order(
             symbol=position.asset,
             order_type="market",
             position=position.side,
             amount=position.qty,
         )
+        if ordered is None:
+            assert CFG.TEST_MODE is True
+            return
+
         time.sleep(API_REQUEST_DELAY)
         assert len(self.custom_cli.get_open_orders(symbol=position.asset)) == 0
 
@@ -444,17 +448,18 @@ class TraderV1:
                 amount=position.qty,
             )
             if ordered is None:
+                assert CFG.TEST_MODE is True
                 return
 
             time.sleep(API_REQUEST_DELAY)
 
-            positions = self.custom_cli.get_positions(symbol=position.asset)
-            entry_price = float(
-                positions[positions["positionSide"] == position.side.upper()].to_dict(
-                    orient="records"
-                )[-1]["entryPrice"]
+            positions = self.custom_cli.get_position_objects(
+                symbol=position.asset, with_entry_at=False
             )
-            assert entry_price != 0.0
+            assert len(positions) == 1
+
+            position = positions[-1]
+            assert position.entry_price != 0.0
 
             self.custom_cli.exit_order(
                 symbol=position.asset,
@@ -505,12 +510,15 @@ class TraderV1:
                 last_sync_on = self.usecase.get_last_sync_on()
 
                 if self.is_executable(last_sync_on=last_sync_on, now=now) is True:
-                    logger.info(f"[+] Event: trade at {now}")
                     pred_dict = self.build_prediction_dict(last_sync_on=last_sync_on)
                     (
                         positive_assets,
                         negative_assets,
                     ) = self.build_positive_and_negative_assets(pred_dict=pred_dict)
+
+                    logger.info(
+                        f"[+] Signals: positive({len(positive_assets)}), negative({len(negative_assets)}) at {now.strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
 
                     # Handle exit
                     positions = self.custom_cli.get_position_objects()
