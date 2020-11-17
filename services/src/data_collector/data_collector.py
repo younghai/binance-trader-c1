@@ -18,9 +18,9 @@ initialize_main_logger()
 @dataclass
 class DataCollector:
     usecase = Usecase()
-    binance_cli: ccxt.binance = ccxt.binance(
-        {"enableRateLimit": True, "options": {"defaultType": "future"}}
-    )
+
+    # We store current inistead of futures
+    binance_cli: ccxt.binance = ccxt.binance({"enableRateLimit": True})
 
     def __post_init__(self):
         DB.init()
