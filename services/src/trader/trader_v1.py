@@ -67,10 +67,6 @@ class TraderV1:
 
         # Set data builder params
         self.data_builder_params = {}
-        self.data_builder_params["scaler_target_feature_columns"] = [
-            (column[0].replace("-", "/"), column[1])
-            for column in CFG.DATASET_PARAMS["scaler_target_feature_columns"]
-        ]
         self.data_builder_params["features_columns"] = [
             (column[0].replace("-", "/"), column[1])
             for column in CFG.DATASET_PARAMS["features_columns"]
@@ -116,44 +112,16 @@ class TraderV1:
         self.scaler = joblib.load(os.path.join(CFG.EXP_DIR, "scaler.pkl"))
 
     def _build_features(self, pricing):
-
-        scaler_target_features = {}
-        non_scaler_target_features = {}
+        features = {}
         for target_coin in self.target_coins:
-            rawdata = pricing.xs(target_coin, axis=0, level=1)
+            rawdata = pricing.xs(target_coin, axis=0, level=1).sort_index()
+            features[target_coin] = _build_feature_by_rawdata(rawdata=rawdata)
 
-            scaler_target_features[target_coin] = _build_feature_by_rawdata(
-                rawdata=rawdata, scaler_target=True
-            )
-            non_scaler_target_features[target_coin] = _build_feature_by_rawdata(
-                rawdata=rawdata, scaler_target=False
-            )
-
-        scaler_target_features = pd.concat(scaler_target_features, axis=1).sort_index()[
-            self.data_builder_params["scaler_target_feature_columns"]
+        features = pd.concat(features, axis=1).sort_index()[
+            self.data_builder_params["features_columns"]
         ]
-        non_scaler_target_features = pd.concat(
-            non_scaler_target_features, axis=1
-        ).sort_index()
 
-        scaler_target_features = preprocess_features(
-            features=scaler_target_features, scaler=self.scaler
-        )
-
-        # Concat features
-        common_index = scaler_target_features.index & non_scaler_target_features.index
-        features = pd.concat(
-            [
-                scaler_target_features.reindex(common_index),
-                non_scaler_target_features.reindex(common_index),
-            ],
-            axis=1,
-            sort=True,
-        ).sort_index()[self.data_builder_params["features_columns"]]
-
-        del scaler_target_features
-        del non_scaler_target_features
-        gc.collect()
+        features = preprocess_features(features=features, scaler=self.scaler)
 
         return features
 

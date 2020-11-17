@@ -416,7 +416,7 @@ class BasicBacktester:
 
         return False
 
-    def compute_profit(self, position, pricing, now):
+    def compute_profit(self, position, pricing, now, achieved=False):
         current_price = pricing[position.asset]
 
         if position.side == "long":
@@ -428,7 +428,11 @@ class BasicBacktester:
                 (current_price - position.entry_price) * position.qty * -1
             )
 
-        commission_to_order = profit_without_commission * self.commission["exit"]
+        exit_commission = self.commission["exit"]
+        if achieved is not True:
+            exit_commission = exit_commission * 2
+
+        commission_to_order = profit_without_commission * exit_commission
 
         return profit_without_commission - commission_to_order
 
@@ -503,8 +507,10 @@ class BasicBacktester:
                     append=True,
                 )
 
-    def exit_order(self, position, pricing, now):
-        profit = self.compute_profit(position=position, pricing=pricing, now=now)
+    def exit_order(self, position, pricing, now, achieved=False):
+        profit = self.compute_profit(
+            position=position, pricing=pricing, now=now, achieved=achieved
+        )
         self.deposit_cache(profit=profit)
 
         net_profit = profit - (position.entry_price * position.qty)
@@ -548,7 +554,9 @@ class BasicBacktester:
                     self.check_if_achieved(position=position, pricing=pricing, now=now)
                     is True
                 ):
-                    self.exit_order(position=position, pricing=pricing, now=now)
+                    self.exit_order(
+                        position=position, pricing=pricing, now=now, achieved=True
+                    )
                     self.report(
                         value={position.asset: "achieved"},
                         target="historical_exit_reasons",

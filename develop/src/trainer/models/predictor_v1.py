@@ -38,7 +38,7 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 111,
+        "in_channels": 102,
         "n_class_qay": 10,
         "n_class_qby": 10,
         "n_blocks": 4,
@@ -238,16 +238,16 @@ class PredictorV1(BasicPredictor):
         index = id.int().tolist()
         pred_dict = {
             "qay_prediction": pd.Series(
-                preds_qay.argmax(dim=-1).view(-1).cpu().detach().numpy(), index=index
+                preds_qay.argmax(dim=-1).view(-1).cpu().tolist(), index=index
             ),
             "qay_probability": pd.DataFrame(
-                F.softmax(preds_qay, dim=-1).cpu().detach().numpy(), index=index
+                F.softmax(preds_qay, dim=-1).cpu().tolist(), index=index
             ),
             "qby_prediction": pd.Series(
-                preds_qby.argmax(dim=-1).view(-1).cpu().detach().numpy(), index=index
+                preds_qby.argmax(dim=-1).view(-1).cpu().tolist(), index=index
             ),
             "qby_probability": pd.DataFrame(
-                F.softmax(preds_qby, dim=-1).cpu().detach().numpy(), index=index
+                F.softmax(preds_qby, dim=-1).cpu().tolist(), index=index
             ),
         }
 

@@ -23,8 +23,9 @@ class CustomClient:
     test_mode: bool = CFG.TEST_MODE
 
     def __post_init__(self):
+        self.target_coins = CFG.TRADABLE_COINS
+
         self.__set_test_mode()
-        self.__set_target_coins()
         self.__set_dual_position_mode()
         self.__set_leverage()
         self.__set_ammount_constraints()
@@ -32,16 +33,6 @@ class CustomClient:
     def __set_test_mode(self):
         if self.test_mode is True:
             self.binance_cli.set_sandbox_mode(True)
-
-    def __set_target_coins(self):
-        list_coins_on_binance = sorted(self.binance_cli.fetch_tickers().keys())
-        self.target_coins = sorted(
-            [
-                tradable_coin
-                for tradable_coin in CFG.TRADABLE_COINS
-                if tradable_coin in list_coins_on_binance
-            ]
-        )
 
     def __set_dual_position_mode(self):
         try:
