@@ -35,7 +35,7 @@ DATA_CONFIG = {
 MODEL_CONFIG = {
     "lookback_window": 60,
     "batch_size": 1024,
-    "lr": 0.001,
+    "lr": 0.0005,
     "beta1": 0.5,
     "beta2": 0.99,
     "epochs": 5,
