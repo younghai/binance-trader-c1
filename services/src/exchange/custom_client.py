@@ -4,7 +4,7 @@ import pandas as pd
 import time
 from config import CFG
 from datetime import datetime
-from .utils import Position
+from common_utils_svc import Position
 
 API_REQUEST_DELAY = 0.1  # sec
 

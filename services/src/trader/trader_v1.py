@@ -14,9 +14,9 @@ from dataset_builder.build_dataset_v1 import (
     _build_feature_by_rawdata,
     preprocess_features,
 )
-from .utils import nan_to_zero, Position
+from .utils import nan_to_zero
 from logging import getLogger
-from common_utils_svc import initialize_trader_logger
+from common_utils_svc import initialize_trader_logger, Position
 
 
 logger = getLogger("trader")
@@ -298,20 +298,20 @@ class TraderV1:
             if passed_minutes >= self.max_holding_minutes:
                 self.exit_order(position=position)
                 positions[position_idx].is_exited = True
-                logger.info(f"[+] Exit: {str(position)}")
+                logger.info(f"[-] Exit: {str(position)}")
                 continue
 
             # Handle exit signal
             if (position.side == "long") and (position.asset in negative_assets):
                 self.exit_order(position=position)
                 positions[position_idx].is_exited = True
-                logger.info(f"[+] Exit: {str(position)}")
+                logger.info(f"[-] Exit: {str(position)}")
                 continue
 
             if (position.side == "short") and (position.asset in positive_assets):
                 self.exit_order(position=position)
                 positions[position_idx].is_exited = True
-                logger.info(f"[+] Exit: {str(position)}")
+                logger.info(f"[-] Exit: {str(position)}")
                 continue
 
         # Delete exited positions
@@ -479,7 +479,7 @@ class TraderV1:
 
     def run(self):
         self.last_entry_at = {key: None for key in self.target_coins}
-        logger.info(f"[+] Start: demon of trader")
+        logger.info(f"[O] Start: demon of trader")
 
         while True:
             try:
@@ -493,10 +493,6 @@ class TraderV1:
                         positive_assets,
                         negative_assets,
                     ) = self.build_positive_and_negative_assets(pred_dict=pred_dict)
-
-                    logger.info(
-                        f"[+] Signals: positive({len(positive_assets)}), negative({len(negative_assets)}) at {now.strftime('%Y-%m-%d %H:%M:%S')}"
-                    )
 
                     # Handle exit
                     positions = self.custom_cli.get_position_objects()
@@ -513,7 +509,9 @@ class TraderV1:
                     capital = self.compute_capital(
                         cache=cache, pricing=pricing, positions=positions
                     )
-                    logger.info(f"[+] Capital: {capital:.2f} USD")
+                    logger.info(
+                        f"[_] Capital: {capital:.2f}$ | Signals: pos({len(positive_assets)}), neg({len(negative_assets)})"
+                    )
 
                     if self.compound_interest is False:
                         cache_to_order = self.entry_ratio

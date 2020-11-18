@@ -5,6 +5,31 @@ import pyarrow as pa
 from pathlib import Path
 
 
+class Position:
+    def __init__(
+        self, asset, side, qty, entry_price, entry_at, n_updated=0, is_exited=False
+    ):
+        self.asset = asset
+        self.side = side
+        self.qty = qty
+        self.entry_price = entry_price
+        self.entry_at = entry_at
+        self.n_updated = n_updated
+        self.is_exited = is_exited
+
+    def __getitem__(self, key):
+        return getattr(self, key)
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+    def __repr__(self):
+        return f"Position(asset={self.asset}, side={self.side}, qty={self.qty}, entry_price={self.entry_price:.2f})"
+
+    def __str__(self):
+        return self.__repr__()
+
+
 def make_dirs(dirs):
     for dir in dirs:
         os.makedirs(dir, exist_ok=True)
@@ -44,7 +69,10 @@ def initialize_main_logger():
 
     handler = logging.StreamHandler(sys.stdout)
     logging.basicConfig(
-        level="INFO", handlers=[handler], format="%(asctime)s %(message)s"
+        level="INFO",
+        handlers=[handler],
+        format="%(asctime)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
 
@@ -60,4 +88,5 @@ def initialize_trader_logger():
         level="INFO",
         handlers=[handler, slack_handler],
         format="%(asctime)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
