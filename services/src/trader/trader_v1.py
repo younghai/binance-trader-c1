@@ -445,7 +445,7 @@ class TraderV1:
                 position=position.side,
                 amount=position.qty,
                 price=self.compute_price_to_achieve(
-                    position=position, entry_price=entry_price
+                    position=position, entry_price=position.entry_price
                 ),
             )
             time.sleep(API_REQUEST_DELAY)
