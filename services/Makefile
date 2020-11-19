@@ -32,6 +32,7 @@ endef
 _mkdirs:
 	@sudo chmod -R ug+rw $(PARENT_PWD)
 	@mkdir -p $(shell pwd)/storage/database
+	@mkdir -p $(shell pwd)/storage/trader
 	@mkdir -p $(shell pwd)/k8s/deployments
 
 _build_ymls:

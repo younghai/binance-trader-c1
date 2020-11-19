@@ -59,6 +59,8 @@ spec:
               mountPath: "/app/dev/src"
             - name: dev-exps
               mountPath: "/app/dev/experiments"
+            - name: svc-trader-artifacts
+              mountPath: "/app/storage/trader"
           securityContext:
             runAsUser: 0
           resources:
@@ -75,3 +77,6 @@ spec:
         - name: dev-exps
           hostPath:
             path: {{PARENT_PWD}}/develop/storage/experiments
+        - name: svc-trader-artifacts
+          hostPath:
+            path: {{PWD}}/storage/trader
