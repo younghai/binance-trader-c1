@@ -11,9 +11,9 @@ from common_utils_dev import to_parquet
 CONFIG = {
     "report_prefix": "001",
     "detail_report": False,
-    "position_side": "long",
+    "position_side": "longshort",
     "entry_ratio": 0.05,
-    "commission": {"entry": 0.0004, "exit": 0.0002},
+    "commission": {"entry": 0.0004, "exit": 0.0002, "spread": 0.0002},
     "min_holding_minutes": 1,
     "max_holding_minutes": 60,
     "compound_interest": False,

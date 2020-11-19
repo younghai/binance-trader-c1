@@ -37,7 +37,10 @@ def build_rawdata(
     file_list = [
         file for file in file_list if get_filename_by_path(file) in candidate_assets
     ]
+    file_names = [get_filename_by_path(file) for file in file_list]
     assert len(file_list) != 0
+    if not len(file_list) == len(set(candidate_assets)):
+        raise ValueError(f"NotFound {set(candidate_assets) - set(file_names)}")
 
     count_files = 0
     for file in tqdm(file_list):

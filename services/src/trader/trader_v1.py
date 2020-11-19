@@ -16,7 +16,12 @@ from dataset_builder.build_dataset_v1 import (
 )
 from .utils import nan_to_zero
 from logging import getLogger
-from common_utils_svc import initialize_trader_logger, Position
+from common_utils_svc import (
+    initialize_trader_logger,
+    Position,
+    make_dirs,
+    to_abs_path,
+)
 
 
 logger = getLogger("trader")
@@ -25,11 +30,14 @@ initialize_trader_logger()
 
 @dataclass
 class TraderV1:
+    artifacts_dir = to_abs_path(__file__, "../../storage/trader")
     usecase = Usecase()
     possible_in_debt = False
-    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0005}
+    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0004}
+    skip_executable_order_check = True  # To prevent api limitation
 
     def __post_init__(self):
+        make_dirs([self.artifacts_dir])
         self.custom_cli = CustomClient()
         self.target_coins = pd.Index(self.custom_cli.target_coins)
 
@@ -37,6 +45,10 @@ class TraderV1:
         self._set_test_params()
         self._build_model()
         self._build_scaler()
+        self._load_last_entry_at()
+
+        if self.skip_executable_order_check is True:
+            assert self.order_criterion == "capital"
 
     def _set_params(self):
         # Set params which has dependency on trader logic
@@ -110,6 +122,17 @@ class TraderV1:
 
     def _build_scaler(self):
         self.scaler = joblib.load(os.path.join(CFG.EXP_DIR, "scaler.pkl"))
+
+    def _store_last_entry_at(self):
+        file_path = os.path.join(self.artifacts_dir, "last_entry_at.pkl")
+        joblib.dump(self.last_entry_at, file_path)
+
+    def _load_last_entry_at(self):
+        file_path = os.path.join(self.artifacts_dir, "last_entry_at.pkl")
+        if os.path.exists(file_path):
+            self.last_entry_at = joblib.load(file_path)
+        else:
+            self.last_entry_at = {key: None for key in self.target_coins}
 
     def _build_features(self, pricing):
         features = {}
@@ -272,7 +295,6 @@ class TraderV1:
             return
 
         time.sleep(API_REQUEST_DELAY)
-        assert len(self.custom_cli.get_open_orders(symbol=position.asset)) == 0
 
     def handle_exit(self, positions, positive_assets, negative_assets, now):
         for position_idx, position in enumerate(positions):
@@ -353,6 +375,9 @@ class TraderV1:
         return False
 
     def check_if_executable_order(self, position):
+        if self.skip_executable_order_check is True:
+            return True
+
         cache = self.custom_cli.get_available_cache()
         cost = self.compute_cost_to_order(position=position)
 
@@ -478,7 +503,6 @@ class TraderV1:
                 )
 
     def run(self):
-        self.last_entry_at = {key: None for key in self.target_coins}
         logger.info(f"[O] Start: demon of trader")
 
         while True:
@@ -503,6 +527,13 @@ class TraderV1:
                         now=now,
                     )
 
+                    long_positions = [
+                        position for position in positions if position.side == "long"
+                    ]
+                    short_positions = [
+                        position for position in positions if position.side == "short"
+                    ]
+
                     # Compute how much use cache to order
                     cache = self.custom_cli.get_available_cache()
                     pricing = self.custom_cli.get_last_pricing()
@@ -510,7 +541,7 @@ class TraderV1:
                         cache=cache, pricing=pricing, positions=positions
                     )
                     logger.info(
-                        f"[_] Capital: {capital:.2f}$ | Signals: pos({len(positive_assets)}), neg({len(negative_assets)})"
+                        f"[_] Capital: {capital:.2f}$ | Holds: long({len(long_positions)}), short({len(short_positions)}) | Signals: pos({len(positive_assets)}), neg({len(negative_assets)})"
                     )
 
                     if self.compound_interest is False:
@@ -542,11 +573,12 @@ class TraderV1:
 
                     # Record traded
                     self.usecase.insert_trade({"timestamp": now})
+                    self._store_last_entry_at()
                 else:
                     time.sleep(1)
 
             except Exception as e:
-                logger.error("[+] Error: ", exc_info=True)
+                logger.error("[!] Error: ", exc_info=True)
                 raise Exception
 
 

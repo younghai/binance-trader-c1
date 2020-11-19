@@ -240,21 +240,19 @@ def _build_qb_label(rawdata, lookahead_window, n_bins):
     # build fwd_return(window)
     pricing = rawdata["close"].copy().sort_index()
     fwd_1m_return = pricing.pct_change(1, fill_method=None).shift(-1)
-    fwd_return = (
-        fwd_1m_return.add(1)
-        .rolling(lookahead_window)
-        .parallel_apply(lambda x: x.prod())
-        .sub(1)
-        .shift(-lookahead_window)
+    fwd_avg_return = (
+        fwd_1m_return.rolling(lookahead_window).mean().shift(-lookahead_window)
     )
 
     _, bins = pd.qcut(
-        fwd_return[fwd_return != 0].dropna(), n_bins, retbins=True, labels=False
+        fwd_avg_return[fwd_avg_return != 0].dropna(), n_bins, retbins=True, labels=False
     )
 
     bins = np.concatenate([[-np.inf], bins[1:-1], [np.inf]])
 
-    qb_label = fwd_return.dropna().parallel_apply(partial(compute_quantile, bins=bins))
+    qb_label = fwd_avg_return.dropna().parallel_apply(
+        partial(compute_quantile, bins=bins)
+    )
 
     return qb_label.sort_index()
 
