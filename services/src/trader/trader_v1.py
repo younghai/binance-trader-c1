@@ -19,25 +19,23 @@ from logging import getLogger
 from common_utils_svc import (
     initialize_trader_logger,
     Position,
-    make_dirs,
-    to_abs_path,
 )
 
 
 logger = getLogger("trader")
 initialize_trader_logger()
 
+LAST_ENTRY_AT_FILE_PATH = "/app/storage/trader/last_entry_at.pkl"
+
 
 @dataclass
 class TraderV1:
-    artifacts_dir = to_abs_path(__file__, "../../storage/trader")
     usecase = Usecase()
     possible_in_debt = False
     commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0004}
     skip_executable_order_check = True  # To prevent api limitation
 
     def __post_init__(self):
-        make_dirs([self.artifacts_dir])
         self.custom_cli = CustomClient()
         self.target_coins = pd.Index(self.custom_cli.target_coins)
 
@@ -124,13 +122,11 @@ class TraderV1:
         self.scaler = joblib.load(os.path.join(CFG.EXP_DIR, "scaler.pkl"))
 
     def _store_last_entry_at(self):
-        file_path = os.path.join(self.artifacts_dir, "last_entry_at.pkl")
-        joblib.dump(self.last_entry_at, file_path)
+        joblib.dump(self.last_entry_at, LAST_ENTRY_AT_FILE_PATH)
 
     def _load_last_entry_at(self):
-        file_path = os.path.join(self.artifacts_dir, "last_entry_at.pkl")
-        if os.path.exists(file_path):
-            self.last_entry_at = joblib.load(file_path)
+        if os.path.exists(LAST_ENTRY_AT_FILE_PATH):
+            self.last_entry_at = joblib.load(LAST_ENTRY_AT_FILE_PATH)
         else:
             self.last_entry_at = {key: None for key in self.target_coins}
 
