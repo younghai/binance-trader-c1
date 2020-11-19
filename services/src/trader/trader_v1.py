@@ -27,7 +27,7 @@ initialize_trader_logger()
 class TraderV1:
     usecase = Usecase()
     possible_in_debt = False
-    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0005}
+    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0004}
 
     def __post_init__(self):
         self.custom_cli = CustomClient()
@@ -503,6 +503,13 @@ class TraderV1:
                         now=now,
                     )
 
+                    long_positions = [
+                        position for position in positions if position.side == "long"
+                    ]
+                    short_positions = [
+                        position for position in positions if position.side == "short"
+                    ]
+
                     # Compute how much use cache to order
                     cache = self.custom_cli.get_available_cache()
                     pricing = self.custom_cli.get_last_pricing()
@@ -510,7 +517,7 @@ class TraderV1:
                         cache=cache, pricing=pricing, positions=positions
                     )
                     logger.info(
-                        f"[_] Capital: {capital:.2f}$ | Signals: pos({len(positive_assets)}), neg({len(negative_assets)})"
+                        f"[_] Capital: {capital:.2f}$ | Holds: long({len(long_positions)}), short({len(short_positions)}) | Signals: pos({len(positive_assets)}), neg({len(negative_assets)})"
                     )
 
                     if self.compound_interest is False:
