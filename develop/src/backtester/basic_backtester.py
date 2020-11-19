@@ -18,7 +18,7 @@ CONFIG = {
     "detail_report": False,
     "position_side": "long",
     "entry_ratio": 0.1,
-    "commission": {"entry": 0.0004, "exit": 0.0002},
+    "commission": {"entry": 0.0004, "exit": 0.0002, "spread": 0.0002},
     "min_holding_minutes": 1,
     "max_holding_minutes": 60,
     "compound_interest": True,
@@ -348,7 +348,9 @@ class BasicBacktester:
 
     def compute_cost_to_order(self, position):
         cache_to_order = position.entry_price * position.qty
-        commission_to_order = cache_to_order * self.commission["entry"]
+        commission_to_order = cache_to_order * (
+            self.commission["entry"] + self.commission["spread"]
+        )
 
         return cache_to_order + commission_to_order
 
@@ -430,7 +432,7 @@ class BasicBacktester:
 
         exit_commission = self.commission["exit"]
         if achieved is not True:
-            exit_commission = exit_commission * 2
+            exit_commission = (self.commission["exit"] * 2) + self.commission["spread"]
 
         commission_to_order = profit_without_commission * exit_commission
 
