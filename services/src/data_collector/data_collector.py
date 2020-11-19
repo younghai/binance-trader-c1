@@ -19,7 +19,7 @@ initialize_main_logger()
 class DataCollector:
     usecase = Usecase()
     binance_cli: ccxt.binance = ccxt.binance(
-        {"options": {"defaultType": "future"}, "hedgeMode": True,}
+        {"timeout": 30000, "options": {"defaultType": "future"}}
     )
 
     def __post_init__(self):
@@ -168,6 +168,7 @@ class DataCollector:
                     raise Exception
 
                 logger.info(f"[!] Synced Failed")
+                time.sleep(4)
 
             time.sleep(1)
 
