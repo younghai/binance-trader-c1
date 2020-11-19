@@ -141,6 +141,8 @@ class DataCollector:
         """Definitioin of demon to live sync
         """
         logger.info("[O] Start: demon of data_collector")
+
+        error_count = 0
         while True:
             try:
                 now = pd.Timestamp.utcnow()
@@ -151,7 +153,20 @@ class DataCollector:
 
                     self._sync_live_pricing(now=now, limit=minutes_to_sync)
                     logger.info(f'[+] Synced: {now.floor("T")}')
-            except:
+
+                    error_count = 0
+
+            except Exception as e:
+                error_count += 1
+
+                # Raise error if reached limitation
+                if error_count >= 20:
+                    # Sleep for Api limitation
+                    time.sleep(60)
+
+                    logger.error("[!] Error: ", exc_info=True)
+                    raise Exception
+
                 logger.info(f"[!] Synced Failed")
 
             time.sleep(1)
