@@ -127,6 +127,7 @@ class TraderV1:
     def _load_last_entry_at(self):
         if os.path.exists(LAST_ENTRY_AT_FILE_PATH):
             self.last_entry_at = joblib.load(LAST_ENTRY_AT_FILE_PATH)
+            logger.info(f"[O] Info: loaded last_entry_at")
         else:
             self.last_entry_at = {key: None for key in self.target_coins}
 

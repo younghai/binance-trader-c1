@@ -33,6 +33,8 @@ class ReviewerV1:
         self.grid_params["dataset_dir"] = self.dataset_dir
         self.grid_params["exp_dir"] = self.exp_dir
 
+        self._build_backtesters()
+
     def _exists_artifact(self, index):
         exists = []
         for artifact_type in ["metrics", "report", "params"]:
@@ -55,6 +57,45 @@ class ReviewerV1:
             print(f"[!] Found backtests already done: {index}")
 
         return exists
+
+    def _build_backtesters(self):
+        def _is_valid_params(param):
+            if "entry_qay_threshold" in param:
+                if (param["entry_qay_threshold"] == 9) and (
+                    param["entry_qay_prob_threshold"] >= 0.4
+                ):
+                    return False
+
+            if "entry_qby_threshold" in param:
+                if (param["entry_qby_threshold"] == 9) and (
+                    param["entry_qby_prob_threshold"] >= 0.4
+                ):
+                    return False
+
+            return True
+
+        grid_params = list(grid(self.grid_params))
+
+        # Filter grid_params
+        grid_params = [
+            grid_param
+            for grid_param in grid_params
+            if _is_valid_params(param=grid_param) is True
+        ]
+
+        # Build backtesters
+        self.backtesters = [
+            getattr(backtester, self.backtester_type)(
+                report_prefix=f"{self.reviewer_prefix}_{idx}", **params
+            )
+            for idx, params in enumerate(grid_params)
+        ][self.exec_start : self.exec_end]
+        self.backtesters = [
+            backtester
+            for backtester in self.backtesters
+            if self._exists_artifact(index=backtester.report_prefix.split("_")[-1])
+            is not True
+        ]
 
     def _load_artifact(self, artifact_type, index):
         assert artifact_type in ("metrics", "report", "params")
@@ -170,19 +211,6 @@ class ReviewerV1:
         self.display_report(index=best_index, in_shell=in_shell)
 
     def run(self, in_shell=False):
-        self.backtesters = [
-            getattr(backtester, self.backtester_type)(
-                report_prefix=f"{self.reviewer_prefix}_{idx}", **params
-            )
-            for idx, params in enumerate(list(grid(self.grid_params)))
-        ][self.exec_start : self.exec_end]
-        self.backtesters = [
-            backtester
-            for backtester in self.backtesters
-            if self._exists_artifact(index=backtester.report_prefix.split("_")[-1])
-            is not True
-        ]
-
         print(f"[+] Found backtests to start: {len(self.backtesters)}")
 
         Parallel(n_jobs=self.n_jobs, verbose=1)(
