@@ -1,6 +1,9 @@
 import os
 import gc
 import time
+import ccxt
+import requests
+import urllib3
 import joblib
 import pandas as pd
 import numpy as np
@@ -501,8 +504,15 @@ class TraderV1:
 
     def run(self):
         logger.info(f"[O] Start: demon of trader")
+        n_traded = 0
 
         while True:
+            # Handle relogin
+            if n_traded == 60:
+                self.custom_cli = CustomClient()
+                n_traded = 0
+
+            # Main
             try:
                 # Use timestamp without second info
                 now = pd.Timestamp.utcnow().floor("T")
@@ -571,6 +581,8 @@ class TraderV1:
                     # Record traded
                     self.usecase.insert_trade({"timestamp": now})
                     self._store_last_entry_at()
+
+                    n_traded += 1
                 else:
                     time.sleep(1)
 

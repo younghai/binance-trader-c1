@@ -11,18 +11,17 @@ API_REQUEST_DELAY = 0.1  # sec
 
 @dataclass
 class CustomClient:
-    binance_cli: ccxt.binance = ccxt.binance(
-        {
-            "apiKey": CFG.EXCHANGE_API_KEY,
-            "secret": CFG.EXCHANGE_SECRET_KEY,
-            "enableRateLimit": True,
-            "options": {"defaultType": "future"},
-            "hedgeMode": True,
-        }
-    )
-    test_mode: bool = CFG.TEST_MODE
-
     def __post_init__(self):
+        self.binance_cli = ccxt.binance(
+            {
+                "apiKey": CFG.EXCHANGE_API_KEY,
+                "secret": CFG.EXCHANGE_SECRET_KEY,
+                "enableRateLimit": True,
+                "options": {"defaultType": "future"},
+                "hedgeMode": True,
+            }
+        )
+        self.test_mode = CFG.TEST_MODE
         self.target_coins = CFG.TRADABLE_COINS
 
         self.__set_test_mode()

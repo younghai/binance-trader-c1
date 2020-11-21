@@ -22,7 +22,7 @@ class SlackHandler(logging.StreamHandler):
 
     def send_message(self, text):
         if "[!] Error:" in text:
-            text = "```" + text + "```"
+            text = "```" + text + " ```"
         else:
             text = ":sparkles: " + text
 
