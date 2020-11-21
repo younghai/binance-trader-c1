@@ -13,7 +13,7 @@ class FocalLoss(nn.Module):
         if gamma is 1, it performs same with CrossEntropy
     """
 
-    def __init__(self, weight=None, gamma=2.0, reduction="mean"):
+    def __init__(self, weight=None, gamma=1.0, reduction="mean"):
         super().__init__()
         self.weight = weight
         self.gamma = gamma

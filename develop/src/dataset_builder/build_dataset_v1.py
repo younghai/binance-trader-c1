@@ -18,8 +18,8 @@ CONFIG = {
     "data_store_dir": to_abs_path(__file__, "../../storage/dataset/v001/"),
     "lookahead_window": 60,
     "n_bins": 10,
-    "train_ratio": 0.8,
-    "scaler_type": "StandardScaler",
+    "train_ratio": 0.85,
+    "scaler_type": "RobustScaler",
 }
 COLUMNS = ["open", "high", "low", "close", "volume"]
 RETURN_COLUMNS = ["open", "high", "low", "close"]
@@ -71,6 +71,27 @@ def _build_feature_by_rawdata(rawdata):
         .reindex(returns_1410m.index)
     )
 
+    returns_330m = (
+        (
+            rawdata[RETURN_COLUMNS]
+            .pct_change(330, fill_method=None)
+            .rename(columns={key: key + "_return(330)" for key in RETURN_COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1410m.index)
+    )
+
+    madiv_330m = (
+        (
+            rawdata[RETURN_COLUMNS]
+            .rolling(330)
+            .mean()
+            .rename(columns={key: key + "_madiv(330)" for key in RETURN_COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1410m.index)
+    )
+
     returns_60m = (
         (
             rawdata[RETURN_COLUMNS]
@@ -102,26 +123,17 @@ def _build_feature_by_rawdata(rawdata):
         .reindex(returns_1410m.index)
     )
 
-    inner_changes = []
-    for column_pair in sorted(list(combinations(RETURN_COLUMNS, 2))):
-        inner_changes.append(
-            rawdata[list(column_pair)]
-            .pct_change(1, axis=1, fill_method=None)[column_pair[-1]]
-            .rename("_".join(column_pair) + "_change")
-        )
-
-    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1410m.index)
-
     return pd.concat(
         [
             returns_1410m,
             madiv_1410m,
             returns_690m,
             madiv_690m,
+            returns_330m,
+            madiv_330m,
             returns_60m,
             madiv_60m,
             returns_1m,
-            inner_changes,
         ],
         axis=1,
     ).sort_index()

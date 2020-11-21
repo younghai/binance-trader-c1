@@ -19,7 +19,7 @@ DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
     "winsorize_threshold": 6,
-    "base_feature_assets": ["BTC-USDT", "ETH-USDT"],
+    "base_feature_assets": ["BTC-USDT"],
     "drop_feature_assets": [],
 }
 
@@ -29,7 +29,7 @@ MODEL_CONFIG = {
     "lr": 0.0002,
     "beta1": 0.5,
     "beta2": 0.99,
-    "epochs": 5,
+    "epochs": 3,
     "print_epoch": 1,
     "print_iter": 25,
     "save_epoch": 1,
@@ -38,11 +38,11 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 102,
+        "in_channels": 72,
         "n_class_qay": 10,
         "n_class_qby": 10,
         "n_blocks": 4,
-        "n_block_layers": 8,
+        "n_block_layers": 6,
         "growth_rate": 12,
         "dropout": 0.2,
         "channel_reduction": 0.5,

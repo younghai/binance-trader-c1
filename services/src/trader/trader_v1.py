@@ -19,10 +19,7 @@ from dataset_builder.build_dataset_v1 import (
 )
 from .utils import nan_to_zero
 from logging import getLogger
-from common_utils_svc import (
-    initialize_trader_logger,
-    Position,
-)
+from common_utils_svc import initialize_trader_logger, Position
 
 
 logger = getLogger("trader")
