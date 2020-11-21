@@ -36,8 +36,6 @@ MODEL_CONFIG = {
     "lookback_window": 60,
     "batch_size": 1024,
     "lr": 0.0002,
-    "beta1": 0.5,
-    "beta2": 0.99,
     "epochs": 3,
     "print_epoch": 1,
     "print_iter": 25,
@@ -296,10 +294,8 @@ class BasicPredictor:
 
     def _build_optimizer(self):
         # set optimizer
-        optimizer = torch.optim.Adam(
-            self.model.parameters(),
-            self.model_config["lr"],
-            (self.model_config["beta1"], self.model_config["beta2"]),
+        optimizer = torch.optim.AdamW(
+            params=self.model.parameters(), lr=self.model_config["lr"]
         )
 
         return optimizer
