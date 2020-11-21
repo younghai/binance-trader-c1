@@ -27,7 +27,7 @@ COMMON_CONFIG = {
 DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
-    "winsorize_threshold": None,
+    "winsorize_threshold": 6,
     "base_feature_assets": ["BTC-USDT", "ETH-USDT"],
     "drop_feature_assets": [],
 }
