@@ -61,16 +61,24 @@ class ReviewerV1:
     def _build_backtesters(self):
         def _is_valid_params(param):
             if "entry_qay_threshold" in param:
-                if (param["entry_qay_threshold"] == 9) and (
-                    param["entry_qay_prob_threshold"] >= 0.4
-                ):
-                    return False
+                if param["entry_qay_threshold"] == 9:
+                    if param["entry_qay_prob_threshold"] >= 0.4:
+                        return False
 
             if "entry_qby_threshold" in param:
-                if (param["entry_qby_threshold"] == 9) and (
-                    param["entry_qby_prob_threshold"] >= 0.4
-                ):
-                    return False
+                if param["entry_qby_threshold"] == 9:
+                    if param["entry_qby_prob_threshold"] >= 0.4:
+                        return False
+
+                if param["entry_qby_threshold"] == 8:
+                    if param["entry_qby_prob_threshold"] >= 0.5:
+                        return False
+
+                if param["entry_qby_threshold"] in (5, 7):
+                    if (param["entry_qby_prob_threshold"] > 0) and (
+                        param["entry_qby_prob_threshold"] < 0.4
+                    ):
+                        return False
 
             return True
 

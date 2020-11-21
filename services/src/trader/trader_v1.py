@@ -453,24 +453,26 @@ class TraderV1:
 
             time.sleep(API_REQUEST_DELAY)
 
-            positions = self.custom_cli.get_position_objects(
-                symbol=position.asset, with_entry_at=False
-            )
-            assert len(positions) == 1
+            if self.exit_if_achieved is True:
+                positions = self.custom_cli.get_position_objects(
+                    symbol=position.asset, with_entry_at=False
+                )
+                assert len(positions) == 1
 
-            position = positions[-1]
-            assert position.entry_price != 0.0
+                position = positions[-1]
+                assert position.entry_price != 0.0
 
-            self.custom_cli.exit_order(
-                symbol=position.asset,
-                order_type="limit",
-                position=position.side,
-                amount=position.qty,
-                price=self.compute_price_to_achieve(
-                    position=position, entry_price=position.entry_price
-                ),
-            )
-            time.sleep(API_REQUEST_DELAY)
+                self.custom_cli.exit_order(
+                    symbol=position.asset,
+                    order_type="limit",
+                    position=position.side,
+                    amount=position.qty,
+                    price=self.compute_price_to_achieve(
+                        position=position, entry_price=position.entry_price
+                    ),
+                )
+                time.sleep(API_REQUEST_DELAY)
+
             logger.info(f"[+] Entry: {str(position)}")
 
     def handle_entry(
