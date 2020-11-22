@@ -7,6 +7,10 @@ from .self_attention import SelfAttention1d
 from trainer.modules import acts
 
 
+def identity(x):
+    return x
+
+
 class BottleneckBlock(nn.Module):
     def __init__(
         self,
@@ -23,19 +27,37 @@ class BottleneckBlock(nn.Module):
         if planes is None:
             planes = out_channels * 4
 
+        bias = True
+        if normalization is not None:
+            bias = False
+
+        if activation == "selu":
+            bias = False
+
         # Define blocks
-        self.norm1 = NORMS[normalization.upper()](num_channels=in_channels)
+        self.norm1 = identity
+        if normalization is not None:
+            self.norm1 = NORMS[normalization.upper()](num_channels=in_channels)
+
         self.conv1 = nn.Conv1d(
-            in_channels, planes, kernel_size=1, stride=1, padding=0, bias=False
+            in_channels, planes, kernel_size=1, stride=1, padding=0, bias=bias
         )
 
-        self.norm2 = NORMS[normalization.upper()](num_channels=planes)
+        self.norm2 = identity
+        if normalization is not None:
+            self.norm2 = NORMS[normalization.upper()](num_channels=planes)
+
         self.conv2 = nn.Conv1d(
-            planes, out_channels, kernel_size=3, stride=1, padding=1, bias=False
+            planes, out_channels, kernel_size=3, stride=1, padding=1, bias=bias
         )
 
         self.act = getattr(acts, activation)
-        self.dropout = nn.Dropout2d(dropout)
+        if activation == "selu":
+            self.dropout = nn.Sequential(
+                *[nn.AlphaDropout(dropout / 5), nn.Dropout2d(dropout)]
+            )
+        else:
+            self.dropout = nn.Sequential(*[nn.Dropout(dropout), nn.Dropout2d(dropout)])
 
         # Optional blocks
         self.seblock = None
@@ -72,12 +94,27 @@ class TransitionBlock(nn.Module):
         normalization: str = "bn",
     ):
         super(TransitionBlock, self).__init__()
-        self.norm = NORMS[normalization.upper()](num_channels=in_channels)
+        bias = True
+        if normalization is not None:
+            bias = False
+
+        if activation == "selu":
+            bias = False
+
+        self.norm = identity
+        if normalization is not None:
+            self.norm = NORMS[normalization.upper()](num_channels=in_channels)
+
         self.act = getattr(acts, activation)
         self.conv = nn.Conv1d(
-            in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False
+            in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=bias
         )
-        self.dropout = nn.Dropout2d(dropout)
+        if activation == "selu":
+            self.dropout = nn.Sequential(
+                *[nn.AlphaDropout(dropout / 5), nn.Dropout2d(dropout)]
+            )
+        else:
+            self.dropout = nn.Sequential(*[nn.Dropout(dropout), nn.Dropout2d(dropout)])
 
     def forward(self, x: torch.Tensor):
         out = self.dropout(self.conv(self.act(self.norm(x))))

@@ -6,6 +6,10 @@ from trainer.modules.block_1d import DenseBlock, TransitionBlock, NORMS
 from trainer.modules import acts
 
 
+def identity(x):
+    return x
+
+
 class BackboneV1(nn.Module):
     def __init__(
         self,
@@ -72,7 +76,10 @@ class BackboneV1(nn.Module):
         self.blocks = nn.Sequential(*blocks)
 
         # Last layers
-        self.norm = NORMS[normalization.upper()](num_channels=in_channels)
+        self.norm = identity
+        if normalization is not None:
+            self.norm = NORMS[normalization.upper()](num_channels=in_channels)
+
         self.act = getattr(acts, activation)
         self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
 
