@@ -32,7 +32,7 @@ LAST_ENTRY_AT_FILE_PATH = "/app/storage/trader/last_entry_at.pkl"
 class TraderV1:
     usecase = Usecase()
     possible_in_debt = False
-    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0004}
+    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0002}
     skip_executable_order_check = True  # To prevent api limitation
 
     def __post_init__(self):
@@ -373,7 +373,10 @@ class TraderV1:
 
     def check_if_executable_order(self, position):
         if self.skip_executable_order_check is True:
-            return True
+            is_enough_ammount = bool(
+                position.qty >= self.custom_cli.ammount_constraints[position.asset]
+            )
+            return is_enough_ammount
 
         cache = self.custom_cli.get_available_cache()
         cost = self.compute_cost_to_order(position=position)
@@ -390,13 +393,18 @@ class TraderV1:
         if self.achieved_with_commission is True:
             commission["entry"] = 0
             commission["exit"] = 0
+            commission["spread"] = 0
 
         if position.side == "long":
             bin_value = self.bins[1:-1][position.asset][self.exit_q_threshold]
             price_to_achieve = (
                 entry_price
-                * ((bin_value * self.achieve_ratio) + 1 + commission["entry"])
-                / (1 - commission["exit"])
+                * (
+                    (bin_value * self.achieve_ratio)
+                    + 1
+                    + (commission["entry"] + commission["spread"])
+                )
+                / (1 - (commission["exit"] + commission["spread"]))
             )
 
         if position.side == "short":
@@ -405,8 +413,12 @@ class TraderV1:
             ]
             price_to_achieve = (
                 entry_price
-                * ((bin_value * self.achieve_ratio) + 1 - commission["entry"])
-                / (1 + commission["exit"])
+                * (
+                    (bin_value * self.achieve_ratio)
+                    + 1
+                    - (commission["entry"] + commission["spread"])
+                )
+                / (1 + (commission["exit"] + commission["spread"]))
             )
 
         return price_to_achieve

@@ -629,13 +629,23 @@ class BasicBacktester:
         diff_price = current_price - position.entry_price
         if self.achieved_with_commission is True:
             if position.side == "long":
-                commission = (current_price * self.commission["exit"]) + (
-                    position.entry_price * self.commission["entry"]
+                commission = (
+                    current_price
+                    * (self.commission["exit"] + self.commission["spread"])
+                ) + (
+                    position.entry_price
+                    * (self.commission["entry"] + self.commission["spread"])
                 )
             if position.side == "short":
                 commission = -(
-                    (current_price * self.commission["exit"])
-                    + (position.entry_price * self.commission["entry"])
+                    (
+                        current_price
+                        * (self.commission["exit"] + self.commission["spread"])
+                    )
+                    + (
+                        position.entry_price
+                        * (self.commission["entry"] + self.commission["spread"])
+                    )
                 )
 
             diff_price = diff_price - commission
