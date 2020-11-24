@@ -317,20 +317,20 @@ class TraderV1:
             if passed_minutes >= self.max_holding_minutes:
                 self.exit_order(position=position)
                 positions[position_idx].is_exited = True
-                logger.info(f"[-] Exit: {str(position)}")
+                logger.info(f"[-] Exit: {str(position)}, max_holding")
                 continue
 
             # Handle exit signal
             if (position.side == "long") and (position.asset in negative_assets):
                 self.exit_order(position=position)
                 positions[position_idx].is_exited = True
-                logger.info(f"[-] Exit: {str(position)}")
+                logger.info(f"[-] Exit: {str(position)}, opposite")
                 continue
 
             if (position.side == "short") and (position.asset in positive_assets):
                 self.exit_order(position=position)
                 positions[position_idx].is_exited = True
-                logger.info(f"[-] Exit: {str(position)}")
+                logger.info(f"[-] Exit: {str(position)}, opposite")
                 continue
 
         # Delete exited positions
@@ -463,6 +463,7 @@ class TraderV1:
                 assert CFG.TEST_MODE is True
                 return
 
+            self.last_entry_at[position.asset] = now
             time.sleep(API_REQUEST_DELAY)
 
             if self.exit_if_achieved is True:
