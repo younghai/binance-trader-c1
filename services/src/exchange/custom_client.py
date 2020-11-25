@@ -112,6 +112,8 @@ class CustomClient:
             positions["positionAmt"].astype(float).map(lambda x: x if x >= 0 else -x)
         )
 
+        positions["unrealizedProfit"] = positions["unrealizedProfit"].astype(float)
+
         return positions
 
     def get_position_objects(self, symbol=None, with_entry_at=True):
@@ -129,22 +131,17 @@ class CustomClient:
                 entry_at=self.get_last_trade_on(symbol=posi["symbol"])
                 if with_entry_at is True
                 else None,
+                profit=float(posi["unrealizedProfit"]),
             )
             positions.append(position)
 
         return positions
 
-    def get_available_cache(self, balance=None):
+    def get_cache_dict(self, balance=None):
         if balance is None:
             balance = self.get_balance()
 
-        return balance.xs(CFG.BASE_CURRENCY)["free"]
-
-    def get_total_cache(self, balance=None):
-        if balance is None:
-            balance = self.get_balance()
-
-        return balance.xs(CFG.BASE_CURRENCY)["total"]
+        return balance.xs(CFG.BASE_CURRENCY)[["free", "used", "total"]].to_dict()
 
     def entry_order(self, symbol, order_type, position, amount, price=None):
         position = position.upper()

@@ -261,22 +261,6 @@ class TraderV1:
 
         return False
 
-    def compute_capital(self, cache, pricing, positions):
-        # capital = cache + value of positions
-        capital = cache
-
-        for position in positions:
-            current_price = pricing[position.asset]
-
-            if position.side == "long":
-                capital += current_price * position.qty
-
-            if position.side == "short":
-                capital += position.entry_price * position.qty
-                capital += (current_price - position.entry_price) * position.qty * -1
-
-        return capital
-
     def exit_order(self, position):
         self.custom_cli.cancel_orders(symbol=position.asset)
         time.sleep(API_REQUEST_DELAY)
@@ -378,7 +362,7 @@ class TraderV1:
             )
             return is_enough_ammount
 
-        cache = self.custom_cli.get_available_cache()
+        cache = self.custom_cli.get_cache_dict()["free"]
         cost = self.compute_cost_to_order(position=position)
 
         is_enough_cache = bool((cache - cost) >= 0)
@@ -554,11 +538,10 @@ class TraderV1:
                     ]
 
                     # Compute how much use cache to order
-                    cache = self.custom_cli.get_available_cache()
-                    pricing = self.custom_cli.get_last_pricing()
-                    capital = self.compute_capital(
-                        cache=cache, pricing=pricing, positions=positions
-                    )
+                    cache_dict = self.custom_cli.get_cache_dict()
+                    capital = cache_dict["total"]
+                    cache = cache_dict["free"]
+
                     logger.info(
                         f"[_] Capital: {capital:.2f}$ | Holds: long({len(long_positions)}), short({len(short_positions)}) | Signals: pos({len(positive_assets)}), neg({len(negative_assets)})"
                     )
@@ -581,6 +564,7 @@ class TraderV1:
                             )
 
                     # Handle entry
+                    pricing = self.custom_cli.get_last_pricing()
                     self.handle_entry(
                         positions=positions,
                         cache_to_order=cache_to_order,
