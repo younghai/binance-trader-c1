@@ -10,7 +10,7 @@ class FocalLoss(nn.Module):
 
     Notes:
         When the label is unbalanced, FocalLoss performce better than SoftmaxCrossEntropy
-        if gamma is 1, it performs same with CrossEntropy
+        if gamma is 0, it performs same with CrossEntropy
     """
 
     def __init__(self, weight=None, gamma=1.0, reduction="mean"):

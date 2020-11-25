@@ -51,7 +51,7 @@ MODEL_CONFIG = {
         "n_blocks": 4,
         "n_block_layers": 8,
         "growth_rate": 12,
-        "dropout": 0.2,
+        "dropout": 0.1,
         "channel_reduction": 0.5,
         "activation": "selu",
         "normalization": None,
