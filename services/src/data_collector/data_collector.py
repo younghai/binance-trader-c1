@@ -19,7 +19,10 @@ initialize_main_logger()
 class DataCollector:
     usecase = Usecase()
     binance_cli: ccxt.binance = ccxt.binance(
-        {"timeout": 30000, "options": {"defaultType": "future"}}
+        {
+            "timeout": 30000,
+            "options": {"defaultType": "future", "adjustForTimeDifference": True},
+        }
     )
 
     def __post_init__(self):
