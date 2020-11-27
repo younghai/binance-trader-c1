@@ -17,7 +17,7 @@ class CustomClient:
                 "apiKey": CFG.EXCHANGE_API_KEY,
                 "secret": CFG.EXCHANGE_SECRET_KEY,
                 "enableRateLimit": True,
-                "options": {"defaultType": "future", "adjustForTimeDifference": True},
+                "options": {"defaultType": "future"},
                 "hedgeMode": True,
             }
         )
