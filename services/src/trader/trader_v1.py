@@ -32,7 +32,7 @@ LAST_ENTRY_AT_FILE_PATH = "/app/storage/trader/last_entry_at.pkl"
 class TraderV1:
     usecase = Usecase()
     possible_in_debt = False
-    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0004}
+    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0002}
     skip_executable_order_check = True  # To prevent api limitation
 
     def __post_init__(self):
@@ -374,7 +374,7 @@ class TraderV1:
 
     def compute_price_to_achieve(self, position, entry_price):
         commission = self.commission
-        if self.achieved_with_commission is True:
+        if self.achieved_with_commission is not True:
             commission["entry"] = 0
             commission["exit"] = 0
             commission["spread"] = 0
