@@ -146,8 +146,8 @@ class BacktesterV1(BasicBacktester):
             pricing = self.historical_data_dict["pricing"].iloc[idx]
             qay_prediction = self.historical_data_dict["qay_predictions"].iloc[idx]
             qby_prediction = self.historical_data_dict["qby_predictions"].iloc[idx]
-            qay_probabilities = self.historical_data_dict["qay_probabilities"].loc[now]
-            qby_probabilities = self.historical_data_dict["qby_probabilities"].loc[now]
+            qay_probabilities = self.historical_data_dict["qay_probabilities"].iloc[idx]
+            qby_probabilities = self.historical_data_dict["qby_probabilities"].iloc[idx]
 
             if self.sum_probs_above_threshold is True:
                 positive_qay_probability = qay_probabilities[

@@ -123,7 +123,7 @@ class BasicBacktester:
         assert "qay_predictions" in data_dict.keys()
         index = data_dict["qay_predictions"].index.sort_index()
         for key in data_dict.keys():
-            data_dict[key] = data_dict[key].reindex(index, axis=0, level=0)
+            data_dict[key] = data_dict[key].reindex(index)
 
         return data_dict
 

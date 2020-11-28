@@ -74,11 +74,23 @@ class ReviewerV1:
                     if param["entry_qby_prob_threshold"] >= 0.5:
                         return False
 
-                if param["entry_qby_threshold"] in (5, 7):
+                if param["entry_qby_threshold"] == 7:
                     if (param["entry_qby_prob_threshold"] > 0) and (
                         param["entry_qby_prob_threshold"] < 0.4
                     ):
                         return False
+
+                if param["entry_qby_threshold"] in (5, 6):
+                    if (param["entry_qby_prob_threshold"] > 0) and (
+                        param["entry_qby_prob_threshold"] < 0.5
+                    ):
+                        return False
+
+            if ("achieved_with_commission" in param) and ("exit_q_threshold" in param):
+                if (param["achieved_with_commission"] is False) and (
+                    param["exit_q_threshold"] < 9
+                ):
+                    return False
 
             return True
 
