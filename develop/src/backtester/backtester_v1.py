@@ -141,11 +141,11 @@ class BacktesterV1(BasicBacktester):
         self.build()
         self.initialize()
 
-        for now in tqdm(self.index):
+        for idx, now in tqdm(enumerate(self.index)):
             # Step1: Prepare pricing and signal
-            pricing = self.historical_data_dict["pricing"].loc[now]
-            qay_prediction = self.historical_data_dict["qay_predictions"].loc[now]
-            qby_prediction = self.historical_data_dict["qby_predictions"].loc[now]
+            pricing = self.historical_data_dict["pricing"].iloc[idx]
+            qay_prediction = self.historical_data_dict["qay_predictions"].iloc[idx]
+            qby_prediction = self.historical_data_dict["qby_predictions"].iloc[idx]
             qay_probabilities = self.historical_data_dict["qay_probabilities"].loc[now]
             qby_probabilities = self.historical_data_dict["qby_probabilities"].loc[now]
 

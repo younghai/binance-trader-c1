@@ -78,8 +78,8 @@ class BottleneckBlock(nn.Module):
         if self.sablock is not None:
             after_act = self.sablock(after_act)
 
-        out = self.dropout(self.conv1(after_act))
-        out = self.dropout(self.conv2(self.act(self.norm2(out))))
+        out = self.conv1(self.dropout(after_act))
+        out = self.conv2(self.dropout(self.act(self.norm2(out))))
 
         return torch.cat([x, out], dim=1)
 
@@ -117,7 +117,7 @@ class TransitionBlock(nn.Module):
             self.dropout = nn.Sequential(*[nn.Dropout(dropout), nn.Dropout2d(dropout)])
 
     def forward(self, x: torch.Tensor):
-        out = self.dropout(self.conv(self.act(self.norm(x))))
+        out = self.conv(self.dropout(self.act(self.norm(x))))
         return F.avg_pool1d(out, 2)
 
 
