@@ -65,6 +65,16 @@ class ReviewerV1:
                     if param["entry_qay_prob_threshold"] >= 0.4:
                         return False
 
+                if param["entry_qay_threshold"] == 8:
+                    if param["entry_qay_prob_threshold"] >= 0.5:
+                        return False
+
+                if param["entry_qay_threshold"] == 7:
+                    if (param["entry_qay_prob_threshold"] > 0) and (
+                        param["entry_qay_prob_threshold"] < 0.4
+                    ):
+                        return False
+
             if "entry_qby_threshold" in param:
                 if param["entry_qby_threshold"] == 9:
                     if param["entry_qby_prob_threshold"] >= 0.4:
