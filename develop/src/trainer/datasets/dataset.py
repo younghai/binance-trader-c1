@@ -88,9 +88,11 @@ class Dataset(_Dataset):
         # Concat with BX
         concat_df = pd.concat(
             [
-                self.data_caches["BX"].iloc[boundary_index - 59 : boundary_index + 1],
+                self.data_caches["BX"].iloc[
+                    boundary_index - (self.lookback_window - 1) : boundary_index + 1
+                ],
                 self.data_caches["X"][self.index[idx][1]].iloc[
-                    boundary_index - 59 : boundary_index + 1
+                    boundary_index - (self.lookback_window - 1) : boundary_index + 1
                 ],
             ],
             axis=1,

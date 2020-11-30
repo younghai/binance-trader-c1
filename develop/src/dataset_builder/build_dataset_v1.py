@@ -16,7 +16,7 @@ from pandarallel import pandarallel
 CONFIG = {
     "rawdata_dir": to_abs_path(__file__, "../../storage/dataset/rawdata/cleaned/"),
     "data_store_dir": to_abs_path(__file__, "../../storage/dataset/v001/"),
-    "lookahead_window": 60,
+    "lookahead_window": 30,
     "n_bins": 10,
     "train_ratio": 0.85,
     "scaler_type": "StandardScaler",
@@ -224,7 +224,6 @@ def build_all_bins(file_names, lookahead_window, n_bins):
 
 
 def _build_qa_label(rawdata, lookahead_window, n_bins):
-    # build fwd_return(window)
     pricing = rawdata["close"].copy().sort_index()
     fwd_return = (
         pricing.pct_change(lookahead_window, fill_method=None)
@@ -260,22 +259,22 @@ def build_qa_labels(file_names, lookahead_window, n_bins):
 
 
 def _build_qb_label(rawdata, lookahead_window, n_bins):
-    # build fwd_return(window)
+    half_lookahead_window = lookahead_window // 2
     pricing = rawdata["close"].copy().sort_index()
-    fwd_1m_return = pricing.pct_change(1, fill_method=None).shift(-1)
-    fwd_avg_return = (
-        fwd_1m_return.rolling(lookahead_window).mean().shift(-lookahead_window)
+    fwd_return = (
+        pricing.pct_change(half_lookahead_window, fill_method=None)
+        .shift(-half_lookahead_window)
+        .rename(f"fwd_return({half_lookahead_window})")
+        .sort_index()
     )
 
     _, bins = pd.qcut(
-        fwd_avg_return[fwd_avg_return != 0].dropna(), n_bins, retbins=True, labels=False
+        fwd_return[fwd_return != 0].dropna(), n_bins, retbins=True, labels=False
     )
 
     bins = np.concatenate([[-np.inf], bins[1:-1], [np.inf]])
 
-    qb_label = fwd_avg_return.dropna().parallel_apply(
-        partial(compute_quantile, bins=bins)
-    )
+    qb_label = fwd_return.dropna().parallel_apply(partial(compute_quantile, bins=bins))
 
     return qb_label.sort_index()
 

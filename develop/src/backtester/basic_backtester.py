@@ -20,7 +20,7 @@ CONFIG = {
     "entry_ratio": 0.1,
     "commission": {"entry": 0.0004, "exit": 0.0002, "spread": 0.0002},
     "min_holding_minutes": 1,
-    "max_holding_minutes": 60,
+    "max_holding_minutes": 30,
     "compound_interest": True,
     "order_criterion": "capital",
     "possible_in_debt": False,

@@ -174,7 +174,9 @@ class TraderV1:
         return inputs, ids
 
     def build_prediction_dict(self, last_sync_on):
-        query_start_on = last_sync_on - pd.Timedelta(minutes=1469)
+        query_start_on = last_sync_on - pd.Timedelta(
+            minutes=(1410 + CFG.EXP_MODEL_PARAMS["lookback_window"] - 1)
+        )
         query_end_on = last_sync_on
         pricing = self.usecase.get_pricing(start_on=query_start_on, end_on=query_end_on)
 
