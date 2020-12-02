@@ -277,8 +277,6 @@ class TraderV1:
             assert CFG.TEST_MODE is True
             return
 
-        time.sleep(API_REQUEST_DELAY)
-
     def handle_exit(self, positions, positive_assets, negative_assets, now):
         for position_idx, position in enumerate(positions):
             # Keep position if matched
@@ -470,7 +468,6 @@ class TraderV1:
                         position=position, entry_price=position.entry_price
                     ),
                 )
-                time.sleep(API_REQUEST_DELAY)
 
             logger.info(f"[+] Entry: {str(position)}")
 
