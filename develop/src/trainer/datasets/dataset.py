@@ -23,14 +23,20 @@ class Dataset(_Dataset):
         base_feature_assets: List[str],
         drop_feature_assets: List[str],
         asset_to_id: Dict[str, int],
-        lookback_window: int = 60,
+        lookback_window: int = 120,
         winsorize_threshold: Optional[int] = None,
     ):
         print("[+] Start to build dataset")
         self.data_caches = {}
         self.data_caches["X"] = pd.read_parquet(
             os.path.join(data_dir, FILENAME_TEMPLATE["X"]), engine="pyarrow"
-        )
+        ).astype("float32")
+
+        if winsorize_threshold is not None:
+            self.data_caches["X"] = self.data_caches["X"].clip(
+                -winsorize_threshold, winsorize_threshold
+            )
+
         self.data_caches["BX"] = self.data_caches["X"][base_feature_assets]
 
         trainable_assets = [
@@ -96,14 +102,9 @@ class Dataset(_Dataset):
                 ],
             ],
             axis=1,
-        ).astype("float32")
+        )
 
         data_dict["X"] = np.swapaxes(concat_df.values, 0, 1)
-
-        if self.winsorize_threshold is not None:
-            data_dict["X"] = data_dict["X"].clip(
-                -self.winsorize_threshold, self.winsorize_threshold
-            )
 
         data_dict["QAY"] = self.data_caches["QAY"].iloc[idx]
 

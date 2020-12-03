@@ -24,7 +24,7 @@ DATA_CONFIG = {
 }
 
 MODEL_CONFIG = {
-    "lookback_window": 60,
+    "lookback_window": 120,
     "batch_size": 512,
     "lr": 0.0002,
     "epochs": 3,
@@ -36,10 +36,10 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 84,
+        "in_channels": 68,
         "n_class_qay": 10,
         "n_class_qby": 10,
-        "n_blocks": 4,
+        "n_blocks": 5,
         "n_block_layers": 8,
         "growth_rate": 12,
         "dropout": 0.1,

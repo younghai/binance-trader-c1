@@ -33,84 +33,63 @@ def load_rawdata(file_name):
 
 
 def _build_feature_by_rawdata(rawdata):
-    returns_1410m = (
+    returns_600m = (
         rawdata[RETURN_COLUMNS]
-        .pct_change(1410, fill_method=None)
-        .rename(columns={key: key + "_return(1410)" for key in RETURN_COLUMNS})
+        .pct_change(600, fill_method=None)
+        .rename(columns={key: key + "_return(600)" for key in RETURN_COLUMNS})
     ).dropna()
 
-    madiv_1410m = (
+    madiv_600m = (
         (
             rawdata[RETURN_COLUMNS]
-            .rolling(1410)
+            .rolling(600)
             .mean()
-            .rename(columns={key: key + "_madiv(1410)" for key in RETURN_COLUMNS})
+            .rename(columns={key: key + "_madiv(600)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1410m.index)
+        .reindex(returns_600m.index)
     )
 
-    returns_690m = (
+    returns_360m = (
         (
             rawdata[RETURN_COLUMNS]
-            .pct_change(690, fill_method=None)
-            .rename(columns={key: key + "_return(690)" for key in RETURN_COLUMNS})
+            .pct_change(360, fill_method=None)
+            .rename(columns={key: key + "_return(360)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1410m.index)
+        .reindex(returns_600m.index)
     )
 
-    madiv_690m = (
+    madiv_360m = (
         (
             rawdata[RETURN_COLUMNS]
-            .rolling(690)
+            .rolling(360)
             .mean()
-            .rename(columns={key: key + "_madiv(690)" for key in RETURN_COLUMNS})
+            .rename(columns={key: key + "_madiv(360)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1410m.index)
+        .reindex(returns_600m.index)
     )
 
-    returns_330m = (
+    returns_120m = (
         (
             rawdata[RETURN_COLUMNS]
-            .pct_change(330, fill_method=None)
-            .rename(columns={key: key + "_return(330)" for key in RETURN_COLUMNS})
+            .pct_change(120, fill_method=None)
+            .rename(columns={key: key + "_return(120)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1410m.index)
+        .reindex(returns_600m.index)
     )
 
-    madiv_330m = (
+    madiv_120m = (
         (
             rawdata[RETURN_COLUMNS]
-            .rolling(330)
+            .rolling(120)
             .mean()
-            .rename(columns={key: key + "_madiv(330)" for key in RETURN_COLUMNS})
+            .rename(columns={key: key + "_madiv(120)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1410m.index)
-    )
-
-    returns_60m = (
-        (
-            rawdata[RETURN_COLUMNS]
-            .pct_change(60, fill_method=None)
-            .rename(columns={key: key + "_return(60)" for key in RETURN_COLUMNS})
-        )
-        .dropna()
-        .reindex(returns_1410m.index)
-    )
-
-    madiv_60m = (
-        (
-            rawdata[RETURN_COLUMNS]
-            .rolling(60)
-            .mean()
-            .rename(columns={key: key + "_madiv(60)" for key in RETURN_COLUMNS})
-        )
-        .dropna()
-        .reindex(returns_1410m.index)
+        .reindex(returns_600m.index)
     )
 
     returns_1m = (
@@ -120,7 +99,7 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_return(1)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1410m.index)
+        .reindex(returns_600m.index)
     )
 
     inner_changes = []
@@ -131,18 +110,16 @@ def _build_feature_by_rawdata(rawdata):
             .rename("_".join(column_pair) + "_change")
         )
 
-    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1410m.index)
+    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_600m.index)
 
     return pd.concat(
         [
-            returns_1410m,
-            madiv_1410m,
-            returns_690m,
-            madiv_690m,
-            returns_330m,
-            madiv_330m,
-            returns_60m,
-            madiv_60m,
+            returns_600m,
+            madiv_600m,
+            returns_360m,
+            madiv_360m,
+            returns_120m,
+            madiv_120m,
             returns_1m,
             inner_changes,
         ],

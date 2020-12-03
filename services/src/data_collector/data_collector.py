@@ -71,7 +71,7 @@ class DataCollector:
 
         return (inserts_pricings, inserts_syncs)
 
-    def _sync_historical_pricing(self, now: pd.Timestamp, limit: int = 1500):
+    def _sync_historical_pricing(self, now: pd.Timestamp, limit: int = 1000):
         inserts_pricings, inserts_syncs = self._build_inserts_dict_to_sync(
             now=now, limit=limit
         )
@@ -89,13 +89,13 @@ class DataCollector:
         self.usecase.update_syncs(updates=inserts_syncs)
 
         self.usecase.delete_old_records(
-            table="pricings", limit=1500 * len(self.target_coins)
+            table="pricings", limit=1000 * len(self.target_coins)
         )
-        self.usecase.delete_old_records(table="syncs", limit=1500)
-        self.usecase.delete_old_records(table="trades", limit=1500)
+        self.usecase.delete_old_records(table="syncs", limit=1000)
+        self.usecase.delete_old_records(table="trades", limit=1000)
 
     def _list_historical_pricing(
-        self, now: pd.Timestamp, symbol: str, limit: int = 1500
+        self, now: pd.Timestamp, symbol: str, limit: int = 1000
     ):
         assert limit < 2000
 
@@ -149,7 +149,7 @@ class DataCollector:
                 minutes_to_sync = self._get_minutes_to_sync(now=now)
 
                 if minutes_to_sync != 0:
-                    minutes_to_sync = min(max(minutes_to_sync, 10), 1500)
+                    minutes_to_sync = min(max(minutes_to_sync, 10), 1000)
 
                     self._sync_live_pricing(now=now, limit=minutes_to_sync)
                     logger.info(f'[+] Synced: {now.floor("T")}')
