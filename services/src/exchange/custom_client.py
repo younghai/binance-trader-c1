@@ -228,4 +228,3 @@ class CustomClient:
             for id in orders["orderId"]:
                 self.binance_cli.cancel_order(id, symbol=symbol)
                 print(f"[!]Cancelled: symbol: {symbol}, id: {id}")
-                time.sleep(API_REQUEST_DELAY)

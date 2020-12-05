@@ -32,7 +32,7 @@ LAST_ENTRY_AT_FILE_PATH = "/app/storage/trader/last_entry_at.pkl"
 class TraderV1:
     usecase = Usecase()
     possible_in_debt = False
-    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0002}
+    commission = {"entry": 0.0004, "exit": 0.0002, "spread": 0.0004}
     skip_executable_order_check = True  # To prevent api limitation
 
     def __post_init__(self):
