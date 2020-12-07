@@ -33,11 +33,32 @@ def load_rawdata(file_name):
 
 
 def _build_feature_by_rawdata(rawdata):
-    returns_600m = (
+    returns_1320m = (
         rawdata[RETURN_COLUMNS]
-        .pct_change(600, fill_method=None)
-        .rename(columns={key: key + "_return(600)" for key in RETURN_COLUMNS})
+        .pct_change(1320, fill_method=None)
+        .rename(columns={key: key + "_return(1320)" for key in RETURN_COLUMNS})
     ).dropna()
+
+    madiv_1320m = (
+        (
+            rawdata[RETURN_COLUMNS]
+            .rolling(1320)
+            .mean()
+            .rename(columns={key: key + "_madiv(1320)" for key in RETURN_COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1320m.index)
+    )
+
+    returns_600m = (
+        (
+            rawdata[RETURN_COLUMNS]
+            .pct_change(600, fill_method=None)
+            .rename(columns={key: key + "_return(600)" for key in RETURN_COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1320m.index)
+    )
 
     madiv_600m = (
         (
@@ -47,28 +68,28 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_madiv(600)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_600m.index)
+        .reindex(returns_1320m.index)
     )
 
-    returns_360m = (
+    returns_240m = (
         (
             rawdata[RETURN_COLUMNS]
-            .pct_change(360, fill_method=None)
-            .rename(columns={key: key + "_return(360)" for key in RETURN_COLUMNS})
+            .pct_change(240, fill_method=None)
+            .rename(columns={key: key + "_return(240)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_600m.index)
+        .reindex(returns_1320m.index)
     )
 
-    madiv_360m = (
+    madiv_240m = (
         (
             rawdata[RETURN_COLUMNS]
-            .rolling(360)
+            .rolling(240)
             .mean()
-            .rename(columns={key: key + "_madiv(360)" for key in RETURN_COLUMNS})
+            .rename(columns={key: key + "_madiv(240)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_600m.index)
+        .reindex(returns_1320m.index)
     )
 
     returns_120m = (
@@ -78,7 +99,7 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_return(120)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_600m.index)
+        .reindex(returns_1320m.index)
     )
 
     madiv_120m = (
@@ -89,7 +110,7 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_madiv(120)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_600m.index)
+        .reindex(returns_1320m.index)
     )
 
     returns_1m = (
@@ -99,7 +120,7 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_return(1)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_600m.index)
+        .reindex(returns_1320m.index)
     )
 
     inner_changes = []
@@ -110,14 +131,16 @@ def _build_feature_by_rawdata(rawdata):
             .rename("_".join(column_pair) + "_change")
         )
 
-    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_600m.index)
+    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1320m.index)
 
     return pd.concat(
         [
+            returns_1320m,
+            madiv_1320m,
             returns_600m,
             madiv_600m,
-            returns_360m,
-            madiv_360m,
+            returns_240m,
+            madiv_240m,
             returns_120m,
             madiv_120m,
             returns_1m,
