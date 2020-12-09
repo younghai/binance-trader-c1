@@ -1,5 +1,5 @@
 OS_NAME=$(shell (python -c "import platform; print(platform.system())"))
-CPU_CORES=$(shell (python -c "import multiprocessing; print(multiprocessing.cpu_count())"))
+AVAILABLE_CPU_CORES=$(shell (python -c "import multiprocessing; print(int(multiprocessing.cpu_count()) - 1)"))
 
 PARENT_PWD=$(shell dirname $(shell pwd))
 SED_PWD=$(shell (echo $(shell pwd) | sed 's_/_\\/_g'))
@@ -68,7 +68,7 @@ _build_container:
 
 _set_minikube_config:
 	minikube config set memory 8192
-	minikube config set cpus $(CPU_CORES)
+	minikube config set cpus $(AVAILABLE_CPU_CORES)
 
 _run_if_not_exists: _mkdirs _build_ymls _set_minikube_config
 ifneq ($(shell minikube status | grep host | cut -d ' ' -f 2),Running)
