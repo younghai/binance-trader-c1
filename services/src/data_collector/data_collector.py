@@ -149,7 +149,7 @@ class DataCollector:
                 minutes_to_sync = self._get_minutes_to_sync(now=now)
 
                 if minutes_to_sync != 0:
-                    minutes_to_sync = min(max(minutes_to_sync, 10), 1500)
+                    minutes_to_sync = min(max(minutes_to_sync, 5), 1500)
 
                     self._sync_live_pricing(now=now, limit=minutes_to_sync)
                     logger.info(f'[+] Synced: {now.floor("T")}')
