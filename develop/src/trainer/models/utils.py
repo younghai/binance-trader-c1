@@ -2,6 +2,9 @@ import os
 import torch
 from glob import glob
 import torch.nn as nn
+from logging import getLogger
+
+logger = getLogger("model")
 
 
 def save_model(model, dir, epoch):
@@ -46,6 +49,7 @@ def load_model(model, dir, load_epoch=None, strict=True, device="cuda"):
         )
         print("[+] Model is loaded")
         print(f"[+] Epoch: {load_epoch}")
+        logger.info(f"[+] Model is loaded | Epoch: {load_epoch}")
 
         return load_epoch
 
@@ -56,6 +60,7 @@ def load_model(model, dir, load_epoch=None, strict=True, device="cuda"):
 
     print("[+] Model is loaded")
     print(f"[+] Epoch: {last_epoch}")
+    logger.info(f"[+] Model is loaded | Epoch: {last_epoch}")
 
     return last_epoch
 

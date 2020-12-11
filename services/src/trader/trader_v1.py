@@ -528,7 +528,6 @@ class TraderV1:
                         negative_assets=negative_assets,
                         now=now,
                     )
-
                     long_positions = [
                         position for position in positions if position.side == "long"
                     ]
@@ -579,7 +578,7 @@ class TraderV1:
 
                     n_traded += 1
                 else:
-                    time.sleep(1)
+                    time.sleep(0.5)
 
             except Exception as e:
                 logger.error("[!] Error: ", exc_info=True)

@@ -197,7 +197,7 @@ class CustomClient:
         order["symbol"] = self.revision_symbols([order["symbol"]])[-1]
         return order
 
-    def get_orders(self, symbol, limit=50):
+    def get_orders(self, symbol, limit=10):
         orders = self.binance_cli.fetch_orders(symbol=symbol, limit=limit)
         orders = pd.DataFrame(reversed([order["info"] for order in orders]))
 
@@ -205,16 +205,16 @@ class CustomClient:
             orders["symbol"] = self.revision_symbols(orders["symbol"])
         return orders
 
-    def get_open_orders(self, symbol):
-        orders = self.binance_cli.fetch_open_orders(symbol=symbol)
+    def get_open_orders(self, symbol, limit=5):
+        orders = self.binance_cli.fetch_open_orders(symbol=symbol, limit=limit)
         orders = pd.DataFrame(reversed([order["info"] for order in orders]))
 
         if len(orders) != 0:
             orders["symbol"] = self.revision_symbols(orders["symbol"])
         return orders
 
-    def get_closed_orders(self, symbol):
-        orders = self.binance_cli.fetch_closed_orders(symbol=symbol)
+    def get_closed_orders(self, symbol, limit=5):
+        orders = self.binance_cli.fetch_closed_orders(symbol=symbol, limit=limit)
         orders = pd.DataFrame(reversed([order["info"] for order in orders]))
 
         if len(orders) != 0:
