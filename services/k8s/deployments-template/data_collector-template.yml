@@ -59,6 +59,10 @@ spec:
               mountPath: "/app/dev/experiments"
           securityContext:
             runAsUser: 0
+          resources:
+            requests:
+              cpu: 450m
+              memory: 1000Mi
       volumes:
         - name: svc-codes
           hostPath:

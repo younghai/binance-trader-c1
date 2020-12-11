@@ -33,6 +33,10 @@ spec:
               mountPath: "/var/lib/postgresql/data"
           securityContext:
             runAsUser: 0
+          resources:
+            requests:
+              cpu: 450m
+              memory: 1000Mi
       volumes:
         - name: host-pgdata
           hostPath:
