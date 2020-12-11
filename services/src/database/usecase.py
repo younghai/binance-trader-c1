@@ -46,7 +46,7 @@ class Usecase:
         if quried is None:
             return None
 
-        return pd.Timestamp(quried.timestamp).tz_convert("UTC")
+        return pd.Timestamp(quried.timestamp).tz_convert("UTC").floor("T")
 
     def get_last_trade_on(self):
         queried = (
@@ -58,7 +58,7 @@ class Usecase:
         if queried is None:
             return None
 
-        return pd.Timestamp(queried.timestamp).tz_convert("UTC")
+        return pd.Timestamp(queried.timestamp).tz_convert("UTC").floor("T")
 
     def insert_pricings(self, inserts: List[Dict], n_buffer: int = 500):
         tmpl = """
