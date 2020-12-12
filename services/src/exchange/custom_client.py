@@ -6,7 +6,7 @@ from config import CFG
 from datetime import datetime
 from common_utils_svc import Position
 
-API_REQUEST_DELAY = 0.1  # sec
+API_REQUEST_DELAY = 0.05  # sec
 
 
 @dataclass
@@ -116,7 +116,7 @@ class CustomClient:
 
         return positions
 
-    def get_position_objects(self, symbol=None, with_entry_at=True):
+    def get_position_objects(self, symbol=None, with_entry_at=False):
         posis = self.get_positions(symbol=symbol)
         posis = posis[posis["positionAmt"].astype(float) != 0.0]
         assert posis["symbol"].is_unique

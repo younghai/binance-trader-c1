@@ -33,7 +33,7 @@ class Position:
         setattr(self, key, value)
 
     def __repr__(self):
-        return f"Position(asset={self.asset}, side={self.side}, qty={self.qty}, entry_price={self.entry_price:.2f})"
+        return f"Position(asset={self.asset}, side={self.side}, qty={self.qty:.3f}, entry_price={self.entry_price:.2f})"
 
     def __str__(self):
         return self.__repr__()

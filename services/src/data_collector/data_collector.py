@@ -128,14 +128,10 @@ class DataCollector:
         return pricing[pricing.index < now.floor("T")]
 
     def _get_minutes_to_sync(self, now: pd.Timestamp):
-        # Give 1 second waiting term
-        if now.second >= 1:
-            last_sync_on = self.usecase.get_last_sync_on()
-            minutes_delta = int((now.floor("T") - last_sync_on).total_seconds() // 60)
+        last_sync_on = self.usecase.get_last_sync_on()
+        minutes_delta = int((now.floor("T") - last_sync_on).total_seconds() // 60)
 
-            return minutes_delta - 1
-
-        return 0
+        return minutes_delta - 1
 
     def run(self):
         """Definitioin of demon to live sync
@@ -168,9 +164,9 @@ class DataCollector:
                     raise Exception
 
                 logger.info(f"[!] Synced Failed")
-                time.sleep(4)
+                time.sleep(1)
 
-            time.sleep(1)
+            time.sleep(0.2)
 
 
 if __name__ == "__main__":

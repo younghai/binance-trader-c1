@@ -44,6 +44,9 @@ class TraderV1:
         self._build_model()
         self._build_scaler()
         self._load_last_entry_at()
+        self._initialize_order_books()
+
+        self.cached_pricing = None
 
         if self.skip_executable_order_check is True:
             assert self.order_criterion == "capital"
@@ -131,6 +134,36 @@ class TraderV1:
         else:
             self.last_entry_at = {key: None for key in self.target_coins}
 
+        # Initialize
+        positions = self.custom_cli.get_position_objects(with_entry_at=True)
+        for position in positions:
+            self.last_entry_at[position.asset] = max(
+                position.entry_at, self.last_entry_at[position.asset]
+            )
+
+    def _initialize_order_books(self):
+        positions = self.custom_cli.get_position_objects(with_entry_at=False)
+
+        for position in positions:
+            orders = self.custom_cli.get_open_orders(symbol=position.asset)
+
+            # When already limit order exists, we skip it.
+            if len(orders) >= 1:
+                continue
+
+            assert position.entry_price != 0.0
+            self.custom_cli.exit_order(
+                symbol=position.asset,
+                order_type="limit",
+                position=position.side,
+                amount=position.qty,
+                price=self.compute_price_to_achieve(
+                    position=position, entry_price=position.entry_price
+                ),
+            )
+
+        logger.info(f"[O] Info: initialized order books")
+
     def _build_features(self, pricing):
         features = {}
         for target_coin in self.target_coins:
@@ -178,7 +211,26 @@ class TraderV1:
             minutes=(1320 + CFG.EXP_MODEL_PARAMS["lookback_window"] - 1)
         )
         query_end_on = last_sync_on
-        pricing = self.usecase.get_pricing(start_on=query_start_on, end_on=query_end_on)
+
+        if self.cached_pricing is None:
+            pricing = self.usecase.get_pricing(
+                start_on=query_start_on, end_on=query_end_on
+            )
+        else:
+            # Get extra 1 candle, cause it has potential to be changed.
+            pricing = self.usecase.get_pricing(
+                start_on=self.cached_pricing.index.levels[0][-1], end_on=query_end_on
+            )
+            pricing = pd.concat(
+                [
+                    self.cached_pricing[
+                        query_start_on : self.cached_pricing.index.levels[0][-2]
+                    ],
+                    pricing,
+                ]
+            ).sort_index()
+
+        self.cached_pricing = pricing
 
         features = self._build_features(pricing=pricing)
         inputs, ids = self._build_inputs(features=features)
@@ -286,11 +338,7 @@ class TraderV1:
             if (position.side == "short") and (position.asset in negative_assets):
                 continue
 
-            position_entry_at = (
-                position.entry_at
-                if self.last_entry_at[position.asset] is None
-                else max(position.entry_at, self.last_entry_at[position.asset])
-            )
+            position_entry_at = self.last_entry_at[position.asset]
             passed_minutes = (now - position_entry_at).total_seconds() // 60
 
             # Handle min_holding_minutes
@@ -448,32 +496,18 @@ class TraderV1:
                 return
 
             self.last_entry_at[position.asset] = now
-            time.sleep(API_REQUEST_DELAY)
 
             if self.exit_if_achieved is True:
-                positions = self.custom_cli.get_position_objects(
-                    symbol=position.asset, with_entry_at=False
-                )
-                assert len(positions) == 1
-
-                position = positions[-1]
-                assert position.entry_price != 0.0
-
-                self.custom_cli.exit_order(
-                    symbol=position.asset,
-                    order_type="limit",
-                    position=position.side,
-                    amount=position.qty,
-                    price=self.compute_price_to_achieve(
-                        position=position, entry_price=position.entry_price
-                    ),
-                )
+                self.assets_to_limit_order.append(position.asset)
 
             logger.info(f"[+] Entry: {str(position)}")
 
     def handle_entry(
         self, positions, cache_to_order, positive_assets, negative_assets, pricing, now
     ):
+        # Set init to handle limit order
+        self.assets_to_limit_order = []
+
         # Entry order
         if self.position_side in ("long", "longshort"):
             for order_asset in positive_assets:
@@ -495,6 +529,26 @@ class TraderV1:
                     cache_to_order=cache_to_order,
                     pricing=pricing,
                     now=now,
+                )
+
+        # Limit order
+        if len(self.assets_to_limit_order) > 0:
+            time.sleep(API_REQUEST_DELAY)
+            positions = self.custom_cli.get_position_objects(with_entry_at=False)
+
+            for position in positions:
+                if position.asset not in self.assets_to_limit_order:
+                    continue
+
+                assert position.entry_price != 0.0
+                self.custom_cli.exit_order(
+                    symbol=position.asset,
+                    order_type="limit",
+                    position=position.side,
+                    amount=position.qty,
+                    price=self.compute_price_to_achieve(
+                        position=position, entry_price=position.entry_price
+                    ),
                 )
 
     def run(self):
@@ -521,7 +575,9 @@ class TraderV1:
                     ) = self.build_positive_and_negative_assets(pred_dict=pred_dict)
 
                     # Handle exit
-                    positions = self.custom_cli.get_position_objects()
+                    positions = self.custom_cli.get_position_objects(
+                        with_entry_at=False
+                    )
                     positions = self.handle_exit(
                         positions=positions,
                         positive_assets=positive_assets,
@@ -578,7 +634,7 @@ class TraderV1:
 
                     n_traded += 1
                 else:
-                    time.sleep(0.5)
+                    time.sleep(0.2)
 
             except Exception as e:
                 logger.error("[!] Error: ", exc_info=True)
