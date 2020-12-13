@@ -137,9 +137,12 @@ class TraderV1:
         # Initialize
         positions = self.custom_cli.get_position_objects(with_entry_at=True)
         for position in positions:
-            self.last_entry_at[position.asset] = max(
-                position.entry_at, self.last_entry_at[position.asset]
-            )
+            if self.last_entry_at[position.asset] is not None:
+                self.last_entry_at[position.asset] = max(
+                    position.entry_at, self.last_entry_at[position.asset]
+                )
+            else:
+                self.last_entry_at[position.asset] = position.entry_at
 
     def _initialize_order_books(self):
         positions = self.custom_cli.get_position_objects(with_entry_at=False)

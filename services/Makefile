@@ -31,15 +31,14 @@ endef
 
 _mkdirs:
 	@sudo chmod -R ug+rw $(PARENT_PWD)
-	@mkdir -p $(shell pwd)/storage/database
 	@mkdir -p $(shell pwd)/storage/trader
 	@mkdir -p $(shell pwd)/k8s/deployments
 
 _build_ymls:
-	@read -p "EXP_NAME: " EXP_NAME; EXP_NAME=$${EXP_NAME:-v001}; \
+	@read -p "EXP_NAME: " EXP_NAME; EXP_NAME=$${EXP_NAME:-v002}; \
 	read -p "REPORT_PREFIX: " REPORT_PREFIX; REPORT_PREFIX=$${REPORT_PREFIX:-V1_CSET1}; \
 	read -p "REPORT_BASE_CURRENCY: " REPORT_BASE_CURRENCY; REPORT_BASE_CURRENCY=$${REPORT_BASE_CURRENCY:-USDT}; \
-	read -p "REPORT_ID: " REPORT_ID; REPORT_ID=$${REPORT_ID:-69}; \
+	read -p "REPORT_ID: " REPORT_ID; REPORT_ID=$${REPORT_ID:-109}; \
 	$(call GENERATE_YML,database,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID);\
 	$(call GENERATE_YML,data_collector,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID);\
 	$(call GENERATE_YML,trader,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID)
@@ -131,3 +130,6 @@ run_on_cluster: _mkdirs _build_ymls
 	scp -r $(shell pwd)/dockerfiles docker@192.168.39.186:/tmp/dockerfiles && \
 	ssh docker@192.168.39.186 'docker build /tmp/dockerfiles -t binance_trader_services:latest && docker pull postgres:latest'
 	@$(MAKE) _apply
+
+rm_on_cluster:
+	@kubectl delete -f $(shell pwd)/k8s/admin/namespace.yml 2> /dev/null;
