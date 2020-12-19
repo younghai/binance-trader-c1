@@ -5,7 +5,7 @@ from common_utils_dev import to_abs_path, make_dirs
 
 CONFIG = {
     "dataset_name": "jorijnsmit/binance-full-history",
-    "store_dir": to_abs_path(__file__, "../../storage/dataset/rawdata/raw/"),
+    "store_dir": to_abs_path(__file__, "../../storage/dataset/rawdata/raw/spot/"),
 }
 
 

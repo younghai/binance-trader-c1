@@ -13,7 +13,12 @@ from common_utils_dev import (
 
 
 CONFIG = {
-    "raw_rawdata_dir": to_abs_path(__file__, "../../storage/dataset/rawdata/raw/"),
+    "raw_spot_rawdata_dir": to_abs_path(
+        __file__, "../../storage/dataset/rawdata/raw/spot/"
+    ),
+    "raw_future_rawdata_dir": to_abs_path(
+        __file__, "../../storage/dataset/rawdata/raw/future/"
+    ),
     "cleaned_rawdata_store_dir": to_abs_path(
         __file__, "../../storage/dataset/rawdata/cleaned/"
     ),
@@ -24,7 +29,8 @@ CONFIG = {
 
 
 def build_rawdata(
-    raw_rawdata_dir=CONFIG["raw_rawdata_dir"],
+    raw_spot_rawdata_dir=CONFIG["raw_spot_rawdata_dir"],
+    raw_future_rawdata_dir=CONFIG["raw_future_rawdata_dir"],
     cleaned_rawdata_store_dir=CONFIG["cleaned_rawdata_store_dir"],
     candidate_assets_path=CONFIG["candidate_assets_path"],
     query_min_start_dt=CONFIG["query_min_start_dt"],
@@ -33,29 +39,34 @@ def build_rawdata(
     make_dirs([cleaned_rawdata_store_dir])
     candidate_assets = load_text(path=candidate_assets_path)
 
-    file_list = glob(os.path.join(raw_rawdata_dir, "*.parquet"))
-    file_list = [
-        file for file in file_list if get_filename_by_path(file) in candidate_assets
-    ]
-    file_names = [get_filename_by_path(file) for file in file_list]
-    assert len(file_list) != 0
-    if not len(file_list) == len(set(candidate_assets)):
-        raise ValueError(f"NotFound {set(candidate_assets) - set(file_names)}")
-
     count_files = 0
-    for file in tqdm(file_list):
-        df = pd.read_parquet(file)[["open", "high", "low", "close", "volume"]]
+    for candidate_asset in tqdm(candidate_assets):
+        spot_file_path = os.path.join(
+            raw_spot_rawdata_dir, f"{candidate_asset}.parquet"
+        )
+        future_file_path = os.path.join(
+            raw_future_rawdata_dir, f"{candidate_asset}.parquet"
+        )
+
+        spot_df = pd.read_parquet(spot_file_path)[
+            ["open", "high", "low", "close", "volume"]
+        ].sort_index()
+        future_df = pd.read_parquet(future_file_path)[
+            ["open", "high", "low", "close", "volume"]
+        ].sort_index()
+
+        df = pd.concat([spot_df[spot_df.index < future_df.index[0]], future_df])
         df = df.resample("1T").ffill()
 
         df = df[query_min_start_dt:]
-        filename = get_filename_by_path(file)
         if df.index[0] > pd.Timestamp(boundary_dt_must_have_data):
-            print(f"[!] Skiped: {filename}")
+            print(f"[!] Skiped: {candidate_asset}")
             continue
 
         assert not df.isnull().any().any()
+        assert len(df.index.unique()) == len(df.index)
 
-        store_filename = filename + ".parquet.zstd"
+        store_filename = candidate_asset + ".parquet.zstd"
         df.index = df.index.tz_localize("utc")
         to_parquet(df=df, path=os.path.join(cleaned_rawdata_store_dir, store_filename))
         count_files += 1

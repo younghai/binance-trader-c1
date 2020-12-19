@@ -18,7 +18,7 @@ CONFIG = {
     "data_store_dir": to_abs_path(__file__, "../../storage/dataset/v001/"),
     "lookahead_window": 30,
     "n_bins": 10,
-    "train_ratio": 0.85,
+    "train_ratio": 0.90,
     "scaler_type": "StandardScaler",
 }
 COLUMNS = ["open", "high", "low", "close"]
@@ -33,11 +33,21 @@ def load_rawdata(file_name):
 
 
 def _build_feature_by_rawdata(rawdata):
-    returns_1320m = (
+    returns_1440m = (
         rawdata[RETURN_COLUMNS]
-        .pct_change(1320, fill_method=None)
-        .rename(columns={key: key + "_return(1320)" for key in RETURN_COLUMNS})
+        .pct_change(1440, fill_method=None)
+        .rename(columns={key: key + "_return(1440)" for key in RETURN_COLUMNS})
     ).dropna()
+
+    returns_1320m = (
+        (
+            rawdata[RETURN_COLUMNS]
+            .pct_change(1320, fill_method=None)
+            .rename(columns={key: key + "_return(1320)" for key in RETURN_COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1440m.index)
+    )
 
     madiv_1320m = (
         (
@@ -47,7 +57,7 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_madiv(1320)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1320m.index)
+        .reindex(returns_1440m.index)
     )
 
     returns_600m = (
@@ -57,7 +67,7 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_return(600)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1320m.index)
+        .reindex(returns_1440m.index)
     )
 
     madiv_600m = (
@@ -68,28 +78,7 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_madiv(600)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1320m.index)
-    )
-
-    returns_240m = (
-        (
-            rawdata[RETURN_COLUMNS]
-            .pct_change(240, fill_method=None)
-            .rename(columns={key: key + "_return(240)" for key in RETURN_COLUMNS})
-        )
-        .dropna()
-        .reindex(returns_1320m.index)
-    )
-
-    madiv_240m = (
-        (
-            rawdata[RETURN_COLUMNS]
-            .rolling(240)
-            .mean()
-            .rename(columns={key: key + "_madiv(240)" for key in RETURN_COLUMNS})
-        )
-        .dropna()
-        .reindex(returns_1320m.index)
+        .reindex(returns_1440m.index)
     )
 
     returns_120m = (
@@ -99,18 +88,7 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_return(120)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1320m.index)
-    )
-
-    madiv_120m = (
-        (
-            rawdata[RETURN_COLUMNS]
-            .rolling(120)
-            .mean()
-            .rename(columns={key: key + "_madiv(120)" for key in RETURN_COLUMNS})
-        )
-        .dropna()
-        .reindex(returns_1320m.index)
+        .reindex(returns_1440m.index)
     )
 
     returns_1m = (
@@ -120,7 +98,7 @@ def _build_feature_by_rawdata(rawdata):
             .rename(columns={key: key + "_return(1)" for key in RETURN_COLUMNS})
         )
         .dropna()
-        .reindex(returns_1320m.index)
+        .reindex(returns_1440m.index)
     )
 
     inner_changes = []
@@ -131,18 +109,16 @@ def _build_feature_by_rawdata(rawdata):
             .rename("_".join(column_pair) + "_change")
         )
 
-    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1320m.index)
+    inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1440m.index)
 
     return pd.concat(
         [
+            returns_1440m,
             returns_1320m,
             madiv_1320m,
             returns_600m,
             madiv_600m,
-            returns_240m,
-            madiv_240m,
             returns_120m,
-            madiv_120m,
             returns_1m,
             inner_changes,
         ],
@@ -191,11 +167,11 @@ def compute_quantile(x, bins):
 
 
 def _build_bins(rawdata, lookahead_window, n_bins):
-    # build fwd_return(window)
-    pricing = rawdata["close"].copy().sort_index()
+    pricing = rawdata["open"].sort_index()
+
     fwd_return = (
         pricing.pct_change(lookahead_window, fill_method=None)
-        .shift(-lookahead_window)
+        .shift(-lookahead_window - 1)
         .rename(f"fwd_return({lookahead_window})")
         .sort_index()
     )
@@ -224,10 +200,11 @@ def build_all_bins(file_names, lookahead_window, n_bins):
 
 
 def _build_qa_label(rawdata, lookahead_window, n_bins):
-    pricing = rawdata["close"].copy().sort_index()
+    pricing = rawdata["open"].sort_index()
+
     fwd_return = (
         pricing.pct_change(lookahead_window, fill_method=None)
-        .shift(-lookahead_window)
+        .shift(-lookahead_window - 1)
         .rename(f"fwd_return({lookahead_window})")
         .sort_index()
     )
@@ -259,12 +236,12 @@ def build_qa_labels(file_names, lookahead_window, n_bins):
 
 
 def _build_qb_label(rawdata, lookahead_window, n_bins):
-    half_lookahead_window = lookahead_window // 2
-    pricing = rawdata["close"].copy().sort_index()
+    pricing = rawdata["open"].sort_index()
+
     fwd_return = (
-        pricing.pct_change(half_lookahead_window, fill_method=None)
-        .shift(-half_lookahead_window)
-        .rename(f"fwd_return({half_lookahead_window})")
+        pricing.pct_change(lookahead_window // 2, fill_method=None)
+        .shift(-(lookahead_window // 2) - 1)
+        .rename(f"fwd_return({lookahead_window // 2})")
         .sort_index()
     )
 
@@ -274,9 +251,9 @@ def _build_qb_label(rawdata, lookahead_window, n_bins):
 
     bins = np.concatenate([[-np.inf], bins[1:-1], [np.inf]])
 
-    qb_label = fwd_return.dropna().parallel_apply(partial(compute_quantile, bins=bins))
+    qa_label = fwd_return.dropna().parallel_apply(partial(compute_quantile, bins=bins))
 
-    return qb_label.sort_index()
+    return qa_label.sort_index()
 
 
 def build_qb_labels(file_names, lookahead_window, n_bins):
@@ -299,8 +276,11 @@ def build_pricing(file_names):
     for file_name in tqdm(file_names):
         coin_pair = get_filename_by_path(file_name)
 
-        close = load_rawdata(file_name=file_name)["close"].rename(coin_pair)
-        pricing.append(close.sort_index())
+        ohlc = load_rawdata(file_name=file_name)[COLUMNS]
+        ohlc.columns = pd.MultiIndex.from_tuples(
+            zip([coin_pair for _ in range(len(ohlc.columns))], ohlc.columns)
+        )
+        pricing.append(ohlc.sort_index())
 
     return pd.concat(pricing, axis=1).sort_index()
 
@@ -326,7 +306,7 @@ def store_artifacts(
     bins.to_csv(os.path.join(data_store_dir, "bins.csv"))
 
     with open(os.path.join(data_store_dir, "tradable_coins.txt"), "w") as f:
-        f.write("\n".join(pricing.columns.tolist()))
+        f.write("\n".join(pricing.columns.levels[0].tolist()))
 
     with open(os.path.join(data_store_dir, "params.json"), "w") as f:
         json.dump(params, f)

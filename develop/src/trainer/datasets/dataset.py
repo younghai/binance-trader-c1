@@ -65,7 +65,6 @@ class Dataset(_Dataset):
                     os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
                     engine="pyarrow",
                 )
-                .sort_index()
                 .stack()
                 .reindex(self.index)
                 .astype(int)

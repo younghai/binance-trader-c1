@@ -36,13 +36,13 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 84,
+        "in_channels": 68,
         "n_class_qay": 10,
         "n_class_qby": 10,
         "n_blocks": 5,
         "n_block_layers": 8,
         "growth_rate": 12,
-        "dropout": 0.1,
+        "dropout": 0.0,
         "channel_reduction": 0.5,
         "activation": "selu",
         "normalization": None,
@@ -155,14 +155,16 @@ class PredictorV1(BasicPredictor):
             ):
                 self._save_model(model=self.model, epoch=epoch)
 
-    def generate(self, save_dir=None, test=False):
+    def generate(self, save_dir=None):
         assert self.mode in ("test")
         self.model.eval()
 
         if save_dir is None:
             save_dir = self.data_config["generate_output_dir"]
 
+        # Mutate 1 min to handle logic, entry: open, exit: open
         index = self.test_data_loader.dataset.index
+        index = index.set_levels(index.levels[0] + pd.Timedelta(minutes=1), level=0)
 
         qay_predictions = []
         qay_probabilities = []
@@ -171,7 +173,7 @@ class PredictorV1(BasicPredictor):
         qby_predictions = []
         qby_probabilities = []
         qby_labels = []
-        for idx in tqdm(range(len(self.test_data_loader))):
+        for _ in tqdm(range(len(self.test_data_loader))):
             test_data_dict = self._generate_test_data_dict()
 
             preds_qay, preds_qby = self.model(
@@ -185,11 +187,6 @@ class PredictorV1(BasicPredictor):
             qby_predictions += preds_qby.argmax(dim=-1).view(-1).cpu().tolist()
             qby_probabilities += F.softmax(preds_qby, dim=-1).cpu().tolist()
             qby_labels += test_data_dict["QBY"].view(-1).cpu().tolist()
-
-            if test is True:
-                index = index[: 100 * self.model_config["batch_size"]]
-                if idx == 99:
-                    break
 
         # Store signals
         for data_type, data in [

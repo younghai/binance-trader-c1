@@ -18,7 +18,7 @@ CONFIG = {
     "detail_report": False,
     "position_side": "longshort",
     "entry_ratio": 0.1,
-    "commission": {"entry": 0.0004, "exit": 0.0002, "spread": 0.0002},
+    "commission": {"entry": 0.0004, "exit": 0.0002, "spread": 0.0004},
     "min_holding_minutes": 1,
     "max_holding_minutes": 30,
     "compound_interest": True,
@@ -104,9 +104,13 @@ class BasicBacktester:
         historical_data_path_dict = copy(historical_data_path_dict)
 
         data_dict = {}
-        data_dict["pricing"] = data_loader(
-            path=historical_data_path_dict.pop("pricing")
-        ).astype("float16")
+
+        # We use open pricing to handling, entry: open, exit: open
+        data_dict["pricing"] = (
+            data_loader(path=historical_data_path_dict.pop("pricing"))
+            .xs("open", axis=1, level=1)
+            .astype("float16")
+        )
         columns = data_dict["pricing"].columns
         columns_with_base_currency = columns[
             columns.str.endswith(base_currency.upper())

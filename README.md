@@ -1,2 +1,1 @@
-# BinanceTraderV5
-## Final deploy model
+# BinanceTraderF1

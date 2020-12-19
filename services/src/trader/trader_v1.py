@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from config import CFG
 from trainer.models import PredictorV1
 from database.usecase import Usecase
-from exchange.custom_client import CustomClient, API_REQUEST_DELAY
+from exchange.custom_client import CustomClient
 from dataset_builder.build_dataset_v1 import (
     _build_feature_by_rawdata,
     preprocess_features,
@@ -211,7 +211,7 @@ class TraderV1:
 
     def build_prediction_dict(self, last_sync_on):
         query_start_on = last_sync_on - pd.Timedelta(
-            minutes=(1320 + CFG.EXP_MODEL_PARAMS["lookback_window"] - 1)
+            minutes=(1440 + CFG.EXP_MODEL_PARAMS["lookback_window"] - 1)
         )
         query_end_on = last_sync_on
 
@@ -320,7 +320,6 @@ class TraderV1:
 
     def exit_order(self, position):
         self.custom_cli.cancel_orders(symbol=position.asset)
-        time.sleep(API_REQUEST_DELAY)
 
         ordered = self.custom_cli.exit_order(
             symbol=position.asset,
@@ -536,7 +535,6 @@ class TraderV1:
 
         # Limit order
         if len(self.assets_to_limit_order) > 0:
-            time.sleep(API_REQUEST_DELAY)
             positions = self.custom_cli.get_position_objects(with_entry_at=False)
 
             for position in positions:
@@ -637,7 +635,7 @@ class TraderV1:
 
                     n_traded += 1
                 else:
-                    time.sleep(0.2)
+                    time.sleep(0.1)
 
             except Exception as e:
                 logger.error("[!] Error: ", exc_info=True)

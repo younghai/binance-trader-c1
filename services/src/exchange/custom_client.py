@@ -6,7 +6,7 @@ from config import CFG
 from datetime import datetime
 from common_utils_svc import Position
 
-API_REQUEST_DELAY = 0.05  # sec
+API_REQUEST_DELAY = 0.01  # sec
 
 
 @dataclass
@@ -222,9 +222,4 @@ class CustomClient:
         return orders
 
     def cancel_orders(self, symbol):
-        orders = self.get_open_orders(symbol=symbol)
-
-        if len(orders) >= 1:
-            for id in orders["orderId"]:
-                self.binance_cli.cancel_order(id, symbol=symbol)
-                print(f"[!]Cancelled: symbol: {symbol}, id: {id}")
+        self.binance_cli.cancel_all_orders(symbol=symbol)
