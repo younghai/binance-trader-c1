@@ -81,6 +81,16 @@ def _build_feature_by_rawdata(rawdata):
         .reindex(returns_1440m.index)
     )
 
+    returns_240m = (
+        (
+            rawdata[RETURN_COLUMNS]
+            .pct_change(240, fill_method=None)
+            .rename(columns={key: key + "_return(240)" for key in RETURN_COLUMNS})
+        )
+        .dropna()
+        .reindex(returns_1440m.index)
+    )
+
     returns_120m = (
         (
             rawdata[RETURN_COLUMNS]
@@ -118,6 +128,7 @@ def _build_feature_by_rawdata(rawdata):
             madiv_1320m,
             returns_600m,
             madiv_600m,
+            returns_240m,
             returns_120m,
             returns_1m,
             inner_changes,
