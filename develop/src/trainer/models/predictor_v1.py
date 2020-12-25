@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from typing import Union, Optional, List, Dict
 from tqdm import tqdm
 from .basic_predictor import BasicPredictor
+from .utils import inverse_preprocess_data
 from common_utils_dev import to_parquet, to_abs_path
 
 COMMON_CONFIG = {
@@ -25,24 +26,22 @@ DATA_CONFIG = {
 
 MODEL_CONFIG = {
     "lookback_window": 120,
-    "batch_size": 512,
-    "lr": 0.0002,
+    "batch_size": 1024,
+    "lr": 0.0001,
     "epochs": 3,
     "print_epoch": 1,
-    "print_iter": 50,
+    "print_iter": 25,
     "save_epoch": 1,
-    "criterion": "fl",
+    "criterion": "l2",
     "criterion_params": {},
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
         "in_channels": 76,
-        "n_class_qay": 10,
-        "n_class_qby": 10,
         "n_blocks": 5,
         "n_block_layers": 8,
         "growth_rate": 12,
-        "dropout": 0.05,
+        "dropout": 0.01,
         "channel_reduction": 0.5,
         "activation": "selu",
         "normalization": None,
@@ -94,13 +93,10 @@ class PredictorV1(BasicPredictor):
         self.model.zero_grad()
 
         # Set loss
-        preds_qay, preds_qby = self.model(
-            x=train_data_dict["X"], id=train_data_dict["ID"]
-        )
+        preds = self.model(x=train_data_dict["X"], id=train_data_dict["ID"])
 
         # Y loss
-        loss = self.criterion(preds_qay, train_data_dict["QAY"])
-        loss += self.criterion(preds_qby, train_data_dict["QBY"])
+        loss = self.criterion(preds, train_data_dict["Y"].view(-1, 1)) * 10
 
         return loss
 
@@ -109,14 +105,10 @@ class PredictorV1(BasicPredictor):
         self.model.eval()
 
         # Set loss
-        preds_qay, preds_qby = self.model(
-            x=test_data_dict["X"], id=test_data_dict["ID"]
-        )
+        preds = self.model(x=test_data_dict["X"], id=test_data_dict["ID"])
 
         # Y loss
-        loss = self.criterion(preds_qay, test_data_dict["QAY"])
-        loss += self.criterion(preds_qby, test_data_dict["QBY"])
-        loss = loss.detach()
+        loss = self.criterion(preds, test_data_dict["Y"].view(-1, 1)) * 10
 
         return loss
 
@@ -155,7 +147,7 @@ class PredictorV1(BasicPredictor):
             ):
                 self._save_model(model=self.model, epoch=epoch)
 
-    def generate(self, save_dir=None):
+    def generate(self, save_dir=None, test=False):
         assert self.mode in ("test")
         self.model.eval()
 
@@ -166,50 +158,49 @@ class PredictorV1(BasicPredictor):
         index = self.test_data_loader.dataset.index
         index = index.set_levels(index.levels[0] + pd.Timedelta(minutes=1), level=0)
 
-        qay_predictions = []
-        qay_probabilities = []
-        qay_labels = []
-
-        qby_predictions = []
-        qby_probabilities = []
-        qby_labels = []
-        for _ in tqdm(range(len(self.test_data_loader))):
+        predictions = []
+        labels = []
+        for idx in tqdm(range(len(self.test_data_loader))):
             test_data_dict = self._generate_test_data_dict()
 
-            preds_qay, preds_qby = self.model(
-                x=test_data_dict["X"], id=test_data_dict["ID"]
-            )
+            preds = self.model(x=test_data_dict["X"], id=test_data_dict["ID"])
 
-            qay_predictions += preds_qay.argmax(dim=-1).view(-1).cpu().tolist()
-            qay_probabilities += F.softmax(preds_qay, dim=-1).cpu().tolist()
-            qay_labels += test_data_dict["QAY"].view(-1).cpu().tolist()
+            predictions += preds.view(-1).cpu().tolist()
+            labels += test_data_dict["Y"].view(-1).cpu().tolist()
 
-            qby_predictions += preds_qby.argmax(dim=-1).view(-1).cpu().tolist()
-            qby_probabilities += F.softmax(preds_qby, dim=-1).cpu().tolist()
-            qby_labels += test_data_dict["QBY"].view(-1).cpu().tolist()
+            if test is True:
+                index = index[: 100 * self.model_config["batch_size"]]
+                if idx == 99:
+                    break
+
+        predictions = (
+            pd.Series(predictions, index=index)
+            .sort_index()
+            .unstack()[self.dataset_params["labels_columns"]]
+        )
+        labels = (
+            pd.Series(labels, index=index)
+            .sort_index()
+            .unstack()[self.dataset_params["labels_columns"]]
+        )
+
+        # Rescale
+        predictions = inverse_preprocess_data(
+            data=predictions * self.data_config["winsorize_threshold"],
+            scaler=self.label_scaler,
+        )
+        labels = inverse_preprocess_data(
+            data=labels * self.data_config["winsorize_threshold"],
+            scaler=self.label_scaler,
+        )
 
         # Store signals
         for data_type, data in [
-            ("qay_predictions", qay_predictions),
-            ("qay_labels", qay_labels),
-            ("qby_predictions", qby_predictions),
-            ("qby_labels", qby_labels),
+            ("predictions", predictions),
+            ("labels", labels),
         ]:
             to_parquet(
-                df=pd.Series(data, index=index).sort_index().unstack(),
-                path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
-            )
-
-        for data_type, data in [
-            ("qay_probabilities", qay_probabilities),
-            ("qby_probabilities", qby_probabilities),
-        ]:
-            to_parquet(
-                df=pd.DataFrame(data, index=index)
-                .sort_index()
-                .unstack()
-                .swaplevel(0, 1, axis=1),
-                path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
+                df=data, path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
             )
 
     def predict(
@@ -226,37 +217,22 @@ class PredictorV1(BasicPredictor):
         if not isinstance(id, torch.Tensor):
             id = torch.Tensor(id)
 
-        preds_qay, preds_qby = self.model(
-            x=X.to(self.device), id=id.to(self.device).long()
-        )
-
-        index = id.int().tolist()
-        pred_dict = {
-            "qay_prediction": pd.Series(
-                preds_qay.argmax(dim=-1).view(-1).cpu().tolist(), index=index
-            ),
-            "qay_probability": pd.DataFrame(
-                F.softmax(preds_qay, dim=-1).cpu().tolist(), index=index
-            ),
-            "qby_prediction": pd.Series(
-                preds_qby.argmax(dim=-1).view(-1).cpu().tolist(), index=index
-            ),
-            "qby_probability": pd.DataFrame(
-                F.softmax(preds_qby, dim=-1).cpu().tolist(), index=index
-            ),
-        }
+        preds = self.model(x=X.to(self.device), id=id.to(self.device).long())
+        predictions = pd.Series(preds.view(-1).cpu().tolist(), index=id.int().tolist(),)
 
         # Post-process
-        if id_to_asset is not None:
-            for key in pred_dict.keys():
-                pred_dict[key].index = pred_dict[key].index.map(
-                    lambda x: id_to_asset[x]
-                )
+        assert id_to_asset is not None
+        predictions.index = predictions.index.map(lambda x: id_to_asset[x])
 
-        for key in ["qay_probability", "qby_probability"]:
-            pred_dict[key] = pred_dict[key].stack()
+        # Rescale
+        predictions = predictions.unstack()[self.dataset_params["labels_columns"]]
+        predictions = inverse_preprocess_data(
+            data=predictions * self.data_config["winsorize_threshold"],
+            scaler=self.label_scaler,
+        )
+        predictions.stack()
 
-        return pred_dict
+        return predictions
 
 
 if __name__ == "__main__":

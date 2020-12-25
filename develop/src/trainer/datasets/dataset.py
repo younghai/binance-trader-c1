@@ -10,8 +10,7 @@ import gc
 
 FILENAME_TEMPLATE = {
     "X": "X.parquet.zstd",
-    "QAY": "QAY.parquet.zstd",
-    "QBY": "QBY.parquet.zstd",
+    "Y": "Y.parquet.zstd",
 }
 
 
@@ -23,19 +22,21 @@ class Dataset(_Dataset):
         base_feature_assets: List[str],
         drop_feature_assets: List[str],
         asset_to_id: Dict[str, int],
-        lookback_window: int = 120,
-        winsorize_threshold: Optional[int] = None,
+        lookback_window: int = 60,
+        winsorize_threshold: int = 6,
     ):
         print("[+] Start to build dataset")
         self.data_caches = {}
-        self.data_caches["X"] = pd.read_parquet(
-            os.path.join(data_dir, FILENAME_TEMPLATE["X"]), engine="pyarrow"
-        ).astype("float32")
 
-        if winsorize_threshold is not None:
-            self.data_caches["X"] = self.data_caches["X"].clip(
-                -winsorize_threshold, winsorize_threshold
+        # Build inputs
+        assert winsorize_threshold is not None
+        self.data_caches["X"] = (
+            pd.read_parquet(
+                os.path.join(data_dir, FILENAME_TEMPLATE["X"]), engine="pyarrow"
             )
+            .astype("float32")
+            .clip(-winsorize_threshold, winsorize_threshold)
+        ) / winsorize_threshold
 
         self.data_caches["BX"] = self.data_caches["X"][base_feature_assets]
 
@@ -59,16 +60,20 @@ class Dataset(_Dataset):
         self.index = pd.Index(self.index)
         gc.collect()
 
-        for data_type in ["QAY", "QBY"]:
-            self.data_caches[data_type] = (
+        # Build labels
+        self.data_caches["Y"] = (
+            (
                 pd.read_parquet(
-                    os.path.join(data_dir, FILENAME_TEMPLATE[data_type]),
-                    engine="pyarrow",
+                    os.path.join(data_dir, FILENAME_TEMPLATE["Y"]), engine="pyarrow",
                 )
+                .sort_index()
                 .stack()
                 .reindex(self.index)
-                .astype(int)
             )
+            .astype("float32")
+            .clip(-winsorize_threshold, winsorize_threshold)
+            / winsorize_threshold
+        )
 
         self.transforms = transforms
         self.n_data = len(self.index)
@@ -105,9 +110,7 @@ class Dataset(_Dataset):
 
         data_dict["X"] = np.swapaxes(concat_df.values, 0, 1)
 
-        data_dict["QAY"] = self.data_caches["QAY"].iloc[idx]
-
-        data_dict["QBY"] = self.data_caches["QBY"].iloc[idx]
+        data_dict["Y"] = self.data_caches["Y"].iloc[idx]
 
         data_dict["ID"] = self.asset_to_id[self.index[idx][1]]
 

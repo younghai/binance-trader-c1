@@ -9,7 +9,7 @@ def nan_to_zero(value):
     return value
 
 
-def data_loader(path):
+def load_parquet(path):
     return pd.read_parquet(path)
 
 

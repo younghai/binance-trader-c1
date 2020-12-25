@@ -1,5 +1,5 @@
 import os
-from os.path import pathsep
+import json
 import pyarrow.parquet as pq
 import pyarrow as pa
 from pathlib import Path
@@ -15,6 +15,13 @@ def load_text(path):
         text = f.read().splitlines()
 
     return text
+
+
+def load_json(path):
+    with open(path, "r") as f:
+        loaded = json.load(f)
+
+    return loaded
 
 
 def to_parquet(df, path, compression="zstd"):

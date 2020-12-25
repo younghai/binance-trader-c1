@@ -2,6 +2,7 @@ import os
 import shutil
 import fire
 import json
+import joblib
 from tqdm import tqdm
 import pandas as pd
 from copy import copy
@@ -10,7 +11,7 @@ from abc import abstractmethod
 
 import torch
 import torch.nn as nn
-from common_utils_dev import load_text, to_abs_path, get_parent_dir
+from common_utils_dev import load_text, load_json, to_abs_path, get_parent_dir
 from .utils import save_model, load_model, weights_init
 from .criterions import CRITERIONS
 from ..datasets.dataset import Dataset
@@ -34,24 +35,22 @@ DATA_CONFIG = {
 
 MODEL_CONFIG = {
     "lookback_window": 120,
-    "batch_size": 512,
-    "lr": 0.0002,
+    "batch_size": 1024,
+    "lr": 0.0001,
     "epochs": 3,
     "print_epoch": 1,
-    "print_iter": 50,
+    "print_iter": 25,
     "save_epoch": 1,
-    "criterion": "fl",
+    "criterion": "l2",
     "criterion_params": {},
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
         "in_channels": 76,
-        "n_class_qay": 10,
-        "n_class_qby": 10,
         "n_blocks": 5,
         "n_block_layers": 8,
         "growth_rate": 12,
-        "dropout": 0.05,
+        "dropout": 0.01,
         "channel_reduction": 0.5,
         "activation": "selu",
         "normalization": None,
@@ -117,12 +116,35 @@ class BasicPredictor:
             )
             self.optimizer = self._build_optimizer()
             self.criterion = self._build_criterion()
-        elif mode == "test":
+
+            # Store params
+            self._copy_dataset_artifacts()
+            self._store_params()
+
+        if mode == "test":
             _, self.test_data_loader = self._build_data_loaders(mode=mode)
 
-        # Store params
-        if mode == "train":
-            self._store_params()
+        if mode in ("test", "predict"):
+            self._load_label_scaler()
+            self._load_dataset_params()
+
+    def _copy_dataset_artifacts(self):
+        # Copy files from dataset
+        for base_file, target_file in [
+            (
+                os.path.join(get_parent_dir(self.data_dir), "params.json"),
+                os.path.join(self.exp_dir, "dataset_params.json"),
+            ),
+            (
+                os.path.join(get_parent_dir(self.data_dir), "feature_scaler.pkl"),
+                os.path.join(self.exp_dir, "feature_scaler.pkl"),
+            ),
+            (
+                os.path.join(get_parent_dir(self.data_dir), "label_scaler.pkl"),
+                os.path.join(self.exp_dir, "label_scaler.pkl"),
+            ),
+        ]:
+            shutil.copy(base_file, target_file)
 
     def _store_params(self):
         params = {
@@ -135,24 +157,15 @@ class BasicPredictor:
         with open(os.path.join(self.exp_dir, f"params.json"), "w") as f:
             json.dump(params, f)
 
-        # Copy files from dataset
-        for base_file, target_file in [
-            (
-                os.path.join(get_parent_dir(self.data_dir), "bins.csv"),
-                os.path.join(self.exp_dir, "bins.csv"),
-            ),
-            (
-                os.path.join(get_parent_dir(self.data_dir), "params.json"),
-                os.path.join(self.exp_dir, "dataset_params.json"),
-            ),
-            (
-                os.path.join(get_parent_dir(self.data_dir), "scaler.pkl"),
-                os.path.join(self.exp_dir, "scaler.pkl"),
-            ),
-        ]:
-            shutil.copy(base_file, target_file)
-
         print(f"[+] Params are stored")
+
+    def _load_label_scaler(self):
+        self.label_scaler = joblib.load(os.path.join(self.exp_dir, "label_scaler.pkl"))
+
+    def _load_dataset_params(self):
+        self.dataset_params = load_json(
+            os.path.join(self.exp_dir, "dataset_params.json")
+        )
 
     def _list_tradable_assets(self, drop_feature_assets):
         tradable_assets = load_text(

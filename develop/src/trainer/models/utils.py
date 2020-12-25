@@ -3,6 +3,7 @@ import torch
 from glob import glob
 import torch.nn as nn
 from logging import getLogger
+import pandas as pd
 
 logger = getLogger("model")
 
@@ -71,3 +72,11 @@ def weights_init(m):
         if hasattr(m, "bias"):
             if m.bias is not None:
                 nn.init.constant_(m.bias.data, 0)
+
+
+def inverse_preprocess_data(data, scaler):
+    processed_data = pd.DataFrame(
+        scaler.inverse_transform(data), index=data.index, columns=data.columns
+    )
+
+    return processed_data

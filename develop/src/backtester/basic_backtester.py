@@ -6,7 +6,7 @@ from copy import copy
 import matplotlib.pyplot as plt
 from abc import abstractmethod
 from IPython.display import display, display_markdown
-from .utils import data_loader, Position, compute_quantile
+from .utils import load_parquet, Position
 from common_utils_dev import make_dirs
 from collections import OrderedDict, defaultdict
 import empyrical as emp
@@ -17,7 +17,7 @@ CONFIG = {
     "report_prefix": "001",
     "detail_report": False,
     "position_side": "longshort",
-    "entry_ratio": 0.1,
+    "entry_ratio": 0.055,
     "commission": {"entry": 0.0004, "exit": 0.0002, "spread": 0.0004},
     "min_holding_minutes": 1,
     "max_holding_minutes": 30,
@@ -27,8 +27,9 @@ CONFIG = {
     "exit_if_achieved": True,
     "achieve_ratio": 1,
     "achieved_with_commission": False,
-    "max_n_updated": None,
-    "exit_q_threshold": 9,
+    "max_n_updated": 0,
+    "entry_threshold": 0.01,
+    "adjust_prediction": False,
 }
 
 
@@ -64,7 +65,8 @@ class BasicBacktester:
         achieve_ratio=CONFIG["achieve_ratio"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
-        exit_q_threshold=CONFIG["exit_q_threshold"],
+        entry_threshold=CONFIG["entry_threshold"],
+        adjust_prediction=CONFIG["adjust_prediction"],
     ):
         assert position_side in ("long", "short", "longshort")
         self.base_currency = base_currency
@@ -84,15 +86,13 @@ class BasicBacktester:
         self.achieve_ratio = achieve_ratio
         self.achieved_with_commission = achieved_with_commission
         self.max_n_updated = max_n_updated
-        self.exit_q_threshold = exit_q_threshold
+        self.entry_threshold = entry_threshold
+        self.adjust_prediction = adjust_prediction
 
         self.dataset_dir = dataset_dir
         self.exp_dir = exp_dir
 
         self.initialize()
-
-    def _load_bins(self, bins_path):
-        return pd.read_csv(bins_path, header=0, index_col=0)
 
     def _load_dataset_params(self, dataset_params_path):
         with open(dataset_params_path, "r") as f:
@@ -107,7 +107,7 @@ class BasicBacktester:
 
         # We use open pricing to handling, entry: open, exit: open
         data_dict["pricing"] = (
-            data_loader(path=historical_data_path_dict.pop("pricing"))
+            load_parquet(path=historical_data_path_dict.pop("pricing"))
             .xs("open", axis=1, level=1)
             .astype("float16")
         )
@@ -118,62 +118,31 @@ class BasicBacktester:
         data_dict["pricing"] = data_dict["pricing"][columns_with_base_currency]
 
         for data_type, data_path in historical_data_path_dict.items():
-            data_dict[data_type] = data_loader(path=data_path).astype("float16")
+            data_dict[data_type] = load_parquet(path=data_path).astype("float16")
 
             # Filter by base_currency
             data_dict[data_type] = data_dict[data_type][columns_with_base_currency]
 
-        # Reindex
-        assert "qay_predictions" in data_dict.keys()
-        index = data_dict["qay_predictions"].index.sort_values()
-        for key in data_dict.keys():
-            data_dict[key] = data_dict[key].reindex(index)
-
         return data_dict
 
     def build(self):
-
-        # Set path to load data
-        dataset_params_path = os.path.join(self.dataset_dir, "params.json")
-        bins_path = os.path.join(self.dataset_dir, "bins.csv")
-
         self.report_store_dir = os.path.join(self.exp_dir, "reports/")
         make_dirs([self.report_store_dir])
 
-        # Load data
-        self.bins = self._load_bins(bins_path)
-        dataset_params = self._load_dataset_params(dataset_params_path)
-
-        if self.exit_q_threshold is None:
-            self.exit_q_threshold = dataset_params["q_threshold"]
-
-        self.n_bins = dataset_params["n_bins"]
         self.historical_data_dict = self._build_historical_data_dict(
             base_currency=self.base_currency,
             historical_data_path_dict={
                 "pricing": os.path.join(self.dataset_dir, "test/pricing.parquet.zstd"),
-                "qay_predictions": os.path.join(
-                    self.exp_dir, "generated_output/qay_predictions.parquet.zstd"
+                "predictions": os.path.join(
+                    self.exp_dir, "generated_output/predictions.parquet.zstd"
                 ),
-                "qby_predictions": os.path.join(
-                    self.exp_dir, "generated_output/qby_predictions.parquet.zstd"
-                ),
-                "qay_probabilities": os.path.join(
-                    self.exp_dir, "generated_output/qay_probabilities.parquet.zstd"
-                ),
-                "qby_probabilities": os.path.join(
-                    self.exp_dir, "generated_output/qby_probabilities.parquet.zstd"
-                ),
-                "qay_labels": os.path.join(
-                    self.exp_dir, "generated_output/qay_labels.parquet.zstd"
-                ),
-                "qby_labels": os.path.join(
-                    self.exp_dir, "generated_output/qby_labels.parquet.zstd"
+                "labels": os.path.join(
+                    self.exp_dir, "generated_output/labels.parquet.zstd"
                 ),
             },
         )
         self.tradable_coins = self.historical_data_dict["pricing"].columns
-        self.index = self.historical_data_dict["qay_predictions"].index
+        self.index = self.historical_data_dict["predictions"].index
 
     def initialize(self):
         self.historical_caches = {}
@@ -255,7 +224,7 @@ class BasicBacktester:
         )
 
         to_parquet(
-            df=report.astype("float32"),
+            df=report,
             path=os.path.join(
                 self.report_store_dir,
                 f"report_{self.report_prefix}_{self.base_currency}.parquet.zstd",
@@ -277,7 +246,8 @@ class BasicBacktester:
             "tradable_coins": tuple(self.tradable_coins.tolist()),
             "exit_if_achieved": self.exit_if_achieved,
             "achieve_ratio": self.achieve_ratio,
-            "exit_q_threshold": self.exit_q_threshold,
+            "entry_threshold": self.entry_threshold,
+            "adjust_prediction": self.adjust_prediction,
         }
         with open(
             os.path.join(
@@ -289,29 +259,6 @@ class BasicBacktester:
             json.dump(params, f)
 
         print(f"[+] Report is stored: {self.report_prefix}_{self.base_currency}")
-
-    def display_accuracy(self, predictions, labels):
-        accuracies = {}
-
-        for column in predictions.columns:
-            class_accuracy = {}
-            for class_num in range(labels[column].max() + 1):
-                class_mask = predictions[column] == class_num
-                class_accuracy["class_" + str(class_num)] = (
-                    labels[column][class_mask] == class_num
-                ).mean()
-
-            accuracy = pd.Series(
-                {
-                    "total": (predictions[column] == labels[column]).mean(),
-                    **class_accuracy,
-                }
-            )
-            accuracies[column] = accuracy
-
-        accuracies = pd.concat(accuracies).unstack().T
-        display_markdown("#### Accuracy of signals", raw=True)
-        display(accuracies)
 
     def build_metrics(self):
         assert len(self.historical_caches) != 0
@@ -376,6 +323,23 @@ class BasicBacktester:
     def deposit_cache(self, profit):
         self.cache = self.cache + profit
 
+    def compute_adjusted_prediction(
+        self, side, entry_price, current_price, entry_prediction, current_prediction
+    ):
+        if side == "long":
+            if entry_price * (1 + entry_prediction) < current_price * (
+                1 + current_prediction
+            ):
+                return ((current_price * (1 + current_prediction)) / entry_price) - 1
+
+        if side == "short":
+            if entry_price * (1 + entry_prediction) > current_price * (
+                1 + current_prediction
+            ):
+                return ((current_price * (1 + current_prediction)) / entry_price) - 1
+
+        return entry_prediction
+
     def update_position_if_already_have(self, position):
         for idx, exist_position in enumerate(self.positions):
             if (exist_position.asset == position.asset) and (
@@ -385,12 +349,23 @@ class BasicBacktester:
                 if self.max_n_updated is not None:
                     if exist_position.n_updated == self.max_n_updated:
 
-                        # Update only entry_at
+                        adjusted_prediction = exist_position.prediction
+                        if self.adjust_prediction is True:
+                            adjusted_prediction = self.compute_adjusted_prediction(
+                                side=exist_position.side,
+                                entry_price=exist_position.entry_price,
+                                current_price=position.entry_price,
+                                entry_prediction=exist_position.prediction,
+                                current_prediction=position.prediction,
+                            )
+
+                        # Update only prediction, and entry_at
                         update_position = Position(
                             asset=exist_position.asset,
                             side=exist_position.side,
                             qty=exist_position.qty,
                             entry_price=exist_position.entry_price,
+                            prediction=adjusted_prediction,
                             entry_at=position.entry_at,
                             n_updated=exist_position.n_updated,
                         )
@@ -404,6 +379,12 @@ class BasicBacktester:
                     + (position.entry_price * position.qty)
                 ) / (exist_position.qty + position.qty)
 
+                # This is currently invalid way, but acceptable.
+                update_prediction = (
+                    (exist_position.prediction * exist_position.qty)
+                    + (position.prediction * position.qty)
+                ) / (exist_position.qty + position.qty)
+
                 # Update entry_price, entry_at and qty
                 update_position = Position(
                     asset=exist_position.asset,
@@ -411,6 +392,7 @@ class BasicBacktester:
                     qty=exist_position.qty + position.qty,
                     entry_price=update_entry_price,
                     entry_at=position.entry_at,
+                    prediction=update_prediction,
                     n_updated=exist_position.n_updated + 1,
                 )
 
@@ -478,7 +460,7 @@ class BasicBacktester:
 
         return False
 
-    def entry_order(self, asset, side, cache_to_order, pricing, now):
+    def entry_order(self, asset, side, cache_to_order, pricing, prediction, now):
         if cache_to_order == 0:
             return
 
@@ -493,7 +475,12 @@ class BasicBacktester:
         qty = cache_to_order / entry_price
 
         position = Position(
-            asset=asset, side=side, qty=qty, entry_price=entry_price, entry_at=now
+            asset=asset,
+            side=side,
+            qty=qty,
+            entry_price=entry_price,
+            prediction=prediction,
+            entry_at=now,
         )
 
         updated = self.update_position_if_already_have(position=position)
@@ -535,7 +522,13 @@ class BasicBacktester:
         )
 
     def handle_entry(
-        self, cache_to_order, positive_assets, negative_assets, pricing, now
+        self,
+        predictions,
+        cache_to_order,
+        positive_assets,
+        negative_assets,
+        pricing,
+        now,
     ):
         # Entry order
         if self.position_side in ("long", "longshort"):
@@ -545,6 +538,7 @@ class BasicBacktester:
                     side="long",
                     cache_to_order=cache_to_order,
                     pricing=pricing,
+                    prediction=predictions[order_asset],
                     now=now,
                 )
 
@@ -555,6 +549,7 @@ class BasicBacktester:
                     side="short",
                     cache_to_order=cache_to_order,
                     pricing=pricing,
+                    prediction=predictions[order_asset],
                     now=now,
                 )
 
@@ -665,16 +660,16 @@ class BasicBacktester:
         else:
             trade_return = 0
 
-        q = compute_quantile(
-            trade_return / self.achieve_ratio, bins=self.bins[position.asset]
-        )
+        trade_return = trade_return / self.achieve_ratio
 
         if position.side == "long":
-            if q >= self.exit_q_threshold:
+            assert position.prediction > 0
+            if trade_return >= position.prediction:
                 return True
 
         if position.side == "short":
-            if q <= ((self.n_bins - 1) - self.exit_q_threshold):
+            assert position.prediction < 0
+            if trade_return <= position.prediction:
                 return True
 
         return False

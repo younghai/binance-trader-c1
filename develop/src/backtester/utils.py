@@ -1,5 +1,4 @@
 import pandas as pd
-from IPython.display import display, display_markdown
 
 
 def nan_to_zero(value):
@@ -9,29 +8,27 @@ def nan_to_zero(value):
     return value
 
 
-def data_loader(path):
+def load_parquet(path):
     return pd.read_parquet(path)
-
-
-def compute_quantile(x, bins):
-    if str(x) in ("None", "nan"):
-        x = 0
-
-    for idx in range(len(bins) - 1):
-        if bins[idx] < x <= bins[idx + 1]:
-            return idx
-
-    raise RuntimeError("unreachable")
 
 
 class Position:
     def __init__(
-        self, asset, side, qty, entry_price, entry_at, n_updated=0, is_exited=False
+        self,
+        asset,
+        side,
+        qty,
+        entry_price,
+        prediction,
+        entry_at,
+        n_updated=0,
+        is_exited=False,
     ):
         self.asset = asset
         self.side = side
         self.qty = qty
         self.entry_price = entry_price
+        self.prediction = prediction
         self.entry_at = entry_at
         self.n_updated = n_updated
         self.is_exited = is_exited

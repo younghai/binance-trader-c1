@@ -15,8 +15,6 @@ class BackboneV1(nn.Module):
         self,
         in_channels,
         n_assets,
-        n_class_qay,
-        n_class_qby,
         n_blocks=3,
         n_block_layers=6,
         growth_rate=12,
@@ -30,8 +28,6 @@ class BackboneV1(nn.Module):
         super(BackboneV1, self).__init__()
         self.in_channels = in_channels
         self.n_assets = n_assets
-        self.n_class_qay = n_class_qay
-        self.n_class_qby = n_class_qby
 
         self.n_blocks = n_blocks
         self.n_block_layers = n_block_layers
@@ -83,14 +79,9 @@ class BackboneV1(nn.Module):
         self.act = getattr(acts, activation)
         self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
 
-        assert self.n_class_qay == self.n_class_qby
-        self.last_fc = nn.Linear(in_channels, self.n_class_qay)
-
-        self.pred_qay_fc = nn.Linear(self.n_class_qay, self.n_class_qay)
-        self.pred_qby_fc = nn.Linear(self.n_class_qay, self.n_class_qay)
-
-        self.embed_a = nn.Embedding(n_assets, self.n_class_qay)
-        self.embed_b = nn.Embedding(n_assets, self.n_class_qay)
+        self.embed = nn.Embedding(n_assets, in_channels)
+        self.pred_fc = nn.Linear(in_channels, 1)
+        self.last_tanh = nn.Tanh()
 
         # Initialize
         for m in self.modules():
@@ -149,9 +140,9 @@ class BackboneV1(nn.Module):
     def forward(self, x, id):
         B, _, _ = x.size()
         out = self.blocks(self.first_conv(x))
-        out = self.last_fc(self.global_avg_pool(self.act(self.norm(out))).view(B, -1))
+        out = self.global_avg_pool(self.act(self.norm(out))).view(B, -1)
 
-        preds_qay = self.pred_qay_fc(out) + (out * self.embed_a(id))
-        preds_qby = self.pred_qby_fc(out) + (out * self.embed_b(id))
+        preds = self.pred_fc(out) + (out * self.embed(id)).sum(axis=-1, keepdim=True)
+        preds = self.last_tanh(preds)
 
-        return preds_qay, preds_qby
+        return preds
