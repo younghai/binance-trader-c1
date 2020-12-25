@@ -1,10 +1,9 @@
 from torch.utils.data import Dataset as _Dataset
-from typing import Dict, List, Callable, Optional
+from typing import Dict, List, Callable
 import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from common_utils_dev import load_text
 import gc
 
 
@@ -12,6 +11,18 @@ FILENAME_TEMPLATE = {
     "X": "X.parquet.zstd",
     "Y": "Y.parquet.zstd",
 }
+
+
+def build_X_and_BX(features, base_feature_assets, drop_feature_assets):
+    BX = features[base_feature_assets]
+
+    trainable_assets = [
+        asset
+        for asset in features.columns.levels[0]
+        if asset not in drop_feature_assets
+    ]
+
+    return features[trainable_assets], BX
 
 
 class Dataset(_Dataset):
@@ -22,33 +33,26 @@ class Dataset(_Dataset):
         base_feature_assets: List[str],
         drop_feature_assets: List[str],
         asset_to_id: Dict[str, int],
-        lookback_window: int = 60,
-        winsorize_threshold: int = 6,
+        lookback_window: int = 30,
     ):
         print("[+] Start to build dataset")
         self.data_caches = {}
 
         # Build inputs
-        assert winsorize_threshold is not None
-        self.data_caches["X"] = (
-            pd.read_parquet(
-                os.path.join(data_dir, FILENAME_TEMPLATE["X"]), engine="pyarrow"
-            )
-            .astype("float32")
-            .clip(-winsorize_threshold, winsorize_threshold)
-        ) / winsorize_threshold
+        self.data_caches["X"], self.data_caches["BX"] = build_X_and_BX(
+            features=(
+                pd.read_parquet(
+                    os.path.join(data_dir, FILENAME_TEMPLATE["X"]), engine="pyarrow"
+                ).astype("float32")
+            ),
+            base_feature_assets=base_feature_assets,
+            drop_feature_assets=drop_feature_assets,
+        )
 
-        self.data_caches["BX"] = self.data_caches["X"][base_feature_assets]
-
-        trainable_assets = [
-            asset
-            for asset in self.data_caches["X"].columns.levels[0]
-            if asset not in drop_feature_assets
-        ]
-        self.data_caches["X"] = self.data_caches["X"][trainable_assets]
+        assert (self.data_caches["BX"].index == self.data_caches["X"].index).all()
 
         self.index = []
-        for asset in tqdm(trainable_assets):
+        for asset in tqdm(self.data_caches["X"].columns.levels[0]):
             self.index += [
                 (index, asset)
                 for index in self.data_caches["X"][[asset]]
@@ -62,23 +66,17 @@ class Dataset(_Dataset):
 
         # Build labels
         self.data_caches["Y"] = (
-            (
-                pd.read_parquet(
-                    os.path.join(data_dir, FILENAME_TEMPLATE["Y"]), engine="pyarrow",
-                )
-                .sort_index()
-                .stack()
-                .reindex(self.index)
+            pd.read_parquet(
+                os.path.join(data_dir, FILENAME_TEMPLATE["Y"]), engine="pyarrow",
             )
-            .astype("float32")
-            .clip(-winsorize_threshold, winsorize_threshold)
-            / winsorize_threshold
-        )
+            .sort_index()
+            .stack()
+            .reindex(self.index)
+        ).astype("float32")
 
         self.transforms = transforms
         self.n_data = len(self.index)
         self.lookback_window = lookback_window
-        self.winsorize_threshold = winsorize_threshold
         self.asset_to_id = asset_to_id
 
         gc.collect()

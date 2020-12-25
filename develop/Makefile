@@ -42,7 +42,7 @@ build_rawdata: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m rawdata_builder.build_rawdata $(ARGS)
 
 build_dataset: _run_if_not_exists
-	docker exec -it $(shell $(CONTAINER_NAME)) python -m dataset_builder.build_dataset_v1 $(ARGS)
+	docker exec -it $(shell $(CONTAINER_NAME)) python -m dataset_builder.build_dataset $(ARGS)
 
 train: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m trainer.models.predictor_v1 train --mode=train $(ARGS)

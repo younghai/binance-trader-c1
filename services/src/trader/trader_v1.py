@@ -13,7 +13,7 @@ from config import CFG
 from trainer.models import PredictorV1
 from database.usecase import Usecase
 from exchange.custom_client import CustomClient
-from dataset_builder.build_dataset_v1 import (
+from dataset_builder.build_dataset import (
     _build_feature_by_rawdata,
     preprocess_features,
 )
@@ -84,12 +84,12 @@ class TraderV1:
             (column[0].replace("-", "/"), column[1])
             for column in CFG.DATASET_PARAMS["features_columns"]
         ]
+        self.data_builder_params["winsorize_threshold"] = CFG.DATASET_PARAMS[
+            "winsorize_threshold"
+        ]
         self.data_builder_params["base_feature_assets"] = [
             base_feature_asset.replace("-", "/")
             for base_feature_asset in CFG.EXP_DATA_PARAMS["base_feature_assets"]
-        ]
-        self.data_builder_params["winsorize_threshold"] = CFG.EXP_DATA_PARAMS[
-            "winsorize_threshold"
         ]
         self.data_builder_params["asset_to_id"] = {
             key.replace("-", "/"): value

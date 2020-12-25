@@ -41,7 +41,9 @@ class Config:
 
     @cached_property
     def EXP_PARAMS(self):
-        return load_json(f"/app/dev/experiments/{self.ENV['EXP_NAME']}/params.json")
+        return load_json(
+            f"/app/dev/experiments/{self.ENV['EXP_NAME']}/trainer_params.json"
+        )
 
     @cached_property
     def EXP_MODEL_PARAMS(self):

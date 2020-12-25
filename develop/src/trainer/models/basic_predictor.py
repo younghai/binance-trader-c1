@@ -28,7 +28,6 @@ COMMON_CONFIG = {
 DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
-    "winsorize_threshold": 6,
     "base_feature_assets": ["BTC-USDT"],
     "drop_feature_assets": [],
 }
@@ -95,20 +94,20 @@ class BasicPredictor:
         self.num_workers = num_workers
         self.mode = mode
 
+        # Build params & configs
+        self._load_dataset_params(mode=mode)
         self.data_config, self.model_config = self._build_config(
             d_config=d_config,
             m_config=m_config,
             default_d_config=default_d_config,
             default_m_config=default_m_config,
         )
+        self.asset_to_id = self._build_asset_to_id()
 
         self.model = self._build_model()
 
         self.iterable_train_data_loader = None
         self.iterable_test_data_loader = None
-
-        if mode in ("train", "test"):
-            self.asset_to_id = self._build_asset_to_id()
 
         if mode == "train":
             self.train_data_loader, self.test_data_loader = self._build_data_loaders(
@@ -126,13 +125,12 @@ class BasicPredictor:
 
         if mode in ("test", "predict"):
             self._load_label_scaler()
-            self._load_dataset_params()
 
     def _copy_dataset_artifacts(self):
         # Copy files from dataset
         for base_file, target_file in [
             (
-                os.path.join(get_parent_dir(self.data_dir), "params.json"),
+                os.path.join(get_parent_dir(self.data_dir), "dataset_params.json"),
                 os.path.join(self.exp_dir, "dataset_params.json"),
             ),
             (
@@ -154,7 +152,7 @@ class BasicPredictor:
             "data_config": self.data_config,
             "asset_to_id": self.asset_to_id,
         }
-        with open(os.path.join(self.exp_dir, f"params.json"), "w") as f:
+        with open(os.path.join(self.exp_dir, f"trainer_params.json"), "w") as f:
             json.dump(params, f)
 
         print(f"[+] Params are stored")
@@ -162,25 +160,16 @@ class BasicPredictor:
     def _load_label_scaler(self):
         self.label_scaler = joblib.load(os.path.join(self.exp_dir, "label_scaler.pkl"))
 
-    def _load_dataset_params(self):
+    def _load_dataset_params(self, mode):
+        if mode == "train":
+            self.dataset_params = load_json(
+                os.path.join(get_parent_dir(self.data_dir), "dataset_params.json")
+            )
+            return
+
         self.dataset_params = load_json(
             os.path.join(self.exp_dir, "dataset_params.json")
         )
-
-    def _list_tradable_assets(self, drop_feature_assets):
-        tradable_assets = load_text(
-            os.path.join(
-                self.data_dir.replace("/test", "").replace("/train", ""),
-                "tradable_coins.txt",
-            )
-        )
-        tradable_assets = [
-            tradable_asset
-            for tradable_asset in tradable_assets
-            if tradable_asset not in drop_feature_assets
-        ]
-
-        return tradable_assets
 
     def _build_config(self, d_config, m_config, default_d_config, default_m_config):
         # refine path with exp_dirs
@@ -205,20 +194,25 @@ class BasicPredictor:
         # Mutate model_params' n_assets
         if "n_assets" not in model_config["model_params"]:
             n_assets = len(
-                self._list_tradable_assets(
-                    drop_feature_assets=data_config["drop_feature_assets"]
-                )
+                [
+                    tradable_coin
+                    for tradable_coin in self.dataset_params["tradable_coins"]
+                    if tradable_coin not in data_config["drop_feature_assets"]
+                ]
             )
+
             model_config["model_params"]["n_assets"] = n_assets
 
         return data_config, model_config
 
     def _build_asset_to_id(self):
-        tradable_assets = self._list_tradable_assets(
-            drop_feature_assets=self.data_config["drop_feature_assets"]
-        )
+        tradable_coins = [
+            tradable_coin
+            for tradable_coin in self.dataset_params["tradable_coins"]
+            if tradable_coin not in self.data_config["drop_feature_assets"]
+        ]
         asset_to_id = {
-            tradable_asset: idx for idx, tradable_asset in enumerate(tradable_assets)
+            tradable_coin: idx for idx, tradable_coin in enumerate(tradable_coins)
         }
         return asset_to_id
 
@@ -233,7 +227,6 @@ class BasicPredictor:
         base_dataset_params = {
             "transforms": transforms,
             "lookback_window": self.model_config["lookback_window"],
-            "winsorize_threshold": self.data_config["winsorize_threshold"],
             "base_feature_assets": self.data_config["base_feature_assets"],
             "drop_feature_assets": self.data_config["drop_feature_assets"],
             "asset_to_id": self.asset_to_id,

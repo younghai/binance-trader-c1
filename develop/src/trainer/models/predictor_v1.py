@@ -19,7 +19,6 @@ COMMON_CONFIG = {
 DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
-    "winsorize_threshold": 6,
     "base_feature_assets": ["BTC-USDT"],
     "drop_feature_assets": [],
 }
@@ -186,11 +185,11 @@ class PredictorV1(BasicPredictor):
 
         # Rescale
         predictions = inverse_preprocess_data(
-            data=predictions * self.data_config["winsorize_threshold"],
+            data=predictions * self.dataset_config["winsorize_threshold"],
             scaler=self.label_scaler,
         )
         labels = inverse_preprocess_data(
-            data=labels * self.data_config["winsorize_threshold"],
+            data=labels * self.dataset_config["winsorize_threshold"],
             scaler=self.label_scaler,
         )
 
@@ -227,7 +226,7 @@ class PredictorV1(BasicPredictor):
         # Rescale
         predictions = predictions.unstack()[self.dataset_params["labels_columns"]]
         predictions = inverse_preprocess_data(
-            data=predictions * self.data_config["winsorize_threshold"],
+            data=predictions * self.dataset_config["winsorize_threshold"],
             scaler=self.label_scaler,
         )
         predictions.stack()
