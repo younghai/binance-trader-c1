@@ -51,7 +51,7 @@ MODEL_CONFIG = {
         "dropout": 0.01,
         "channel_reduction": 0.5,
         "activation": "selu",
-        "normalization": None,
+        "normalization": "gn",
         "seblock": True,
         "sablock": True,
     },

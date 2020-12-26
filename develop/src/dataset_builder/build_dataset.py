@@ -19,8 +19,8 @@ CONFIG = {
     "data_store_dir": to_abs_path(__file__, "../../storage/dataset/v001/"),
     "lookahead_window": 30,
     "train_ratio": 0.80,
-    "scaler_type": "RobustScaler",
-    "winsorize_threshold": 10,
+    "scaler_type": "StandardScaler",
+    "winsorize_threshold": 6,
     "query_min_start_dt": "2018-06-01",
 }
 OHLC = ["open", "high", "low", "close"]

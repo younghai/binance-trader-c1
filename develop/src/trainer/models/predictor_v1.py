@@ -42,7 +42,7 @@ MODEL_CONFIG = {
         "dropout": 0.01,
         "channel_reduction": 0.5,
         "activation": "selu",
-        "normalization": None,
+        "normalization": "gn",
         "seblock": True,
         "sablock": True,
     },
@@ -185,12 +185,12 @@ class PredictorV1(BasicPredictor):
         # Rescale
         predictions = inverse_preprocess_data(
             data=predictions[self.dataset_params["labels_columns"]]
-            * self.dataset_config["winsorize_threshold"],
+            * self.dataset_params["winsorize_threshold"],
             scaler=self.label_scaler,
         )
         labels = inverse_preprocess_data(
             data=labels[self.dataset_params["labels_columns"]]
-            * self.dataset_config["winsorize_threshold"],
+            * self.dataset_params["winsorize_threshold"],
             scaler=self.label_scaler,
         )
 
@@ -228,7 +228,7 @@ class PredictorV1(BasicPredictor):
         predictions = predictions.unstack()[self.dataset_params["labels_columns"]]
         predictions = inverse_preprocess_data(
             data=predictions[self.dataset_params["labels_columns"]]
-            * self.dataset_config["winsorize_threshold"],
+            * self.dataset_params["winsorize_threshold"],
             scaler=self.label_scaler,
         )
         predictions.stack()

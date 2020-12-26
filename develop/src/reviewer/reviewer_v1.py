@@ -13,6 +13,7 @@ import json
 from reviewer import paramset
 from common_utils_dev import to_abs_path
 from tabulate import tabulate
+import fancytable as ft
 
 
 @dataclass
@@ -34,6 +35,96 @@ class ReviewerV1:
         self.grid_params["exp_dir"] = self.exp_dir
 
         self._build_backtesters()
+
+    def _load_data_dict(self):
+        data_dict = {}
+        data_dict["labels"] = pd.read_parquet(
+            os.path.join(self.exp_dir, "generated_output/labels.parquet.zstd")
+        )
+        data_dict["predictions"] = pd.read_parquet(
+            os.path.join(self.exp_dir, "generated_output/predictions.parquet.zstd")
+        )
+
+        return data_dict
+
+    def _display_timeseries(self, data_dict):
+        columns = data_dict["predictions"].columns
+        _, ax = plt.subplots(len(columns), 1, figsize=(24, 2.5 * len(columns)))
+
+        for idx, column in enumerate(columns):
+            data_dict["labels"][column].rename("label").plot(ax=ax[idx], alpha=0.5)
+            data_dict["predictions"][column].rename("prediction").plot(ax=ax[idx])
+            ax[idx].legend()
+            ax[idx].set_title(column)
+
+        plt.tight_layout()
+        plt.show()
+
+    def _build_levels(self, data):
+        levels = {}
+        for column in data.columns:
+            levels[column] = pd.qcut(data[column], 10, labels=False, retbins=False)
+
+        return pd.concat(levels, axis=1)
+
+    def _build_total_performance(self, data_dict):
+        total_performance = (data_dict["labels"] * data_dict["predictions"] >= 0).mean()
+        total_performance["mean"] = total_performance.mean()
+
+        return total_performance
+
+    def _build_performance_on_levels(self, data_dict, levels):
+        performance = data_dict["labels"] * data_dict["predictions"] >= 0
+
+        performance_on_levels = []
+        for column in performance.columns:
+            performance_on_levels.append(
+                performance[column].groupby(levels[column]).mean()
+            )
+
+        return pd.concat(performance_on_levels, axis=1)
+
+    def display_performance(self):
+        data_dict = self._load_data_dict()
+
+        display_markdown("#### Timeseries", raw=True)
+        self._display_timeseries(data_dict=data_dict)
+
+        display_markdown("#### Total Performance", raw=True)
+        total_performance = self._build_total_performance(data_dict=data_dict)
+        display(ft.display(total_performance.rename("bin_acc").to_frame().T, axis=1))
+
+        # Build levels
+        label_levels = self._build_levels(data=data_dict["labels"])
+        prediction_levels = self._build_levels(data=data_dict["predictions"])
+        abs_prediction_levels = self._build_levels(data=data_dict["predictions"].abs())
+
+        display_markdown("#### Performance on label levels", raw=True)
+        display(
+            ft.display(
+                self._build_performance_on_levels(
+                    data_dict=data_dict, levels=label_levels
+                )
+            )
+        )
+
+        display_markdown("#### Performance on prediction levels", raw=True)
+        display(
+            ft.display(
+                self._build_performance_on_levels(
+                    data_dict=data_dict, levels=prediction_levels
+                )
+            )
+        )
+
+        display_markdown("#### Performance on abs(prediction) levels", raw=True)
+        display(
+            ft.display(
+                self._build_performance_on_levels(
+                    data_dict=data_dict, levels=abs_prediction_levels
+                )
+            )
+        )
 
     def _exists_artifact(self, index):
         exists = []
@@ -157,6 +248,8 @@ class ReviewerV1:
         return metrics
 
     def display_params(self, index, in_shell=False):
+        display_markdown(f"#### Params: {index}", raw=True)
+
         params = (
             pd.Series(self._load_artifact(artifact_type="params", index=index))
             .rename("params")
@@ -211,6 +304,8 @@ class ReviewerV1:
         self.display_report(index=best_index, in_shell=in_shell)
 
     def run(self, in_shell=False):
+        self.display_performance()
+
         print(f"[+] Found backtests to start: {len(self.backtesters)}")
 
         Parallel(n_jobs=self.n_jobs, verbose=1)(

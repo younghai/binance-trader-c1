@@ -143,7 +143,14 @@ class BasicBacktester:
             },
         )
         self.tradable_coins = self.historical_data_dict["predictions"].columns
-        self.index = self.historical_data_dict["predictions"].index
+        self.index = (
+            self.historical_data_dict["predictions"].index
+            & self.historical_data_dict["pricing"].index
+        ).sort_values()
+        for key in self.historical_data_dict.keys():
+            self.historical_data_dict[key] = self.historical_data_dict[key].reindex(
+                self.index
+            )
 
     def initialize(self):
         self.historical_caches = {}

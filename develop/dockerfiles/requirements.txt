@@ -12,6 +12,7 @@ fastparquet
 pyarrow
 empyrical
 kaggle
-scikit-learn==0.22.2.post1
+scikit-learn==0.23.2
 tabulate
 werkzeug
+fancytable
