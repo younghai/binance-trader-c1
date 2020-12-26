@@ -101,12 +101,6 @@ class BasicBacktester:
 
         self.initialize()
 
-    def _load_dataset_params(self, dataset_params_path):
-        with open(dataset_params_path, "r") as f:
-            dataset_params = json.load(f)
-
-        return dataset_params
-
     def _build_historical_data_dict(self, base_currency, historical_data_path_dict):
         historical_data_path_dict = copy(historical_data_path_dict)
 
@@ -148,7 +142,7 @@ class BasicBacktester:
                 ),
             },
         )
-        self.tradable_coins = self.historical_data_dict["pricing"].columns
+        self.tradable_coins = self.historical_data_dict["predictions"].columns
         self.index = self.historical_data_dict["predictions"].index
 
     def initialize(self):

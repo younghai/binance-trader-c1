@@ -13,14 +13,10 @@ FILENAME_TEMPLATE = {
 }
 
 
-def build_X_and_BX(features, base_feature_assets, drop_feature_assets):
+def build_X_and_BX(features, base_feature_assets):
     BX = features[base_feature_assets]
 
-    trainable_assets = [
-        asset
-        for asset in features.columns.levels[0]
-        if asset not in drop_feature_assets
-    ]
+    trainable_assets = [asset for asset in features.columns.levels[0]]
 
     return features[trainable_assets], BX
 
@@ -31,7 +27,6 @@ class Dataset(_Dataset):
         data_dir: str,
         transforms: Dict[str, Callable],
         base_feature_assets: List[str],
-        drop_feature_assets: List[str],
         asset_to_id: Dict[str, int],
         lookback_window: int = 120,
     ):
@@ -46,7 +41,6 @@ class Dataset(_Dataset):
                 ).astype("float32")
             ),
             base_feature_assets=base_feature_assets,
-            drop_feature_assets=drop_feature_assets,
         )
 
         assert (self.data_caches["BX"].index == self.data_caches["X"].index).all()

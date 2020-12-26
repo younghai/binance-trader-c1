@@ -29,7 +29,6 @@ DATA_CONFIG = {
     "checkpoint_dir": "./check_point",
     "generate_output_dir": "./generated_output",
     "base_feature_assets": ["BTC-USDT"],
-    "drop_feature_assets": [],
 }
 
 MODEL_CONFIG = {
@@ -197,7 +196,6 @@ class BasicPredictor:
                 [
                     tradable_coin
                     for tradable_coin in self.dataset_params["tradable_coins"]
-                    if tradable_coin not in data_config["drop_feature_assets"]
                 ]
             )
 
@@ -207,9 +205,7 @@ class BasicPredictor:
 
     def _build_asset_to_id(self):
         tradable_coins = [
-            tradable_coin
-            for tradable_coin in self.dataset_params["tradable_coins"]
-            if tradable_coin not in self.data_config["drop_feature_assets"]
+            tradable_coin for tradable_coin in self.dataset_params["tradable_coins"]
         ]
         asset_to_id = {
             tradable_coin: idx for idx, tradable_coin in enumerate(tradable_coins)
@@ -228,7 +224,6 @@ class BasicPredictor:
             "transforms": transforms,
             "lookback_window": self.model_config["lookback_window"],
             "base_feature_assets": self.data_config["base_feature_assets"],
-            "drop_feature_assets": self.data_config["drop_feature_assets"],
             "asset_to_id": self.asset_to_id,
         }
 
