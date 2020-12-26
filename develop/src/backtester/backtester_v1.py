@@ -21,6 +21,7 @@ CONFIG = {
     "achieved_with_commission": False,
     "max_n_updated": 0,
     "entry_threshold": 0.01,
+    "exit_threshold": "auto",
     "adjust_prediction": False,
 }
 
@@ -46,6 +47,7 @@ class BacktesterV1(BasicBacktester):
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
         entry_threshold=CONFIG["entry_threshold"],
+        exit_threshold=CONFIG["exit_threshold"],
         adjust_prediction=CONFIG["adjust_prediction"],
     ):
         super().__init__(
@@ -67,6 +69,7 @@ class BacktesterV1(BasicBacktester):
             achieved_with_commission=achieved_with_commission,
             max_n_updated=max_n_updated,
             entry_threshold=entry_threshold,
+            exit_threshold=exit_threshold,
             adjust_prediction=adjust_prediction,
         )
 

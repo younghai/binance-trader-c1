@@ -29,6 +29,7 @@ CONFIG = {
     "achieved_with_commission": False,
     "max_n_updated": 0,
     "entry_threshold": 0.01,
+    "exit_threshold": "auto",
     "adjust_prediction": False,
 }
 
@@ -66,6 +67,7 @@ class BasicBacktester:
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
         entry_threshold=CONFIG["entry_threshold"],
+        exit_threshold=CONFIG["exit_threshold"],
         adjust_prediction=CONFIG["adjust_prediction"],
     ):
         assert position_side in ("long", "short", "longshort")
@@ -87,6 +89,11 @@ class BasicBacktester:
         self.achieved_with_commission = achieved_with_commission
         self.max_n_updated = max_n_updated
         self.entry_threshold = entry_threshold
+        self.exit_threshold = exit_threshold
+        assert isinstance(exit_threshold, (float, int, str))
+        if type(exit_threshold) == str:
+            assert exit_threshold == "auto"
+
         self.adjust_prediction = adjust_prediction
 
         self.dataset_dir = dataset_dir
@@ -247,6 +254,7 @@ class BasicBacktester:
             "exit_if_achieved": self.exit_if_achieved,
             "achieve_ratio": self.achieve_ratio,
             "entry_threshold": self.entry_threshold,
+            "exit_threshold": self.exit_threshold,
             "adjust_prediction": self.adjust_prediction,
         }
         with open(
@@ -662,15 +670,24 @@ class BasicBacktester:
 
         trade_return = trade_return / self.achieve_ratio
 
-        if position.side == "long":
-            assert position.prediction > 0
-            if trade_return >= position.prediction:
-                return True
+        if self.exit_threshold == "auto":
+            if position.side == "long":
+                assert position.prediction > 0
+                if trade_return >= position.prediction:
+                    return True
 
-        if position.side == "short":
-            assert position.prediction < 0
-            if trade_return <= position.prediction:
-                return True
+            if position.side == "short":
+                assert position.prediction < 0
+                if trade_return <= position.prediction:
+                    return True
+        else:
+            if position.side == "long":
+                if trade_return >= self.exit_threshold:
+                    return True
+
+            if position.side == "short":
+                if trade_return <= -self.exit_threshold:
+                    return True
 
         return False
 

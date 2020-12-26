@@ -64,6 +64,10 @@ class ReviewerV1:
                 if param["entry_threshold"] < 0.001:
                     return False
 
+            if param["adjust_prediction"] is True:
+                if isinstance(param["exit_threshold"], (int, float)):
+                    return False
+
             return True
 
         grid_params = list(grid(self.grid_params))
