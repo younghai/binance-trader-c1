@@ -33,7 +33,7 @@ class Dataset(_Dataset):
         base_feature_assets: List[str],
         drop_feature_assets: List[str],
         asset_to_id: Dict[str, int],
-        lookback_window: int = 30,
+        lookback_window: int = 120,
     ):
         print("[+] Start to build dataset")
         self.data_caches = {}

@@ -68,6 +68,10 @@ class ReviewerV1:
                 if isinstance(param["exit_threshold"], (int, float)):
                     return False
 
+            if param["exit_threshold"] != "auto":
+                if param["achieve_ratio"] != 1:
+                    return False
+
             return True
 
         grid_params = list(grid(self.grid_params))
