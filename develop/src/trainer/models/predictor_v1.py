@@ -24,9 +24,9 @@ DATA_CONFIG = {
 
 MODEL_CONFIG = {
     "lookback_window": 120,
-    "batch_size": 1024,
-    "lr": 0.0001,
-    "epochs": 3,
+    "batch_size": 512,
+    "lr": 0.0002,
+    "epochs": 10,
     "print_epoch": 1,
     "print_iter": 25,
     "save_epoch": 1,
@@ -39,10 +39,10 @@ MODEL_CONFIG = {
         "n_blocks": 5,
         "n_block_layers": 8,
         "growth_rate": 12,
-        "dropout": 0.01,
+        "dropout": 0.05,
         "channel_reduction": 0.5,
-        "activation": "selu",
-        "normalization": "gn",
+        "activation": "tanhexp",
+        "normalization": "bn",
         "seblock": True,
         "sablock": True,
     },
@@ -145,7 +145,7 @@ class PredictorV1(BasicPredictor):
             ):
                 self._save_model(model=self.model, epoch=epoch)
 
-    def generate(self, save_dir=None, test=False):
+    def generate(self, save_dir=None):
         assert self.mode in ("test")
         self.model.eval()
 
@@ -165,11 +165,6 @@ class PredictorV1(BasicPredictor):
 
             predictions += preds.view(-1).cpu().tolist()
             labels += test_data_dict["Y"].view(-1).cpu().tolist()
-
-            if test is True:
-                index = index[: 100 * self.model_config["batch_size"]]
-                if idx == 99:
-                    break
 
         predictions = (
             pd.Series(predictions, index=index)
