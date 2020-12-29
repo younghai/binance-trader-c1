@@ -28,7 +28,7 @@ CONFIG = {
     "achieve_ratio": 1,
     "achieved_with_commission": False,
     "max_n_updated": 0,
-    "entry_threshold": 0.01,
+    "entry_threshold": 8,
     "exit_threshold": "auto",
     "adjust_prediction": False,
 }
@@ -92,7 +92,7 @@ class BasicBacktester:
         self.exit_threshold = exit_threshold
         assert isinstance(exit_threshold, (float, int, str))
         if type(exit_threshold) == str:
-            assert exit_threshold == "auto"
+            assert (exit_threshold == "auto") or ("*" in exit_threshold)
 
         self.adjust_prediction = adjust_prediction
 
@@ -100,6 +100,13 @@ class BasicBacktester:
         self.exp_dir = exp_dir
 
         self.initialize()
+
+    def _load_prediction_abs_bins(self):
+        return load_parquet(
+            path=os.path.join(
+                self.exp_dir, "generated_output/prediction_abs_bins.parquet.zstd"
+            )
+        )
 
     def _build_historical_data_dict(self, base_currency, historical_data_path_dict):
         historical_data_path_dict = copy(historical_data_path_dict)
@@ -126,6 +133,30 @@ class BasicBacktester:
 
         return data_dict
 
+    def _set_bins(self, prediction_abs_bins, index):
+        assert (prediction_abs_bins >= 0).all().all()
+
+        self.entry_bins = None
+        self.exit_bins = None
+
+        if isinstance(self.entry_threshold, str):
+            if "*" in self.entry_threshold:
+                self.entry_bins = (
+                    prediction_abs_bins.loc[int(self.entry_threshold.split("*")[0])]
+                    * float(self.entry_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.entry_bins = prediction_abs_bins.loc[self.entry_threshold][index]
+
+        if isinstance(self.exit_threshold, str):
+            if "*" in self.exit_threshold:
+                self.exit_bins = (
+                    prediction_abs_bins.loc[int(self.exit_threshold.split("*")[0])]
+                    * float(self.exit_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.exit_bins = prediction_abs_bins.loc[self.exit_threshold][index]
+
     def build(self):
         self.report_store_dir = os.path.join(self.exp_dir, "reports/")
         make_dirs([self.report_store_dir])
@@ -151,6 +182,11 @@ class BasicBacktester:
             self.historical_data_dict[key] = self.historical_data_dict[key].reindex(
                 self.index
             )
+
+        prediction_abs_bins = self._load_prediction_abs_bins()
+        self._set_bins(
+            prediction_abs_bins=prediction_abs_bins, index=self.tradable_coins
+        )
 
     def initialize(self):
         self.historical_caches = {}
@@ -683,11 +719,11 @@ class BasicBacktester:
                     return True
         else:
             if position.side == "long":
-                if trade_return >= self.exit_threshold:
+                if trade_return >= self.exit_bins[position.asset]:
                     return True
 
             if position.side == "short":
-                if trade_return <= -self.exit_threshold:
+                if trade_return <= -self.exit_bins[position.asset]:
                     return True
 
         return False

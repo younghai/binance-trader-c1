@@ -154,10 +154,6 @@ class ReviewerV1:
 
     def _build_backtesters(self):
         def _is_valid_params(param):
-            if param["achieved_with_commission"] is False:
-                if param["entry_threshold"] < 0.001:
-                    return False
-
             if param["adjust_prediction"] is True:
                 if isinstance(param["exit_threshold"], (int, float)):
                     return False

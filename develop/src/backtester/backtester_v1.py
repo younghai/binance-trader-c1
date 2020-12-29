@@ -20,7 +20,7 @@ CONFIG = {
     "achieve_ratio": 1,
     "achieved_with_commission": False,
     "max_n_updated": 0,
-    "entry_threshold": 0.01,
+    "entry_threshold": 8,
     "exit_threshold": "auto",
     "adjust_prediction": False,
 }
@@ -83,10 +83,8 @@ class BacktesterV1(BasicBacktester):
             predictions = self.historical_data_dict["predictions"].loc[now]
 
             # Set assets which has signals
-            positive_assets = self.tradable_coins[(predictions >= self.entry_threshold)]
-            negative_assets = self.tradable_coins[
-                (predictions <= -self.entry_threshold)
-            ]
+            positive_assets = self.tradable_coins[(predictions >= self.entry_bins)]
+            negative_assets = self.tradable_coins[(predictions <= -self.entry_bins)]
 
             # Exit
             self.handle_exit(

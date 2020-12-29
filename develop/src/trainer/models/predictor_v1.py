@@ -39,10 +39,10 @@ MODEL_CONFIG = {
         "n_blocks": 5,
         "n_block_layers": 8,
         "growth_rate": 12,
-        "dropout": 0.05,
+        "dropout": 0.1,
         "channel_reduction": 0.5,
-        "activation": "tanhexp",
-        "normalization": "bn",
+        "activation": "selu",
+        "normalization": None,
         "seblock": True,
         "sablock": True,
     },
@@ -125,6 +125,18 @@ class PredictorV1(BasicPredictor):
 
         print(f""" [+] train_loss: {train_loss:.2f} | test_loss: {test_loss:.2f} """)
 
+    def _build_prediction_abs_bins(self, predictions):
+        prediction_abs_bins = {}
+        for column in predictions.columns:
+            _, prediction_abs_bins[column] = pd.qcut(
+                predictions[column].abs(), 10, labels=False, retbins=True
+            )
+            prediction_abs_bins[column] = np.concatenate(
+                [[0], prediction_abs_bins[column][1:-1], [np.inf]]
+            )
+
+        return pd.DataFrame(prediction_abs_bins)
+
     def train(self):
         for epoch in range(self.model_config["epochs"]):
             if epoch <= self.last_epoch:
@@ -189,10 +201,13 @@ class PredictorV1(BasicPredictor):
             scaler=self.label_scaler,
         )
 
+        prediction_abs_bins = self._build_prediction_abs_bins(predictions=predictions)
+
         # Store signals
         for data_type, data in [
             ("predictions", predictions),
             ("labels", labels),
+            ("prediction_abs_bins", prediction_abs_bins),
         ]:
             to_parquet(
                 df=data, path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
