@@ -82,7 +82,10 @@ class ReviewerV1:
                 performance[column].groupby(levels[column]).mean()
             )
 
-        return pd.concat(performance_on_levels, axis=1)
+        performance_on_levels = pd.concat(performance_on_levels, axis=1)
+        performance_on_levels["mean"] = performance_on_levels.mean(axis=1)
+
+        return performance_on_levels
 
     def display_performance(self):
         data_dict = self._load_data_dict()
