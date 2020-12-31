@@ -217,7 +217,7 @@ class DatasetBuilder:
 
     def _build_label(self, rawdata_row, lookahead_window):
         # build fwd_return(window)
-        pricing = rawdata_row["open"].copy().sort_index()
+        pricing = rawdata_row[OHLC].mean(axis=1).sort_index()
         fwd_return = (
             pricing.pct_change(lookahead_window, fill_method=None)
             .shift(-lookahead_window - 1)

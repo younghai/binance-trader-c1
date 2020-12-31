@@ -80,7 +80,7 @@ class BackboneV1(nn.Module):
         self.global_avg_pool = nn.AdaptiveAvgPool1d(1)
 
         self.embed = nn.Embedding(n_assets, in_channels)
-        self.pred_fc = nn.Linear(in_channels, 1)
+        self.pred_fc = nn.Linear(in_channels, 2)
         self.last_tanh = nn.Tanh()
 
         # Initialize
@@ -145,4 +145,4 @@ class BackboneV1(nn.Module):
         preds = self.pred_fc(out) + (out * self.embed(id)).sum(axis=-1, keepdim=True)
         preds = self.last_tanh(preds)
 
-        return preds
+        return preds[:, 0], preds[:, 1]

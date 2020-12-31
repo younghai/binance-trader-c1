@@ -49,10 +49,10 @@ def build_rawdata(
         )
 
         spot_df = pd.read_parquet(spot_file_path)[
-            ["open", "high", "low", "close", "volume"]
+            ["open", "high", "low", "close"]
         ].sort_index()
         future_df = pd.read_parquet(future_file_path)[
-            ["open", "high", "low", "close", "volume"]
+            ["open", "high", "low", "close"]
         ].sort_index()
 
         df = pd.concat([spot_df[spot_df.index < future_df.index[0]], future_df])

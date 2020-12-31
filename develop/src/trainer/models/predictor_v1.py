@@ -28,7 +28,7 @@ MODEL_CONFIG = {
     "lr": 0.0002,
     "epochs": 15,
     "print_epoch": 1,
-    "print_iter": 25,
+    "print_iter": 50,
     "save_epoch": 1,
     "criterion": "l2",
     "criterion_params": {},
@@ -39,7 +39,7 @@ MODEL_CONFIG = {
         "n_blocks": 5,
         "n_block_layers": 8,
         "growth_rate": 12,
-        "dropout": 0.1,
+        "dropout": 0.05,
         "channel_reduction": 0.5,
         "activation": "selu",
         "normalization": None,
@@ -94,9 +94,10 @@ class PredictorV1(BasicPredictor):
         preds = self.model(x=train_data_dict["X"], id=train_data_dict["ID"])
 
         # Y loss
-        loss = self.criterion(preds, train_data_dict["Y"].view(-1, 1)) * 10
+        loss = self.criterion(preds[0], train_data_dict["Y"].view(-1)) * 5
+        loss += self.criterion(preds[1], train_data_dict["Y"].view(-1).abs()) * 5
 
-        return loss
+        return loss, preds[0].detach()
 
     def _compute_test_loss(self, test_data_dict):
         # Set eval mode
@@ -106,24 +107,26 @@ class PredictorV1(BasicPredictor):
         preds = self.model(x=test_data_dict["X"], id=test_data_dict["ID"])
 
         # Y loss
-        loss = self.criterion(preds, test_data_dict["Y"].view(-1, 1)) * 10
+        loss = self.criterion(preds[0], test_data_dict["Y"].view(-1)) * 5
+        loss += self.criterion(preds[1], test_data_dict["Y"].view(-1).abs()) * 5
 
-        return loss
+        return loss, preds[0].detach()
 
-    def _step(self):
-        train_data_dict = self._generate_train_data_dict()
-        loss = self._compute_train_loss(train_data_dict=train_data_dict)
+    def _step(self, train_data_dict):
+        loss, _ = self._compute_train_loss(train_data_dict=train_data_dict)
         loss.backward()
         self.optimizer.step()
 
         return loss
 
-    def _display_info(self, train_loss):
-        # Print loss info
-        test_data_dict = self._generate_test_data_dict()
-        test_loss = self._compute_test_loss(test_data_dict)
+    def _display_info(self, train_loss, test_loss, test_predictions, test_labels):
+        pred_norm = test_predictions[test_predictions >= 0].abs().mean()
+        label_norm = test_labels[test_labels >= 0].abs().mean()
 
-        print(f""" [+] train_loss: {train_loss:.2f} | test_loss: {test_loss:.2f} """)
+        # Print loss info
+        print(
+            f""" [+] train_loss: {train_loss:.2f}, test_loss: {test_loss:.2f} | [+] pred_norm: {pred_norm:.2f}, label_norm: {label_norm:.2f}"""
+        )
 
     def _build_prediction_abs_bins(self, predictions):
         prediction_abs_bins = {}
@@ -144,12 +147,22 @@ class PredictorV1(BasicPredictor):
 
             for iter_ in tqdm(range(len(self.train_data_loader))):
                 # Optimize
-                train_loss = self._step()
+                train_data_dict = self._generate_train_data_dict()
+                train_loss = self._step(train_data_dict=train_data_dict)
 
                 # Display losses
                 if epoch % self.model_config["print_epoch"] == 0:
                     if iter_ % self.model_config["print_iter"] == 0:
-                        self._display_info(train_loss=train_loss)
+                        test_data_dict = self._generate_test_data_dict()
+                        test_loss, test_predictions = self._compute_test_loss(
+                            test_data_dict=test_data_dict
+                        )
+                        self._display_info(
+                            train_loss=train_loss,
+                            test_loss=test_loss,
+                            test_predictions=test_predictions,
+                            test_labels=test_data_dict["Y"],
+                        )
 
             # Store the check-point
             if (epoch % self.model_config["save_epoch"] == 0) or (
@@ -173,7 +186,7 @@ class PredictorV1(BasicPredictor):
         for idx in tqdm(range(len(self.test_data_loader))):
             test_data_dict = self._generate_test_data_dict()
 
-            preds = self.model(x=test_data_dict["X"], id=test_data_dict["ID"])
+            preds, _ = self.model(x=test_data_dict["X"], id=test_data_dict["ID"])
 
             predictions += preds.view(-1).cpu().tolist()
             labels += test_data_dict["Y"].view(-1).cpu().tolist()
@@ -227,7 +240,7 @@ class PredictorV1(BasicPredictor):
         if not isinstance(id, torch.Tensor):
             id = torch.Tensor(id)
 
-        preds = self.model(x=X.to(self.device), id=id.to(self.device).long())
+        preds, _ = self.model(x=X.to(self.device), id=id.to(self.device).long())
         predictions = pd.Series(preds.view(-1).cpu().tolist(), index=id.int().tolist(),)
 
         # Post-process
