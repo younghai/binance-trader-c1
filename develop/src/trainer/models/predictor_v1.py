@@ -85,32 +85,54 @@ class PredictorV1(BasicPredictor):
             default_m_config=default_m_config,
         )
 
+    def _invert_to_prediction(self, pred_abs_factor, pred_sign_factor):
+        multiply = ((pred_sign_factor >= 0) * 1.0) + ((pred_sign_factor < 0) * -1.0)
+        return pred_abs_factor * multiply
+
     def _compute_train_loss(self, train_data_dict):
         # Set train mode
         self.model.train()
         self.model.zero_grad()
 
         # Set loss
-        preds = self.model(x=train_data_dict["X"], id=train_data_dict["ID"])
+        pred_abs_factor, pred_sign_factor = self.model(
+            x=train_data_dict["X"], id=train_data_dict["ID"]
+        )
 
         # Y loss
-        loss = self.criterion(preds[0], train_data_dict["Y"].view(-1)) * 5
-        loss += self.criterion(preds[1], train_data_dict["Y"].view(-1).abs()) * 5
+        loss = self.criterion(pred_abs_factor, train_data_dict["Y"].view(-1).abs()) * 10
+        loss += self.binary_cross_entropy(
+            pred_sign_factor, (train_data_dict["Y"].view(-1) >= 0) * 1.0
+        )
 
-        return loss, preds[0].detach()
+        return (
+            loss,
+            self._invert_to_prediction(
+                pred_abs_factor=pred_abs_factor, pred_sign_factor=pred_sign_factor
+            ),
+        )
 
     def _compute_test_loss(self, test_data_dict):
         # Set eval mode
         self.model.eval()
 
         # Set loss
-        preds = self.model(x=test_data_dict["X"], id=test_data_dict["ID"])
+        pred_abs_factor, pred_sign_factor = self.model(
+            x=test_data_dict["X"], id=test_data_dict["ID"]
+        )
 
         # Y loss
-        loss = self.criterion(preds[0], test_data_dict["Y"].view(-1)) * 5
-        loss += self.criterion(preds[1], test_data_dict["Y"].view(-1).abs()) * 5
+        loss = self.criterion(pred_abs_factor, test_data_dict["Y"].view(-1).abs()) * 10
+        loss += self.binary_cross_entropy(
+            pred_sign_factor, (test_data_dict["Y"].view(-1) >= 0) * 1.0
+        )
 
-        return loss, preds[0].detach()
+        return (
+            loss,
+            self._invert_to_prediction(
+                pred_abs_factor=pred_abs_factor, pred_sign_factor=pred_sign_factor
+            ),
+        )
 
     def _step(self, train_data_dict):
         loss, _ = self._compute_train_loss(train_data_dict=train_data_dict)
@@ -183,13 +205,22 @@ class PredictorV1(BasicPredictor):
 
         predictions = []
         labels = []
+        probabilities = []
         for idx in tqdm(range(len(self.test_data_loader))):
             test_data_dict = self._generate_test_data_dict()
 
-            preds, _ = self.model(x=test_data_dict["X"], id=test_data_dict["ID"])
+            pred_abs_factor, pred_sign_factor = self.model(
+                x=test_data_dict["X"], id=test_data_dict["ID"]
+            )
+            preds = self._invert_to_prediction(
+                pred_abs_factor=pred_abs_factor, pred_sign_factor=pred_sign_factor
+            )
 
             predictions += preds.view(-1).cpu().tolist()
             labels += test_data_dict["Y"].view(-1).cpu().tolist()
+            probabilities += (
+                ((pred_sign_factor - 0.5) * 2).abs().view(-1).cpu().tolist()
+            )
 
         predictions = (
             pd.Series(predictions, index=index)
@@ -201,16 +232,19 @@ class PredictorV1(BasicPredictor):
             .sort_index()
             .unstack()[self.dataset_params["labels_columns"]]
         )
+        probabilities = (
+            pd.Series(probabilities, index=index)
+            .sort_index()
+            .unstack()[self.dataset_params["labels_columns"]]
+        )
 
         # Rescale
         predictions = inverse_preprocess_data(
-            data=predictions[self.dataset_params["labels_columns"]]
-            * self.dataset_params["winsorize_threshold"],
+            data=predictions * self.dataset_params["winsorize_threshold"],
             scaler=self.label_scaler,
         )
         labels = inverse_preprocess_data(
-            data=labels[self.dataset_params["labels_columns"]]
-            * self.dataset_params["winsorize_threshold"],
+            data=labels * self.dataset_params["winsorize_threshold"],
             scaler=self.label_scaler,
         )
 
@@ -220,6 +254,7 @@ class PredictorV1(BasicPredictor):
         for data_type, data in [
             ("predictions", predictions),
             ("labels", labels),
+            ("probabilities", probabilities),
             ("prediction_abs_bins", prediction_abs_bins),
         ]:
             to_parquet(
@@ -240,23 +275,35 @@ class PredictorV1(BasicPredictor):
         if not isinstance(id, torch.Tensor):
             id = torch.Tensor(id)
 
-        preds, _ = self.model(x=X.to(self.device), id=id.to(self.device).long())
+        pred_abs_factor, pred_sign_factor = self.model(
+            x=X.to(self.device), id=id.to(self.device).long()
+        )
+        preds = self._invert_to_prediction(
+            pred_abs_factor=pred_abs_factor, pred_sign_factor=pred_sign_factor
+        )
         predictions = pd.Series(preds.view(-1).cpu().tolist(), index=id.int().tolist(),)
+        probabilities = pd.Series(
+            ((pred_sign_factor - 0.5) * 2).abs().view(-1).cpu().tolist(),
+            index=id.int().tolist(),
+        )
 
         # Post-process
         assert id_to_asset is not None
         predictions.index = predictions.index.map(lambda x: id_to_asset[x])
+        probabilities.index = probabilities.index.map(lambda x: id_to_asset[x])
 
-        # Rescale
+        # Reorder
         predictions = predictions.unstack()[self.dataset_params["labels_columns"]]
         predictions = inverse_preprocess_data(
-            data=predictions[self.dataset_params["labels_columns"]]
-            * self.dataset_params["winsorize_threshold"],
+            data=predictions * self.dataset_params["winsorize_threshold"],
             scaler=self.label_scaler,
         )
         predictions.stack()
 
-        return predictions
+        probabilities = probabilities.unstack()[self.dataset_params["labels_columns"]]
+        probabilities.stack()
+
+        return predictions, probabilities
 
 
 if __name__ == "__main__":

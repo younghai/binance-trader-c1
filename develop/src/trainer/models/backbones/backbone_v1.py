@@ -81,7 +81,7 @@ class BackboneV1(nn.Module):
 
         self.embed = nn.Embedding(n_assets, in_channels)
         self.pred_fc = nn.Linear(in_channels, 2)
-        self.last_tanh = nn.Tanh()
+        self.last_sigmoid = nn.Sigmoid()
 
         # Initialize
         for m in self.modules():
@@ -143,6 +143,5 @@ class BackboneV1(nn.Module):
         out = self.global_avg_pool(self.act(self.norm(out))).view(B, -1)
 
         preds = self.pred_fc(out) + (out * self.embed(id)).sum(axis=-1, keepdim=True)
-        preds = self.last_tanh(preds)
 
-        return preds[:, 0], preds[:, 1]
+        return preds[:, 0], self.last_sigmoid(preds[:, 1])
