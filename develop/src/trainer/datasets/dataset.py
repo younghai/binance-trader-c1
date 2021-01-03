@@ -15,10 +15,7 @@ FILENAME_TEMPLATE = {
 
 def build_X_and_BX(features, base_feature_assets):
     BX = features[base_feature_assets]
-
-    trainable_assets = [asset for asset in features.columns.levels[0]]
-
-    return features[trainable_assets], BX
+    return features, BX
 
 
 class Dataset(_Dataset):

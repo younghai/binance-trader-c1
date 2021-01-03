@@ -14,7 +14,7 @@ from common_utils_dev import to_parquet
 
 
 CONFIG = {
-    "report_prefix": "001",
+    "report_prefix": "v001",
     "detail_report": False,
     "position_side": "longshort",
     "entry_ratio": 0.055,
@@ -28,9 +28,11 @@ CONFIG = {
     "achieve_ratio": 1,
     "achieved_with_commission": False,
     "max_n_updated": 0,
-    "entry_threshold": 8,
+    "positive_entry_threshold": 8,
+    "negative_entry_threshold": 8,
     "exit_threshold": "auto",
-    "probability_threshold": 0.2,
+    "positive_probability_threshold": 8,
+    "negative_probability_threshold": 8,
     "adjust_prediction": False,
 }
 
@@ -67,9 +69,11 @@ class BasicBacktester:
         achieve_ratio=CONFIG["achieve_ratio"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
-        entry_threshold=CONFIG["entry_threshold"],
+        positive_entry_threshold=CONFIG["positive_entry_threshold"],
+        negative_entry_threshold=CONFIG["negative_entry_threshold"],
         exit_threshold=CONFIG["exit_threshold"],
-        probability_threshold=CONFIG["probability_threshold"],
+        positive_probability_threshold=CONFIG["positive_probability_threshold"],
+        negative_probability_threshold=CONFIG["negative_probability_threshold"],
         adjust_prediction=CONFIG["adjust_prediction"],
     ):
         assert position_side in ("long", "short", "longshort")
@@ -90,14 +94,15 @@ class BasicBacktester:
         self.achieve_ratio = achieve_ratio
         self.achieved_with_commission = achieved_with_commission
         self.max_n_updated = max_n_updated
-        self.entry_threshold = entry_threshold
+        self.positive_entry_threshold = positive_entry_threshold
+        self.negative_entry_threshold = negative_entry_threshold
         self.exit_threshold = exit_threshold
         assert isinstance(exit_threshold, (float, int, str))
         if type(exit_threshold) == str:
             assert (exit_threshold == "auto") or ("*" in exit_threshold)
 
-        self.probability_threshold = probability_threshold
-        assert (probability_threshold >= 0) and (probability_threshold <= 1)
+        self.positive_probability_threshold = positive_probability_threshold
+        self.negative_probability_threshold = negative_probability_threshold
 
         self.adjust_prediction = adjust_prediction
 
@@ -110,6 +115,13 @@ class BasicBacktester:
         return load_parquet(
             path=os.path.join(
                 self.exp_dir, "generated_output/prediction_abs_bins.parquet.zstd"
+            )
+        )
+
+    def _load_probability_bins(self):
+        return load_parquet(
+            path=os.path.join(
+                self.exp_dir, "generated_output/probability_bins.parquet.zstd"
             )
         )
 
@@ -138,20 +150,41 @@ class BasicBacktester:
 
         return data_dict
 
-    def _set_bins(self, prediction_abs_bins, index):
+    def _set_bins(self, prediction_abs_bins, probability_bins, index):
         assert (prediction_abs_bins >= 0).all().all()
+        assert (probability_bins >= 0).all().all()
 
-        self.entry_bins = None
+        self.positive_entry_bins = None
+        self.negative_entry_bins = None
         self.exit_bins = None
+        self.positive_probability_bins = None
+        self.negative_probability_bins = None
 
-        if isinstance(self.entry_threshold, str):
-            if "*" in self.entry_threshold:
-                self.entry_bins = (
-                    prediction_abs_bins.loc[int(self.entry_threshold.split("*")[0])]
-                    * float(self.entry_threshold.split("*")[-1])
+        if isinstance(self.positive_entry_threshold, str):
+            if "*" in self.positive_entry_threshold:
+                self.positive_entry_bins = (
+                    prediction_abs_bins.loc[
+                        int(self.positive_entry_threshold.split("*")[0])
+                    ]
+                    * float(self.positive_entry_threshold.split("*")[-1])
                 )[index]
         else:
-            self.entry_bins = prediction_abs_bins.loc[self.entry_threshold][index]
+            self.positive_entry_bins = prediction_abs_bins.loc[
+                self.positive_entry_threshold
+            ][index]
+
+        if isinstance(self.negative_entry_threshold, str):
+            if "*" in self.negative_entry_threshold:
+                self.negative_entry_bins = -(
+                    prediction_abs_bins.loc[
+                        int(self.negative_entry_threshold.split("*")[0])
+                    ]
+                    * float(self.negative_entry_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.negative_entry_bins = -prediction_abs_bins.loc[
+                self.negative_entry_threshold
+            ][index]
 
         if isinstance(self.exit_threshold, str):
             if "*" in self.exit_threshold:
@@ -161,6 +194,32 @@ class BasicBacktester:
                 )[index]
         else:
             self.exit_bins = prediction_abs_bins.loc[self.exit_threshold][index]
+
+        if isinstance(self.positive_probability_threshold, str):
+            if "*" in self.positive_probability_threshold:
+                self.positive_probability_bins = (
+                    probability_bins.loc[
+                        int(self.positive_probability_threshold.split("*")[0])
+                    ]
+                    * float(self.positive_probability_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.positive_probability_bins = probability_bins.loc[
+                self.positive_probability_threshold
+            ][index]
+
+        if isinstance(self.negative_probability_threshold, str):
+            if "*" in self.negative_probability_threshold:
+                self.negative_probability_bins = (
+                    probability_bins.loc[
+                        int(self.negative_probability_threshold.split("*")[0])
+                    ]
+                    * float(self.negative_probability_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.negative_probability_bins = probability_bins.loc[
+                self.negative_probability_threshold
+            ][index]
 
     def build(self):
         self.report_store_dir = os.path.join(self.exp_dir, "reports/")
@@ -192,8 +251,11 @@ class BasicBacktester:
             )
 
         prediction_abs_bins = self._load_prediction_abs_bins()
+        probability_bins = self._load_probability_bins()
         self._set_bins(
-            prediction_abs_bins=prediction_abs_bins, index=self.tradable_coins
+            prediction_abs_bins=prediction_abs_bins,
+            probability_bins=probability_bins,
+            index=self.tradable_coins,
         )
 
     def initialize(self):
@@ -298,9 +360,11 @@ class BasicBacktester:
             "tradable_coins": tuple(self.tradable_coins.tolist()),
             "exit_if_achieved": self.exit_if_achieved,
             "achieve_ratio": self.achieve_ratio,
-            "entry_threshold": self.entry_threshold,
+            "positive_entry_threshold": self.positive_entry_threshold,
+            "negative_entry_threshold": self.negative_entry_threshold,
             "exit_threshold": self.exit_threshold,
-            "probability_threshold": self.probability_threshold,
+            "positive_probability_threshold": self.positive_probability_threshold,
+            "negative_probability_threshold": self.negative_probability_threshold,
             "adjust_prediction": self.adjust_prediction,
         }
         with open(
@@ -399,34 +463,37 @@ class BasicBacktester:
             if (exist_position.asset == position.asset) and (
                 exist_position.side == position.side
             ):
+                # Skip when max_n_updated is None
+                if self.max_n_updated is None:
+                    return True
+
                 # Skip when position has max_n_updated
-                if self.max_n_updated is not None:
-                    if exist_position.n_updated == self.max_n_updated:
+                if exist_position.n_updated == self.max_n_updated:
 
-                        adjusted_prediction = exist_position.prediction
-                        if self.adjust_prediction is True:
-                            adjusted_prediction = self.compute_adjusted_prediction(
-                                side=exist_position.side,
-                                entry_price=exist_position.entry_price,
-                                current_price=position.entry_price,
-                                entry_prediction=exist_position.prediction,
-                                current_prediction=position.prediction,
-                            )
-
-                        # Update only prediction, and entry_at
-                        update_position = Position(
-                            asset=exist_position.asset,
+                    adjusted_prediction = exist_position.prediction
+                    if self.adjust_prediction is True:
+                        adjusted_prediction = self.compute_adjusted_prediction(
                             side=exist_position.side,
-                            qty=exist_position.qty,
                             entry_price=exist_position.entry_price,
-                            prediction=adjusted_prediction,
-                            entry_at=position.entry_at,
-                            n_updated=exist_position.n_updated,
+                            current_price=position.entry_price,
+                            entry_prediction=exist_position.prediction,
+                            current_prediction=position.prediction,
                         )
 
-                        self.positions[idx] = update_position
-                        # return fake updated mark
-                        return True
+                    # Update only prediction, and entry_at
+                    update_position = Position(
+                        asset=exist_position.asset,
+                        side=exist_position.side,
+                        qty=exist_position.qty,
+                        entry_price=exist_position.entry_price,
+                        prediction=adjusted_prediction,
+                        entry_at=position.entry_at,
+                        n_updated=exist_position.n_updated,
+                    )
+
+                    self.positions[idx] = update_position
+                    # return fake updated mark
+                    return True
 
                 update_entry_price = (
                     (exist_position.entry_price * exist_position.qty)

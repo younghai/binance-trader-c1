@@ -56,6 +56,7 @@ class BackboneV1(nn.Module):
 
         blocks = []
         for idx in range(n_blocks):
+
             blocks.append(
                 self._build_block(
                     in_channels=in_channels,
@@ -111,6 +112,8 @@ class BackboneV1(nn.Module):
         return in_channels + (self.n_block_layers * self.growth_rate)
 
     def _build_block(self, in_channels, use_transition_block=True):
+        assert use_transition_block in (False, True)
+
         dense_block = DenseBlock(
             n_layers=self.n_block_layers,
             in_channels=in_channels,
@@ -118,8 +121,8 @@ class BackboneV1(nn.Module):
             dropout=self.dropout,
             activation=self.activation,
             normalization=self.normalization,
-            seblock=self.seblock,
-            sablock=self.sablock,
+            seblock=self.seblock if use_transition_block is True else False,
+            sablock=self.sablock if use_transition_block is True else False,
         )
 
         if use_transition_block is True:

@@ -11,9 +11,11 @@ from .utils import inverse_preprocess_data
 from common_utils_dev import to_parquet, to_abs_path
 
 COMMON_CONFIG = {
-    "data_dir": to_abs_path(__file__, "../../../storage/dataset/v001/train"),
+    "data_dir": to_abs_path(__file__, "../../../storage/dataset/dataset/v001/train"),
     "exp_dir": to_abs_path(__file__, "../../../storage/experiments/v001"),
-    "test_data_dir": to_abs_path(__file__, "../../../storage/dataset/v001/test"),
+    "test_data_dir": to_abs_path(
+        __file__, "../../../storage/dataset/dataset/v001/test"
+    ),
 }
 
 DATA_CONFIG = {
@@ -25,7 +27,7 @@ DATA_CONFIG = {
 MODEL_CONFIG = {
     "lookback_window": 120,
     "batch_size": 512,
-    "lr": 0.0002,
+    "lr": 0.0001,
     "epochs": 15,
     "print_epoch": 1,
     "print_iter": 50,
@@ -35,11 +37,11 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 76,
+        "in_channels": 84,
         "n_blocks": 5,
         "n_block_layers": 8,
         "growth_rate": 12,
-        "dropout": 0.05,
+        "dropout": 0.1,
         "channel_reduction": 0.5,
         "activation": "selu",
         "normalization": None,
@@ -150,17 +152,15 @@ class PredictorV1(BasicPredictor):
             f""" [+] train_loss: {train_loss:.2f}, test_loss: {test_loss:.2f} | [+] pred_norm: {pred_norm:.2f}, label_norm: {label_norm:.2f}"""
         )
 
-    def _build_prediction_abs_bins(self, predictions):
-        prediction_abs_bins = {}
-        for column in predictions.columns:
-            _, prediction_abs_bins[column] = pd.qcut(
-                predictions[column].abs(), 10, labels=False, retbins=True
+    def _build_abs_bins(self, df):
+        abs_bins = {}
+        for column in df.columns:
+            _, abs_bins[column] = pd.qcut(
+                df[column].abs(), 10, labels=False, retbins=True
             )
-            prediction_abs_bins[column] = np.concatenate(
-                [[0], prediction_abs_bins[column][1:-1], [np.inf]]
-            )
+            abs_bins[column] = np.concatenate([[0], abs_bins[column][1:-1], [np.inf]])
 
-        return pd.DataFrame(prediction_abs_bins)
+        return pd.DataFrame(abs_bins)
 
     def _build_probabilities(self, pred_sign_factor):
         return ((pred_sign_factor - 0.5) * 2).abs()
@@ -254,7 +254,8 @@ class PredictorV1(BasicPredictor):
             scaler=self.label_scaler,
         )
 
-        prediction_abs_bins = self._build_prediction_abs_bins(predictions=predictions)
+        prediction_abs_bins = self._build_abs_bins(df=predictions)
+        probability_bins = self._build_abs_bins(df=probabilities)
 
         # Store signals
         for data_type, data in [
@@ -262,6 +263,7 @@ class PredictorV1(BasicPredictor):
             ("labels", labels),
             ("probabilities", probabilities),
             ("prediction_abs_bins", prediction_abs_bins),
+            ("probability_bins", probability_bins),
         ]:
             to_parquet(
                 df=data, path=os.path.join(save_dir, f"{data_type}.parquet.zstd"),
@@ -302,17 +304,20 @@ class PredictorV1(BasicPredictor):
         probabilities.index = probabilities.index.map(lambda x: id_to_asset[x])
 
         # Rescale
-        predictions = predictions.unstack()[self.dataset_params["labels_columns"]]
+        labels_columns = self.dataset_params["labels_columns"]
+        labels_columns = [
+            labels_column.replace("-", "/") for labels_column in labels_columns
+        ]
+
+        predictions = predictions.rename("predictions").to_frame().T[labels_columns]
         predictions = inverse_preprocess_data(
             data=predictions * self.dataset_params["winsorize_threshold"],
             scaler=self.label_scaler,
-        )
-        predictions.stack()
+        ).loc["predictions"]
 
-        probabilities = probabilities.unstack()[self.dataset_params["labels_columns"]]
-        probabilities.stack()
+        probabilities = probabilities.rename("probabilities")[labels_columns]
 
-        return predictions, probabilities
+        return {"predictions": predictions, "probabilities": probabilities}
 
 
 if __name__ == "__main__":

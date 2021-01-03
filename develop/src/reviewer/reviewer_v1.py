@@ -18,7 +18,7 @@ import fancytable as ft
 
 @dataclass
 class ReviewerV1:
-    dataset_dir: str = to_abs_path(__file__, "../../storage/dataset/v001/")
+    dataset_dir: str = to_abs_path(__file__, "../../storage/dataset/dataset/v001/")
     exp_dir: str = to_abs_path(__file__, "../../storage/experiments/v001/")
     reviewer_prefix: str = "v001"
     grid_params: Union[str, Dict[str, List]] = "V1_SET1"
@@ -166,6 +166,9 @@ class ReviewerV1:
                 if isinstance(param["exit_threshold"], (int, float)):
                     return False
 
+                if param["max_n_updated"] is None:
+                    return False
+
             if param["exit_threshold"] != "auto":
                 if param["achieve_ratio"] != 1:
                     return False
@@ -310,8 +313,10 @@ class ReviewerV1:
         self.display_params(index=best_index, in_shell=in_shell)
         self.display_report(index=best_index, in_shell=in_shell)
 
-    def run(self, in_shell=False):
-        self.display_performance()
+    def run(self, in_shell=False, display_performance=False):
+        if in_shell is False:
+            if display_performance is True:
+                self.display_performance()
 
         print(f"[+] Found backtests to start: {len(self.backtesters)}")
 

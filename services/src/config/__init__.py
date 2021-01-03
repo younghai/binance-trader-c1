@@ -64,11 +64,17 @@ class Config:
         )
 
     @cached_property
-    def BINS(self):
-        bins = pd.read_csv(
-            f"/app/dev/experiments/{self.ENV['EXP_NAME']}/bins.csv",
-            header=0,
-            index_col=0,
+    def PREDICTION_ABS_BINS(self):
+        bins = pd.read_parquet(
+            f"/app/dev/experiments/{self.ENV['EXP_NAME']}/generated_output/prediction_abs_bins.parquet.zstd"
+        )
+        bins.columns = bins.columns.map(lambda x: x.replace("-", "/"))
+        return bins
+
+    @cached_property
+    def PROBABILITY_BINS(self):
+        bins = pd.read_parquet(
+            f"/app/dev/experiments/{self.ENV['EXP_NAME']}/generated_output/probability_bins.parquet.zstd"
         )
         bins.columns = bins.columns.map(lambda x: x.replace("-", "/"))
         return bins
@@ -83,6 +89,10 @@ class Config:
     @property
     def BASE_CURRENCY(self):
         return self.REPORT_PARAMS["base_currency"]
+
+    @property
+    def LEVERAGE(self):
+        return int(self.ENV["LEVERAGE"])
 
 
 CFG = Config()

@@ -29,6 +29,8 @@ spec:
               value: postgres
             - name: POSTGRES_PASSWORD
               value: password
+            - name: LEVERAGE
+              value: {{LEVERAGE}}
             - name: EXP_NAME
               value: {{EXP_NAME}}
             - name: REPORT_PREFIX

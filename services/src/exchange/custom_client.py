@@ -22,7 +22,7 @@ class CustomClient:
             }
         )
         self.test_mode = CFG.TEST_MODE
-        self.target_coins = CFG.TRADABLE_COINS
+        self.tradable_coins = CFG.TRADABLE_COINS
 
         self.__set_test_mode()
         self.__set_dual_position_mode()
@@ -44,12 +44,12 @@ class CustomClient:
             raise RuntimeError("[!] Failed to set dual position mode")
 
     def __set_leverage(self):
-        for symbol in self.target_coins:
-            leverage = 1
+        for symbol in self.tradable_coins:
+            leverage = CFG.LEVERAGE
 
             if self.test_mode is True:
                 if symbol in ("XMR/USDT"):
-                    leverage = 2
+                    leverage = max(2, CFG.LEVERAGE)
 
             self.binance_cli.fapiPrivate_post_leverage(
                 {"symbol": symbol.replace("/", ""), "leverage": leverage}

@@ -30,7 +30,7 @@ class DataCollector:
 
     def _set_target_coins(self):
         list_coins_on_binance = sorted(self.binance_cli.fetch_tickers().keys())
-        self.target_coins = sorted(
+        self.tradable_coins = sorted(
             [
                 target_coin
                 for target_coin in tuple(CFG.TRADABLE_COINS)
@@ -41,7 +41,7 @@ class DataCollector:
     def _build_inserts_dict_to_sync(self, now: pd.Timestamp, limit: int):
         inserts_pricings = []
         synced_timestamps = None
-        for asset in self.target_coins:
+        for asset in self.tradable_coins:
             pricing = self._list_historical_pricing(now=now, symbol=asset, limit=limit)
 
             for pricing_row in pricing.reset_index(drop=False).to_dict(
@@ -71,7 +71,7 @@ class DataCollector:
 
         return (inserts_pricings, inserts_syncs)
 
-    def _sync_historical_pricing(self, now: pd.Timestamp, limit: int = 1600):
+    def _sync_historical_pricing(self, now: pd.Timestamp, limit: int = 1500):
         inserts_pricings, inserts_syncs = self._build_inserts_dict_to_sync(
             now=now, limit=limit
         )
@@ -89,13 +89,13 @@ class DataCollector:
         self.usecase.update_syncs(updates=inserts_syncs)
 
         self.usecase.delete_old_records(
-            table="pricings", limit=1600 * len(self.target_coins)
+            table="pricings", limit=1500 * len(self.tradable_coins)
         )
-        self.usecase.delete_old_records(table="syncs", limit=1600)
-        self.usecase.delete_old_records(table="trades", limit=1600)
+        self.usecase.delete_old_records(table="syncs", limit=1500)
+        self.usecase.delete_old_records(table="trades", limit=1500)
 
     def _list_historical_pricing(
-        self, now: pd.Timestamp, symbol: str, limit: int = 1600
+        self, now: pd.Timestamp, symbol: str, limit: int = 1500
     ):
         assert limit < 2000
 
@@ -145,7 +145,7 @@ class DataCollector:
                 minutes_to_sync = self._get_minutes_to_sync(now=now)
 
                 if minutes_to_sync != 0:
-                    minutes_to_sync = min(max(minutes_to_sync, 5), 1600)
+                    minutes_to_sync = min(max(minutes_to_sync, 5), 1500)
 
                     self._sync_live_pricing(now=now, limit=minutes_to_sync)
                     logger.info(f'[+] Synced: {now.floor("T")}')

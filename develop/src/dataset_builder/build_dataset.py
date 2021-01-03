@@ -2,6 +2,7 @@ import os
 import gc
 import json
 from glob import glob
+from typing import Optional, List
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
@@ -16,7 +17,7 @@ from dataclasses import dataclass
 
 CONFIG = {
     "rawdata_dir": to_abs_path(__file__, "../../storage/dataset/rawdata/cleaned/"),
-    "data_store_dir": to_abs_path(__file__, "../../storage/dataset/v001/"),
+    "data_store_dir": to_abs_path(__file__, "../../storage/dataset/dataset/v001/"),
     "lookahead_window": 30,
     "train_ratio": 0.80,
     "scaler_type": "StandardScaler",
@@ -30,10 +31,10 @@ OHLC = ["open", "high", "low", "close"]
 class DatasetBuilder:
     # Defined in running code.
     # Need to give below parameters when build in trader
-    tradable_coins = None
-    feature_columns = None
-    feature_scaler = None
-    label_scaler = None
+    tradable_coins: Optional[List] = None
+    feature_columns: Optional[List] = None
+    feature_scaler: Optional[preprocessing.StandardScaler] = None
+    label_scaler: Optional[preprocessing.StandardScaler] = None
 
     def build_rawdata(self, file_names, query_min_start_dt):
         def _load_rawdata_row(file_name):
@@ -55,21 +56,11 @@ class DatasetBuilder:
         return rawdata[self.tradable_coins]
 
     def _build_feature_by_rawdata_row(self, rawdata_row):
-        returns_1440m = (
-            rawdata_row[OHLC]
-            .pct_change(1440, fill_method=None)
-            .rename(columns={key: key + "_return(1440)" for key in OHLC})
-        ).dropna()
-
         returns_1320m = (
-            (
-                rawdata_row[OHLC]
-                .pct_change(1320, fill_method=None)
-                .rename(columns={key: key + "_return(1320)" for key in OHLC})
-            )
-            .dropna()
-            .reindex(returns_1440m.index)
-        )
+            rawdata_row[OHLC]
+            .pct_change(1320, fill_method=None)
+            .rename(columns={key: key + "_return(1320)" for key in OHLC})
+        ).dropna()
 
         madiv_1320m = (
             (
@@ -79,17 +70,17 @@ class DatasetBuilder:
                 .rename(columns={key: key + "_madiv(1320)" for key in OHLC})
             )
             .dropna()
-            .reindex(returns_1440m.index)
+            .reindex(returns_1320m.index)
         )
 
         returns_600m = (
             (
                 rawdata_row[OHLC]
-                .pct_change(330, fill_method=None)
-                .rename(columns={key: key + "_return(330)" for key in OHLC})
+                .pct_change(600, fill_method=None)
+                .rename(columns={key: key + "_return(600)" for key in OHLC})
             )
             .dropna()
-            .reindex(returns_1440m.index)
+            .reindex(returns_1320m.index)
         )
 
         madiv_600m = (
@@ -100,7 +91,7 @@ class DatasetBuilder:
                 .rename(columns={key: key + "_madiv(600)" for key in OHLC})
             )
             .dropna()
-            .reindex(returns_1440m.index)
+            .reindex(returns_1320m.index)
         )
 
         returns_240m = (
@@ -110,7 +101,18 @@ class DatasetBuilder:
                 .rename(columns={key: key + "_return(240)" for key in OHLC})
             )
             .dropna()
-            .reindex(returns_1440m.index)
+            .reindex(returns_1320m.index)
+        )
+
+        madiv_240m = (
+            (
+                rawdata_row[OHLC]
+                .rolling(240)
+                .mean()
+                .rename(columns={key: key + "_madiv(240)" for key in OHLC})
+            )
+            .dropna()
+            .reindex(returns_1320m.index)
         )
 
         returns_120m = (
@@ -120,7 +122,18 @@ class DatasetBuilder:
                 .rename(columns={key: key + "_return(120)" for key in OHLC})
             )
             .dropna()
-            .reindex(returns_1440m.index)
+            .reindex(returns_1320m.index)
+        )
+
+        madiv_120m = (
+            (
+                rawdata_row[OHLC]
+                .rolling(120)
+                .mean()
+                .rename(columns={key: key + "_madiv(120)" for key in OHLC})
+            )
+            .dropna()
+            .reindex(returns_1320m.index)
         )
 
         returns_1m = (
@@ -130,7 +143,7 @@ class DatasetBuilder:
                 .rename(columns={key: key + "_return(1)" for key in OHLC})
             )
             .dropna()
-            .reindex(returns_1440m.index)
+            .reindex(returns_1320m.index)
         )
 
         inner_changes = []
@@ -141,17 +154,18 @@ class DatasetBuilder:
                 .rename("_".join(column_pair) + "_change")
             )
 
-        inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1440m.index)
+        inner_changes = pd.concat(inner_changes, axis=1).reindex(returns_1320m.index)
 
         feature = pd.concat(
             [
-                returns_1440m,
                 returns_1320m,
                 madiv_1320m,
                 returns_600m,
                 madiv_600m,
                 returns_240m,
+                madiv_240m,
                 returns_120m,
+                madiv_120m,
                 returns_1m,
                 inner_changes,
             ],

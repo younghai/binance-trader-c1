@@ -13,13 +13,11 @@ from config import CFG
 from trainer.models import PredictorV1
 from database.usecase import Usecase
 from exchange.custom_client import CustomClient
-from dataset_builder.build_dataset import (
-    _build_feature_by_rawdata,
-    preprocess_features,
-)
 from .utils import nan_to_zero
 from logging import getLogger
 from common_utils_svc import initialize_trader_logger, Position
+from dataset_builder.build_dataset import DatasetBuilder
+from trainer.datasets.dataset import build_X_and_BX
 
 
 logger = getLogger("trader")
@@ -37,12 +35,17 @@ class TraderV1:
 
     def __post_init__(self):
         self.custom_cli = CustomClient()
-        self.target_coins = pd.Index(self.custom_cli.target_coins)
+        self.tradable_coins = pd.Index(self.custom_cli.tradable_coins)
 
         self._set_params()
         self._set_test_params()
+        self._set_bins(
+            prediction_abs_bins=self.prediction_abs_bins,
+            probability_bins=self.probability_bins,
+            index=self.tradable_coins,
+        )
+        self._build_dataset_builder()
         self._build_model()
-        self._build_scaler()
         self._load_last_entry_at()
         self._initialize_order_books()
 
@@ -55,7 +58,9 @@ class TraderV1:
         # Set params which has dependency on trader logic
         self.base_currency = CFG.REPORT_PARAMS["base_currency"]
         self.position_side = CFG.REPORT_PARAMS["position_side"]
-        self.entry_ratio = CFG.REPORT_PARAMS["entry_ratio"]
+        self.entry_ratio = CFG.REPORT_PARAMS["entry_ratio"] * CFG.LEVERAGE
+        logger.info(f"[O] Info: leverage is {CFG.LEVERAGE}")
+
         self.min_holding_minutes = CFG.REPORT_PARAMS["min_holding_minutes"]
         self.max_holding_minutes = CFG.REPORT_PARAMS["max_holding_minutes"]
         self.compound_interest = CFG.REPORT_PARAMS["compound_interest"]
@@ -68,34 +73,41 @@ class TraderV1:
         # Currently we accept only 0
         assert self.max_n_updated == 0
 
-        self.exit_q_threshold = CFG.REPORT_PARAMS["exit_q_threshold"]
-        self.entry_qay_threshold = CFG.REPORT_PARAMS["entry_qay_threshold"]
-        self.entry_qby_threshold = CFG.REPORT_PARAMS["entry_qby_threshold"]
-        self.entry_qay_prob_threshold = CFG.REPORT_PARAMS["entry_qay_prob_threshold"]
-        self.entry_qby_prob_threshold = CFG.REPORT_PARAMS["entry_qby_prob_threshold"]
-        self.sum_probs_above_threshold = CFG.REPORT_PARAMS["sum_probs_above_threshold"]
+        self.positive_entry_threshold = CFG.REPORT_PARAMS["positive_entry_threshold"]
+        self.negative_entry_threshold = CFG.REPORT_PARAMS["negative_entry_threshold"]
+        self.exit_threshold = CFG.REPORT_PARAMS["exit_threshold"]
+        self.positive_probability_threshold = CFG.REPORT_PARAMS[
+            "positive_probability_threshold"
+        ]
+        self.negative_probability_threshold = CFG.REPORT_PARAMS[
+            "negative_probability_threshold"
+        ]
+        self.adjust_prediction = CFG.REPORT_PARAMS["adjust_prediction"]
 
-        self.bins = CFG.BINS
-        self.n_bins = CFG.DATASET_PARAMS["n_bins"]
+        # Currently we accept False adjust_prediction
+        assert self.adjust_prediction is False
+
+        self.prediction_abs_bins = CFG.PREDICTION_ABS_BINS
+        self.probability_bins = CFG.PROBABILITY_BINS
 
         # Set data builder params
-        self.data_builder_params = {}
-        self.data_builder_params["features_columns"] = [
+        self.dataset_builder_params = {}
+        self.dataset_builder_params["features_columns"] = [
             (column[0].replace("-", "/"), column[1])
             for column in CFG.DATASET_PARAMS["features_columns"]
         ]
-        self.data_builder_params["winsorize_threshold"] = CFG.DATASET_PARAMS[
+        self.dataset_builder_params["winsorize_threshold"] = CFG.DATASET_PARAMS[
             "winsorize_threshold"
         ]
-        self.data_builder_params["base_feature_assets"] = [
+        self.dataset_builder_params["base_feature_assets"] = [
             base_feature_asset.replace("-", "/")
             for base_feature_asset in CFG.EXP_DATA_PARAMS["base_feature_assets"]
         ]
-        self.data_builder_params["asset_to_id"] = {
+        self.dataset_builder_params["asset_to_id"] = {
             key.replace("-", "/"): value
             for key, value in CFG.EXP_PARAMS["asset_to_id"].items()
         }
-        self.data_builder_params["id_to_asset"] = {
+        self.dataset_builder_params["id_to_asset"] = {
             value: key.replace("-", "/")
             for key, value in CFG.EXP_PARAMS["asset_to_id"].items()
         }
@@ -103,14 +115,89 @@ class TraderV1:
     def _set_test_params(self):
         if CFG.TEST_MODE is True:
             assert self.custom_cli.test_mode is True
-
             self.entry_ratio = 0.0001
-            self.exit_q_threshold = 8
-            self.entry_qay_threshold = 8
-            self.entry_qby_threshold = 8
-            self.entry_qay_prob_threshold = 0.0
-            self.entry_qby_prob_threshold = 0.0
-            self.sum_probs_above_threshold = True
+
+    def _set_bins(self, prediction_abs_bins, probability_bins, index):
+        assert (prediction_abs_bins >= 0).all().all()
+        assert (probability_bins >= 0).all().all()
+
+        self.positive_entry_bins = None
+        self.negative_entry_bins = None
+        self.exit_bins = None
+        self.positive_probability_bins = None
+        self.negative_probability_bins = None
+
+        if isinstance(self.positive_entry_threshold, str):
+            if "*" in self.positive_entry_threshold:
+                self.positive_entry_bins = (
+                    prediction_abs_bins.loc[
+                        int(self.positive_entry_threshold.split("*")[0])
+                    ]
+                    * float(self.positive_entry_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.positive_entry_bins = prediction_abs_bins.loc[
+                self.positive_entry_threshold
+            ][index]
+
+        if isinstance(self.negative_entry_threshold, str):
+            if "*" in self.negative_entry_threshold:
+                self.negative_entry_bins = -(
+                    prediction_abs_bins.loc[
+                        int(self.negative_entry_threshold.split("*")[0])
+                    ]
+                    * float(self.negative_entry_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.negative_entry_bins = -prediction_abs_bins.loc[
+                self.negative_entry_threshold
+            ][index]
+
+        if isinstance(self.exit_threshold, str):
+            if "*" in self.exit_threshold:
+                self.exit_bins = (
+                    prediction_abs_bins.loc[int(self.exit_threshold.split("*")[0])]
+                    * float(self.exit_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.exit_bins = prediction_abs_bins.loc[self.exit_threshold][index]
+
+        if isinstance(self.positive_probability_threshold, str):
+            if "*" in self.positive_probability_threshold:
+                self.positive_probability_bins = (
+                    probability_bins.loc[
+                        int(self.positive_probability_threshold.split("*")[0])
+                    ]
+                    * float(self.positive_probability_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.positive_probability_bins = probability_bins.loc[
+                self.positive_probability_threshold
+            ][index]
+
+        if isinstance(self.negative_probability_threshold, str):
+            if "*" in self.negative_probability_threshold:
+                self.negative_probability_bins = (
+                    probability_bins.loc[
+                        int(self.negative_probability_threshold.split("*")[0])
+                    ]
+                    * float(self.negative_probability_threshold.split("*")[-1])
+                )[index]
+        else:
+            self.negative_probability_bins = probability_bins.loc[
+                self.negative_probability_threshold
+            ][index]
+
+    def _build_dataset_builder(self):
+        feature_scaler = joblib.load(os.path.join(CFG.EXP_DIR, "feature_scaler.pkl"))
+        label_scaler = joblib.load(os.path.join(CFG.EXP_DIR, "label_scaler.pkl"))
+
+        self.dataset_builder = DatasetBuilder(
+            tradable_coins=self.tradable_coins,
+            feature_columns=self.dataset_builder_params["features_columns"],
+            feature_scaler=feature_scaler,
+            label_scaler=label_scaler,
+        )
 
     def _build_model(self):
         self.model = PredictorV1(
@@ -121,9 +208,6 @@ class TraderV1:
             mode="predict",
         )
 
-    def _build_scaler(self):
-        self.scaler = joblib.load(os.path.join(CFG.EXP_DIR, "scaler.pkl"))
-
     def _store_last_entry_at(self):
         joblib.dump(self.last_entry_at, LAST_ENTRY_AT_FILE_PATH)
 
@@ -132,7 +216,7 @@ class TraderV1:
             self.last_entry_at = joblib.load(LAST_ENTRY_AT_FILE_PATH)
             logger.info(f"[O] Info: loaded last_entry_at")
         else:
-            self.last_entry_at = {key: None for key in self.target_coins}
+            self.last_entry_at = {key: None for key in self.tradable_coins}
 
         # Initialize
         positions = self.custom_cli.get_position_objects(with_entry_at=True)
@@ -168,50 +252,39 @@ class TraderV1:
         logger.info(f"[O] Info: initialized order books")
 
     def _build_features(self, pricing):
-        features = {}
-        for target_coin in self.target_coins:
-            rawdata = pricing.xs(target_coin, axis=0, level=1).sort_index()
-            features[target_coin] = _build_feature_by_rawdata(rawdata=rawdata)
-
-        features = pd.concat(features, axis=1).sort_index()[
-            self.data_builder_params["features_columns"]
-        ]
-
-        features = preprocess_features(features=features, scaler=self.scaler)
+        features = self.dataset_builder.build_features(rawdata=pricing)
+        features = self.dataset_builder.preprocess_features(
+            features=features,
+            winsorize_threshold=self.dataset_builder_params["winsorize_threshold"],
+        )
 
         return features
 
     def _build_inputs(self, features):
-        base_features = features[self.data_builder_params["base_feature_assets"]]
-        features = features[self.target_coins]
+        features, base_features = build_X_and_BX(
+            features=features.astype("float32"),
+            base_feature_assets=self.dataset_builder_params["base_feature_assets"],
+        )
 
         inputs = []
-        for target_coin in self.target_coins:
-            to_input = pd.concat([base_features, features[target_coin]], axis=1).astype(
-                "float32"
-            )
+        for target_coin in self.tradable_coins:
+            to_input = pd.concat([base_features, features[target_coin]], axis=1)
 
             to_input = np.swapaxes(to_input.values, 0, 1)
-
-            if self.data_builder_params["winsorize_threshold"] is not None:
-                to_input = to_input.clip(
-                    -self.data_builder_params["winsorize_threshold"],
-                    self.data_builder_params["winsorize_threshold"],
-                )
 
             inputs.append(to_input)
 
         inputs = np.stack(inputs, axis=0)
         ids = [
-            self.data_builder_params["asset_to_id"][target_coin]
-            for target_coin in self.target_coins
+            self.dataset_builder_params["asset_to_id"][target_coin]
+            for target_coin in self.tradable_coins
         ]
 
         return inputs, ids
 
     def build_prediction_dict(self, last_sync_on):
         query_start_on = last_sync_on - pd.Timedelta(
-            minutes=(1440 + CFG.EXP_MODEL_PARAMS["lookback_window"] - 1)
+            minutes=(1320 + CFG.EXP_MODEL_PARAMS["lookback_window"] - 1)
         )
         query_end_on = last_sync_on
 
@@ -235,70 +308,26 @@ class TraderV1:
 
         self.cached_pricing = pricing
 
+        pricing = pricing.unstack().swaplevel(0, 1, axis=1)
         features = self._build_features(pricing=pricing)
         inputs, ids = self._build_inputs(features=features)
 
         pred_dict = self.model.predict(
-            X=inputs, id=ids, id_to_asset=self.data_builder_params["id_to_asset"]
+            X=inputs, id=ids, id_to_asset=self.dataset_builder_params["id_to_asset"]
         )
 
         return pred_dict
 
     def build_positive_and_negative_assets(self, pred_dict):
-        if self.sum_probs_above_threshold is True:
-            positive_qay_probability = pred_dict["qay_probability"][
-                pred_dict["qay_probability"].index.get_level_values(1)
-                >= self.entry_qay_threshold
-            ].sum(axis=0, level=0)
-            positive_qby_probability = pred_dict["qby_probability"][
-                pred_dict["qby_probability"].index.get_level_values(1)
-                >= self.entry_qby_threshold
-            ].sum(axis=0, level=0)
-            negative_qay_probability = pred_dict["qay_probability"][
-                pred_dict["qay_probability"].index.get_level_values(1)
-                <= (self.n_bins - 1) - self.entry_qay_threshold
-            ].sum(axis=0, level=0)
-            negative_qby_probability = pred_dict["qby_probability"][
-                pred_dict["qby_probability"].index.get_level_values(1)
-                <= (self.n_bins - 1) - self.entry_qby_threshold
-            ].sum(axis=0, level=0)
-        else:
-            positive_qay_probability = pred_dict["qay_probability"].xs(
-                self.entry_qay_threshold, axis=0, level=1
-            )
-            positive_qby_probability = pred_dict["qby_probability"].xs(
-                self.entry_qby_threshold, axis=0, level=1
-            )
-            negative_qay_probability = pred_dict["qay_probability"].xs(
-                (self.n_bins - 1) - self.entry_qay_threshold, axis=0, level=1
-            )
-            negative_qby_probability = pred_dict["qby_probability"].xs(
-                (self.n_bins - 1) - self.entry_qby_threshold, axis=0, level=1
-            )
-
         # Set assets which has signals
-        positive_mask = (
-            (pred_dict["qay_prediction"] >= self.entry_qay_threshold)
-            & (pred_dict["qby_prediction"] >= self.entry_qby_threshold)
-            & (positive_qay_probability >= self.entry_qay_prob_threshold)
-            & (positive_qby_probability >= self.entry_qby_prob_threshold)
-        )
-
-        negative_mask = (
-            (
-                pred_dict["qay_prediction"]
-                <= (self.n_bins - 1) - self.entry_qay_threshold
-            )
-            & (
-                pred_dict["qby_prediction"]
-                <= (self.n_bins - 1) - self.entry_qby_threshold
-            )
-            & (negative_qay_probability >= self.entry_qay_prob_threshold)
-            & (negative_qby_probability >= self.entry_qby_prob_threshold)
-        )
-
-        positive_assets = self.target_coins[positive_mask].tolist()
-        negative_assets = self.target_coins[negative_mask].tolist()
+        positive_assets = self.tradable_coins[
+            (pred_dict["predictions"] >= self.positive_entry_bins)
+            & (pred_dict["probabilities"] >= self.positive_probability_bins)
+        ]
+        negative_assets = self.tradable_coins[
+            (pred_dict["predictions"] <= self.negative_entry_bins)
+            & (pred_dict["probabilities"] >= self.negative_probability_bins)
+        ]
 
         return positive_assets, negative_assets
 
@@ -422,7 +451,16 @@ class TraderV1:
 
         return is_enough_cache & is_enough_ammount
 
-    def compute_price_to_achieve(self, position, entry_price):
+    def compute_price_to_achieve(self, position, entry_price, predictions=None):
+        if predictions is not None:
+            prediction = predictions[position.asset]
+        else:
+            if position.side == "long":
+                prediction = self.positive_entry_bins[position.asset]
+
+            if position.side == "short":
+                prediction = self.negative_entry_bins[position.asset]
+
         commission = self.commission
         if self.achieved_with_commission is not True:
             commission["entry"] = 0
@@ -430,11 +468,11 @@ class TraderV1:
             commission["spread"] = 0
 
         if position.side == "long":
-            bin_value = self.bins[1:-1][position.asset][self.exit_q_threshold]
+            assert prediction >= 0
             price_to_achieve = (
                 entry_price
                 * (
-                    (bin_value * self.achieve_ratio)
+                    (prediction * self.achieve_ratio)
                     + 1
                     + (commission["entry"] + commission["spread"])
                 )
@@ -442,13 +480,11 @@ class TraderV1:
             )
 
         if position.side == "short":
-            bin_value = self.bins[1:-1][position.asset][
-                (self.n_bins - self.exit_q_threshold)
-            ]
+            assert prediction <= 0
             price_to_achieve = (
                 entry_price
                 * (
-                    (bin_value * self.achieve_ratio)
+                    (prediction * self.achieve_ratio)
                     + 1
                     - (commission["entry"] + commission["spread"])
                 )
@@ -505,7 +541,14 @@ class TraderV1:
             logger.info(f"[+] Entry: {str(position)}")
 
     def handle_entry(
-        self, positions, cache_to_order, positive_assets, negative_assets, pricing, now
+        self,
+        positions,
+        cache_to_order,
+        positive_assets,
+        negative_assets,
+        pricing,
+        predictions,
+        now,
     ):
         # Set init to handle limit order
         self.assets_to_limit_order = []
@@ -548,7 +591,9 @@ class TraderV1:
                     position=position.side,
                     amount=position.qty,
                     price=self.compute_price_to_achieve(
-                        position=position, entry_price=position.entry_price
+                        position=position,
+                        entry_price=position.entry_price,
+                        predictions=predictions,
                     ),
                 )
 
@@ -626,6 +671,7 @@ class TraderV1:
                         positive_assets=positive_assets,
                         negative_assets=negative_assets,
                         pricing=pricing,
+                        predictions=pred_dict["predictions"],
                         now=now,
                     )
 

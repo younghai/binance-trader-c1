@@ -19,9 +19,11 @@ from torch.utils.data import DataLoader
 from trainer.models import backbones
 
 COMMON_CONFIG = {
-    "data_dir": to_abs_path(__file__, "../../../storage/dataset/v001/train"),
+    "data_dir": to_abs_path(__file__, "../../../storage/dataset/dataset/v001/train"),
     "exp_dir": to_abs_path(__file__, "../../../storage/experiments/v001"),
-    "test_data_dir": to_abs_path(__file__, "../../../storage/dataset/v001/test"),
+    "test_data_dir": to_abs_path(
+        __file__, "../../../storage/dataset/dataset/v001/test"
+    ),
 }
 
 
@@ -34,7 +36,7 @@ DATA_CONFIG = {
 MODEL_CONFIG = {
     "lookback_window": 120,
     "batch_size": 512,
-    "lr": 0.0002,
+    "lr": 0.0001,
     "epochs": 15,
     "print_epoch": 1,
     "print_iter": 50,
@@ -44,11 +46,11 @@ MODEL_CONFIG = {
     "load_strict": False,
     "model_name": "BackboneV1",
     "model_params": {
-        "in_channels": 76,
+        "in_channels": 84,
         "n_blocks": 5,
         "n_block_layers": 8,
         "growth_rate": 12,
-        "dropout": 0.05,
+        "dropout": 0.1,
         "channel_reduction": 0.5,
         "activation": "selu",
         "normalization": None,

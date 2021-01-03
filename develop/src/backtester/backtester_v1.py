@@ -6,7 +6,7 @@ import gc
 
 
 CONFIG = {
-    "report_prefix": "001",
+    "report_prefix": "v001",
     "detail_report": False,
     "position_side": "longshort",
     "entry_ratio": 0.055,
@@ -20,9 +20,11 @@ CONFIG = {
     "achieve_ratio": 1,
     "achieved_with_commission": False,
     "max_n_updated": 0,
-    "entry_threshold": 8,
+    "positive_entry_threshold": 8,
+    "negative_entry_threshold": 8,
     "exit_threshold": "auto",
-    "probability_threshold": 0.2,
+    "positive_probability_threshold": 8,
+    "negative_probability_threshold": 8,
     "adjust_prediction": False,
 }
 
@@ -47,9 +49,11 @@ class BacktesterV1(BasicBacktester):
         achieve_ratio=CONFIG["achieve_ratio"],
         achieved_with_commission=CONFIG["achieved_with_commission"],
         max_n_updated=CONFIG["max_n_updated"],
-        entry_threshold=CONFIG["entry_threshold"],
+        positive_entry_threshold=CONFIG["positive_entry_threshold"],
+        negative_entry_threshold=CONFIG["negative_entry_threshold"],
         exit_threshold=CONFIG["exit_threshold"],
-        probability_threshold=CONFIG["probability_threshold"],
+        positive_probability_threshold=CONFIG["positive_probability_threshold"],
+        negative_probability_threshold=CONFIG["negative_probability_threshold"],
         adjust_prediction=CONFIG["adjust_prediction"],
     ):
         super().__init__(
@@ -70,9 +74,11 @@ class BacktesterV1(BasicBacktester):
             achieve_ratio=achieve_ratio,
             achieved_with_commission=achieved_with_commission,
             max_n_updated=max_n_updated,
-            entry_threshold=entry_threshold,
+            positive_entry_threshold=positive_entry_threshold,
+            negative_entry_threshold=negative_entry_threshold,
             exit_threshold=exit_threshold,
-            probability_threshold=probability_threshold,
+            positive_probability_threshold=positive_probability_threshold,
+            negative_probability_threshold=negative_probability_threshold,
             adjust_prediction=adjust_prediction,
         )
 
@@ -87,12 +93,13 @@ class BacktesterV1(BasicBacktester):
             probabilities = self.historical_data_dict["probabilities"].loc[now]
 
             # Set assets which has signals
-            probability_mask = probabilities >= self.probability_threshold
             positive_assets = self.tradable_coins[
-                (predictions >= self.entry_bins) & probability_mask
+                (predictions >= self.positive_entry_bins)
+                & (probabilities >= self.positive_probability_bins)
             ]
             negative_assets = self.tradable_coins[
-                (predictions <= -self.entry_bins) & probability_mask
+                (predictions <= self.negative_entry_bins)
+                & (probabilities >= self.negative_probability_bins)
             ]
 
             # Exit

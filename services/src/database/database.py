@@ -9,6 +9,7 @@ from sqlalchemy.ext.declarative import declarative_base
 ENGINE = create_engine(
     f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ['POSTGRES_HOST']}/{os.environ['POSTGRES_DB']}",
     convert_unicode=False,
+    connect_args={'connect_timeout': 60},
 )
 
 SESSION = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=ENGINE))

@@ -16,7 +16,8 @@ define GENERATE_YML
 	sed "s/{{EXP_NAME}}/$2/g" |\
 	sed "s/{{REPORT_PREFIX}}/$3/g" |\
 	sed "s/{{REPORT_BASE_CURRENCY}}/$4/g" |\
-	sed "s/{{REPORT_ID}}/\"$5\"/g" >\
+	sed "s/{{REPORT_ID}}/\"$5\"/g" |\
+	sed "s/{{LEVERAGE}}/\"$6\"/g" >\
 	$(shell pwd)/k8s/deployments/$1.yml
 endef
 
@@ -35,13 +36,14 @@ _mkdirs:
 	@mkdir -p $(shell pwd)/k8s/deployments
 
 _build_ymls:
-	@read -p "EXP_NAME: " EXP_NAME; EXP_NAME=$${EXP_NAME:-v005}; \
+	@read -p "LEVERAGE: " LEVERAGE; LEVERAGE=$${LEVERAGE:-1}; \
+	read -p "EXP_NAME: " EXP_NAME; EXP_NAME=$${EXP_NAME:-v001}; \
 	read -p "REPORT_PREFIX: " REPORT_PREFIX; REPORT_PREFIX=$${REPORT_PREFIX:-V1_CSET1}; \
 	read -p "REPORT_BASE_CURRENCY: " REPORT_BASE_CURRENCY; REPORT_BASE_CURRENCY=$${REPORT_BASE_CURRENCY:-USDT}; \
-	read -p "REPORT_ID: " REPORT_ID; REPORT_ID=$${REPORT_ID:-98}; \
-	$(call GENERATE_YML,database,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID);\
-	$(call GENERATE_YML,data_collector,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID);\
-	$(call GENERATE_YML,trader,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID)
+	read -p "REPORT_ID: " REPORT_ID; REPORT_ID=$${REPORT_ID:-284}; \
+	$(call GENERATE_YML,database,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID,$$LEVERAGE);\
+	$(call GENERATE_YML,data_collector,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID,$$LEVERAGE);\
+	$(call GENERATE_YML,trader,$$EXP_NAME,$$REPORT_PREFIX,$$REPORT_BASE_CURRENCY,$$REPORT_ID,$$LEVERAGE)
 
 _apply_secret:
 ifeq ($(shell kubectl -n dev get secret market-secret 2> /dev/null),)
