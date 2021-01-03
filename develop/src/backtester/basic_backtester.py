@@ -30,6 +30,7 @@ CONFIG = {
     "max_n_updated": 0,
     "entry_threshold": 8,
     "exit_threshold": "auto",
+    "probability_threshold": 0.2,
     "adjust_prediction": False,
 }
 
@@ -68,6 +69,7 @@ class BasicBacktester:
         max_n_updated=CONFIG["max_n_updated"],
         entry_threshold=CONFIG["entry_threshold"],
         exit_threshold=CONFIG["exit_threshold"],
+        probability_threshold=CONFIG["probability_threshold"],
         adjust_prediction=CONFIG["adjust_prediction"],
     ):
         assert position_side in ("long", "short", "longshort")
@@ -93,6 +95,9 @@ class BasicBacktester:
         assert isinstance(exit_threshold, (float, int, str))
         if type(exit_threshold) == str:
             assert (exit_threshold == "auto") or ("*" in exit_threshold)
+
+        self.probability_threshold = probability_threshold
+        assert (probability_threshold >= 0) and (probability_threshold <= 1)
 
         self.adjust_prediction = adjust_prediction
 
@@ -167,6 +172,9 @@ class BasicBacktester:
                 "pricing": os.path.join(self.dataset_dir, "test/pricing.parquet.zstd"),
                 "predictions": os.path.join(
                     self.exp_dir, "generated_output/predictions.parquet.zstd"
+                ),
+                "probabilities": os.path.join(
+                    self.exp_dir, "generated_output/probabilities.parquet.zstd"
                 ),
                 "labels": os.path.join(
                     self.exp_dir, "generated_output/labels.parquet.zstd"
@@ -292,6 +300,7 @@ class BasicBacktester:
             "achieve_ratio": self.achieve_ratio,
             "entry_threshold": self.entry_threshold,
             "exit_threshold": self.exit_threshold,
+            "probability_threshold": self.probability_threshold,
             "adjust_prediction": self.adjust_prediction,
         }
         with open(

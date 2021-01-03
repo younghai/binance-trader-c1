@@ -22,6 +22,7 @@ CONFIG = {
     "max_n_updated": 0,
     "entry_threshold": 8,
     "exit_threshold": "auto",
+    "probability_threshold": 0.2,
     "adjust_prediction": False,
 }
 
@@ -48,6 +49,7 @@ class BacktesterV1(BasicBacktester):
         max_n_updated=CONFIG["max_n_updated"],
         entry_threshold=CONFIG["entry_threshold"],
         exit_threshold=CONFIG["exit_threshold"],
+        probability_threshold=CONFIG["probability_threshold"],
         adjust_prediction=CONFIG["adjust_prediction"],
     ):
         super().__init__(
@@ -70,6 +72,7 @@ class BacktesterV1(BasicBacktester):
             max_n_updated=max_n_updated,
             entry_threshold=entry_threshold,
             exit_threshold=exit_threshold,
+            probability_threshold=probability_threshold,
             adjust_prediction=adjust_prediction,
         )
 
@@ -81,10 +84,16 @@ class BacktesterV1(BasicBacktester):
             # Step1: Prepare pricing and signal
             pricing = self.historical_data_dict["pricing"].loc[now]
             predictions = self.historical_data_dict["predictions"].loc[now]
+            probabilities = self.historical_data_dict["probabilities"].loc[now]
 
             # Set assets which has signals
-            positive_assets = self.tradable_coins[(predictions >= self.entry_bins)]
-            negative_assets = self.tradable_coins[(predictions <= -self.entry_bins)]
+            probability_mask = probabilities >= self.probability_threshold
+            positive_assets = self.tradable_coins[
+                (predictions >= self.entry_bins) & probability_mask
+            ]
+            negative_assets = self.tradable_coins[
+                (predictions <= -self.entry_bins) & probability_mask
+            ]
 
             # Exit
             self.handle_exit(
