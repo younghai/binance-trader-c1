@@ -86,7 +86,7 @@ class PredictorV1(BasicPredictor):
         )
 
     def _invert_to_prediction(self, pred_abs_factor, pred_sign_factor):
-        multiply = ((pred_sign_factor >= 0) * 1.0) + ((pred_sign_factor < 0) * -1.0)
+        multiply = ((pred_sign_factor >= 0.5) * 1.0) + ((pred_sign_factor < 0.5) * -1.0)
         return pred_abs_factor * multiply
 
     def _compute_train_loss(self, train_data_dict):
@@ -162,6 +162,9 @@ class PredictorV1(BasicPredictor):
 
         return pd.DataFrame(prediction_abs_bins)
 
+    def _build_probabilities(self, pred_sign_factor):
+        return ((pred_sign_factor - 0.5) * 2).abs()
+
     def train(self):
         for epoch in range(self.model_config["epochs"]):
             if epoch <= self.last_epoch:
@@ -219,7 +222,10 @@ class PredictorV1(BasicPredictor):
             predictions += preds.view(-1).cpu().tolist()
             labels += test_data_dict["Y"].view(-1).cpu().tolist()
             probabilities += (
-                ((pred_sign_factor - 0.5) * 2).abs().view(-1).cpu().tolist()
+                self._build_probabilities(pred_sign_factor=pred_sign_factor)
+                .view(-1)
+                .cpu()
+                .tolist()
             )
 
         predictions = (
@@ -283,7 +289,10 @@ class PredictorV1(BasicPredictor):
         )
         predictions = pd.Series(preds.view(-1).cpu().tolist(), index=id.int().tolist(),)
         probabilities = pd.Series(
-            ((pred_sign_factor - 0.5) * 2).abs().view(-1).cpu().tolist(),
+            self._build_probabilities(pred_sign_factor=pred_sign_factor)
+            .view(-1)
+            .cpu()
+            .tolist(),
             index=id.int().tolist(),
         )
 
@@ -292,7 +301,7 @@ class PredictorV1(BasicPredictor):
         predictions.index = predictions.index.map(lambda x: id_to_asset[x])
         probabilities.index = probabilities.index.map(lambda x: id_to_asset[x])
 
-        # Reorder
+        # Rescale
         predictions = predictions.unstack()[self.dataset_params["labels_columns"]]
         predictions = inverse_preprocess_data(
             data=predictions * self.dataset_params["winsorize_threshold"],

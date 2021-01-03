@@ -38,12 +38,10 @@ class ReviewerV1:
 
     def _load_data_dict(self):
         data_dict = {}
-        data_dict["labels"] = pd.read_parquet(
-            os.path.join(self.exp_dir, "generated_output/labels.parquet.zstd")
-        )
-        data_dict["predictions"] = pd.read_parquet(
-            os.path.join(self.exp_dir, "generated_output/predictions.parquet.zstd")
-        )
+        for key in ("labels", "predictions", "probabilities"):
+            data_dict[key] = pd.read_parquet(
+                os.path.join(self.exp_dir, f"generated_output/{key}.parquet.zstd")
+            )
 
         return data_dict
 
@@ -101,6 +99,7 @@ class ReviewerV1:
         label_levels = self._build_levels(data=data_dict["labels"])
         prediction_levels = self._build_levels(data=data_dict["predictions"])
         abs_prediction_levels = self._build_levels(data=data_dict["predictions"].abs())
+        probability_levels = self._build_levels(data=data_dict["probabilities"])
 
         display_markdown("#### Performance on label levels", raw=True)
         display(
@@ -125,6 +124,15 @@ class ReviewerV1:
             ft.display(
                 self._build_performance_on_levels(
                     data_dict=data_dict, levels=abs_prediction_levels
+                )
+            )
+        )
+
+        display_markdown("#### Performance on probability levels", raw=True)
+        display(
+            ft.display(
+                self._build_performance_on_levels(
+                    data_dict=data_dict, levels=probability_levels
                 )
             )
         )
