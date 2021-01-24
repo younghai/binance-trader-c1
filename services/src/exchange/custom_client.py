@@ -165,6 +165,9 @@ class CustomClient:
             if CFG.TEST_MODE is True:
                 return None
 
+            elif "-2019" in str(e):
+                return None
+
             raise ccxt.errors.ExchangeError(e)
 
         order["symbol"] = self.revision_symbols([order["symbol"]])[-1]

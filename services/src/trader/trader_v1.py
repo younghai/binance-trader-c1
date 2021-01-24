@@ -530,7 +530,6 @@ class TraderV1:
                 amount=position.qty,
             )
             if ordered is None:
-                assert CFG.TEST_MODE is True
                 return
 
             self.last_entry_at[position.asset] = now
