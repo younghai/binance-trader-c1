@@ -29,9 +29,6 @@ dev_review:
 dev_display_review:
 	@make -C develop display_review
 
-svc_push_container:
-	@make -C services push_container
-
 svc_install:
 	@make -C services install
 

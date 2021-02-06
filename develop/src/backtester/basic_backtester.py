@@ -407,7 +407,7 @@ class BasicBacktester:
 
     def display_report(self, report):
         display_markdown(f"#### Report: {self.base_currency}", raw=True)
-        _, ax = plt.subplots(4, 1, figsize=(12, 12))
+        _, ax = plt.subplots(4, 1, figsize=(12, 12), sharex=True)
 
         for idx, column in enumerate(["capital", "cache", "return", "trade_return"]):
             if column == "trade_return":

@@ -2,8 +2,6 @@ GPU_TYPE=NVIDIA
 CONTAINER_NAME=docker ps | grep binance_trader_develop:latest | cut -d ' ' -f 1
 CONTAINER_NAMES=docker ps -a | grep binance_trader_develop:latest | cut -d ' ' -f 1
 
-print:
-	echo $(GPU_TYPE)
 
 _build_container:
 ifeq ($(shell echo $(GPU_TYPE) | tr [a-z] [A-Z]),NVIDIA)
@@ -42,7 +40,7 @@ build_rawdata: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m rawdata_builder.build_rawdata $(ARGS)
 
 build_dataset: _run_if_not_exists
-	docker exec -it $(shell $(CONTAINER_NAME)) python -m dataset_builder.build_dataset $(ARGS)
+	docker exec -it $(shell $(CONTAINER_NAME)) python -m dataset_builder.build_dataset build $(ARGS)
 
 train: _run_if_not_exists
 	docker exec -it $(shell $(CONTAINER_NAME)) python -m trainer.models.predictor_v1 train --mode=train $(ARGS)

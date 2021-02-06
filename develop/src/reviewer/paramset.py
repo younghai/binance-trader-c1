@@ -17,8 +17,8 @@ V1_SET1 = OrderedDict(
         positive_entry_threshold=[9],
         negative_entry_threshold=[9],
         exit_threshold="auto",
-        positive_probability_threshold=[5, 6, 7],
-        negative_probability_threshold=[9, "9*1.25", "9*1.5"],
+        positive_probability_threshold=[5, 6, 7, 8, 9],
+        negative_probability_threshold=[8, 9, "9*1.25", "9*1.5"],
         adjust_prediction=False,
         possible_in_debt=False,
     )
@@ -41,7 +41,7 @@ V1_SET2 = OrderedDict(
         positive_entry_threshold=[8, 9],
         negative_entry_threshold=[8, 9],
         exit_threshold="auto",
-        positive_probability_threshold=[5, 6, 7, 8],
+        positive_probability_threshold=[5, 6, 7, 8, 9],
         negative_probability_threshold=[8, 9, "9*1.25", "9*1.5"],
         adjust_prediction=False,
     )
@@ -65,8 +65,8 @@ V1_CSET1 = OrderedDict(
         positive_entry_threshold=[9],
         negative_entry_threshold=[9],
         exit_threshold="auto",
-        positive_probability_threshold=[5, 6, 7],
-        negative_probability_threshold=[9, "9*1.25", "9*1.5"],
+        positive_probability_threshold=[5, 6, 7, 8, 9],
+        negative_probability_threshold=[8, 9, "9*1.25", "9*1.5"],
         adjust_prediction=False,
         possible_in_debt=False,
     )
@@ -89,7 +89,7 @@ V1_CSET2 = OrderedDict(
         positive_entry_threshold=[8, 9],
         negative_entry_threshold=[8, 9],
         exit_threshold="auto",
-        positive_probability_threshold=[5, 6, 7, 8],
+        positive_probability_threshold=[5, 6, 7, 8, 9],
         negative_probability_threshold=[8, 9, "9*1.25", "9*1.5"],
         adjust_prediction=False,
     )

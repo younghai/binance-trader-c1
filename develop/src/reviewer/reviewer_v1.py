@@ -275,7 +275,7 @@ class ReviewerV1:
         report = self._load_artifact(artifact_type="report", index=index)
 
         display_markdown(f"#### Report: {index}", raw=True)
-        _, ax = plt.subplots(4, 1, figsize=(12, 12))
+        _, ax = plt.subplots(4, 1, figsize=(12, 12), sharex=True)
 
         for idx, column in enumerate(["capital", "cache", "return", "trade_return"]):
             if column == "trade_return":
